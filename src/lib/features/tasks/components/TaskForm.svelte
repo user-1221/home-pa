@@ -28,11 +28,11 @@
       { value: "ルーティン", label: "Routine", description: "Recurring task" },
     ];
 
-  // Location options
+  // Location options (UI labels in Japanese, internal values unchanged)
   const locationOptions: { value: LocationPreference; label: string }[] = [
-    { value: "home/near_home", label: "🏠 Home only" },
-    { value: "workplace/near_workplace", label: "🏢 Workplace only" },
-    { value: "no_preference", label: "📍 Anywhere" },
+    { value: "home/near_home", label: "🏠 自宅/自宅付近" },
+    { value: "workplace/near_workplace", label: "🏢 勤務地" },
+    { value: "no_preference", label: "どこでも" },
   ];
 
   // Period options
