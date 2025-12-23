@@ -223,7 +223,7 @@
 </script>
 
 <div
-  class="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-app)] shadow-[0_4px_16px_rgba(0,0,0,0.06)]"
+  class="card flex h-full max-h-full min-h-0 flex-col overflow-hidden bg-base-100 shadow-sm"
   style="scrollbar-width: none; -ms-overflow-style: none;"
 >
   <!-- Calendar Header -->

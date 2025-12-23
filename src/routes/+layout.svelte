@@ -57,14 +57,12 @@
 </svelte:head>
 
 {#if isPublicRoute($page.url.pathname)}
-  <div class="flex h-screen min-h-screen flex-col overflow-hidden">
+  <div class="flex h-dvh min-h-dvh flex-col overflow-hidden bg-base-100">
     {@render children?.()}
   </div>
 {:else}
-  <div class="flex h-screen min-h-screen flex-col bg-[var(--color-bg-app)]">
-    <main
-      class="box-border flex h-[calc(100vh-var(--bottom-nav-height,80px)-env(safe-area-inset-bottom))] max-h-[calc(100vh-var(--bottom-nav-height,80px)-env(safe-area-inset-bottom))] min-h-[calc(100vh-var(--bottom-nav-height,80px)-env(safe-area-inset-bottom))] w-full flex-col overflow-auto bg-transparent"
-    >
+  <div class="flex h-dvh min-h-dvh flex-col overflow-hidden bg-base-100">
+    <main class="flex min-h-0 flex-1 flex-col overflow-auto pb-[calc(var(--bottom-nav-height,60px)+env(safe-area-inset-bottom))]">
       {@render children?.()}
     </main>
     <BottomNavigation />

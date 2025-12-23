@@ -64,63 +64,56 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<div
-  class="scrollbar-thin scrollbar-thumb-[var(--color-primary)] scrollbar-track-transparent mx-auto max-h-[calc(100vh-120px)] min-h-[calc(100vh-120px)] max-w-screen-xl overflow-y-auto bg-[var(--color-bg-app)]/60 p-3 backdrop-blur-sm md:p-5"
->
+<div class="mx-auto flex h-full flex-1 flex-col overflow-y-auto bg-base-200/60 p-3 backdrop-blur-sm md:max-w-screen-xl md:p-5">
   <!-- Header with Settings Icon -->
-  <div
-    class="mb-6 flex h-14 items-center justify-between border-b border-[var(--color-border-default)] pb-3 md:h-20"
-  >
-    <div class="flex flex-col gap-1">
-      <h2
-        class="m-0 text-base font-normal tracking-tight text-[var(--color-text-primary)] md:text-xl"
-      >
-        Utilities
-      </h2>
-      <p class="m-0 text-sm text-[var(--color-text-secondary)] md:text-base">
-        Mini apps and tools to enhance your workflow
-      </p>
+  <div class="navbar mb-6 min-h-14 border-b border-base-300 px-0 md:min-h-20">
+    <div class="flex-1">
+      <div class="flex flex-col gap-1">
+        <h2 class="text-base font-normal tracking-tight md:text-xl">Utilities</h2>
+        <p class="text-sm text-base-content/60 md:text-base">
+          Mini apps and tools to enhance your workflow
+        </p>
+      </div>
     </div>
-    <button
-      class="flex h-9 min-h-[36px] w-9 min-w-[36px] items-center justify-center rounded-xl text-lg text-[var(--color-text-secondary)] transition-all duration-200 hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)] md:h-11 md:w-11 md:text-xl"
-      onclick={() => (showSettings = true)}
-      aria-label="Settings"
-    >
-      ⚙️
-    </button>
+    <div class="flex-none">
+      <button
+        class="btn btn-ghost btn-circle btn-sm md:btn-md"
+        onclick={() => (showSettings = true)}
+        aria-label="Settings"
+      >
+        ⚙️
+      </button>
+    </div>
   </div>
 
   <!-- Mini Apps Grid -->
   <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
     {#each miniApps as app (app.id)}
       <button
-        class="group flex flex-col items-center gap-3 rounded-2xl border border-[var(--color-border-default)] bg-[var(--color-bg-app)] p-6 text-center transition-all duration-200 hover:border-[var(--color-primary)]/50 hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)] active:scale-95"
+        class="card card-sm group bg-base-100 shadow-sm transition-all duration-200 hover:shadow-md active:scale-95"
         onclick={() => openMiniApp(app.id)}
       >
-        <div
-          class="flex h-16 w-16 items-center justify-center rounded-2xl text-3xl transition-transform duration-200 group-hover:scale-110"
-          style="background-color: color-mix(in srgb, {app.color} 15%, transparent)"
-        >
-          {app.icon}
-        </div>
-        <div>
-          <span
-            class="block text-sm font-medium text-[var(--color-text-primary)]"
-            >{app.name}</span
+        <div class="card-body items-center gap-3 p-6 text-center">
+          <div
+            class="flex h-16 w-16 items-center justify-center rounded-2xl text-3xl transition-transform duration-200 group-hover:scale-110"
+            style="background-color: color-mix(in srgb, {app.color} 15%, transparent)"
           >
-          <span class="mt-1 block text-xs text-[var(--color-text-muted)]"
-            >{app.description}</span
-          >
+            {app.icon}
+          </div>
+          <div>
+            <span class="block text-sm font-medium">{app.name}</span>
+            <span class="mt-1 block text-xs text-base-content/50">{app.description}</span>
+          </div>
         </div>
       </button>
     {/each}
 
     <!-- Placeholder for future apps -->
-    <div
-      class="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--color-border-default)] p-6 text-center opacity-50"
-    >
-      <span class="text-2xl text-[var(--color-text-muted)]">+</span>
-      <span class="text-xs text-[var(--color-text-muted)]">More coming</span>
+    <div class="card card-sm border-2 border-dashed border-base-300 bg-transparent opacity-50">
+      <div class="card-body items-center justify-center gap-2 p-6 text-center">
+        <span class="text-2xl text-base-content/50">+</span>
+        <span class="text-xs text-base-content/50">More coming</span>
+      </div>
     </div>
   </div>
 </div>
@@ -132,20 +125,19 @@
 {#if activeMiniApp}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
-    class="fixed inset-0 z-[2100] flex items-end justify-center bg-black/40 backdrop-blur-sm md:items-center"
+    class="modal modal-open modal-bottom z-[2100] md:modal-middle"
     role="button"
     tabindex="-1"
     aria-label="Close mini app"
     onclick={handleBackdropClick}
   >
-    <div
-      class="flex max-h-[90vh] min-h-0 w-full flex-col overflow-hidden rounded-t-2xl bg-[var(--color-bg-app)] shadow-xl md:max-h-[80vh] md:max-w-2xl md:rounded-2xl"
-    >
+    <div class="modal-box max-h-[90vh] w-full max-w-2xl p-0 md:max-h-[80vh]">
       {#if activeMiniApp === "transit"}
         <TransitView onClose={closeMiniApp} />
       {:else if activeMiniApp === "progress-memo"}
         <ProgressMemoView onClose={closeMiniApp} />
       {/if}
     </div>
+    <div class="modal-backdrop bg-black/40 backdrop-blur-sm"></div>
   </div>
 {/if}

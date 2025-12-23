@@ -101,134 +101,111 @@
 </script>
 
 <div
-  class="card relative mb-3 rounded-xl border border-l-4 border-[var(--color-border-default)] bg-[var(--color-bg-app)] p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md {task.type ===
+  class="card card-sm relative mb-3 border-l-4 bg-base-100 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md {task.type ===
   '期限付き'
-    ? 'border-l-[var(--color-warning-500)]'
+    ? 'border-l-warning'
     : task.type === 'ルーティン'
-      ? 'border-l-[var(--color-primary)]'
-      : 'border-l-[var(--color-text-muted)]/30'}"
+      ? 'border-l-primary'
+      : 'border-l-base-300'}"
   class:opacity-60={task.status.completionState === "completed"}
-  class:bg-[var(--color-bg-surface)]={task.status.completionState ===
-    "completed"}
+  class:bg-base-200={task.status.completionState === "completed"}
 >
   {#if isEnriching}
-    <div
-      class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-xl bg-[var(--color-text-primary)]/70 backdrop-blur-sm"
-    >
-      <div
-        class="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-[var(--color-primary)]"
-      ></div>
-      <span class="text-xs font-medium tracking-wide text-white"
-        >AI analyzing...</span
-      >
+    <div class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-xl bg-base-content/70 backdrop-blur-sm">
+      <span class="loading loading-spinner loading-md text-primary"></span>
+      <span class="text-xs font-medium tracking-wide text-base-100">AI analyzing...</span>
     </div>
   {/if}
-  <div class="mb-2">
+  
+  <div class="card-body gap-2 p-4">
+    <!-- Title row -->
     <div class="flex items-center justify-between gap-2">
       <h3
-        class="m-0 flex-1 text-base font-medium text-[var(--color-text-primary)]"
+        class="card-title flex-1 text-base"
         class:line-through={task.status.completionState === "completed"}
       >
         {task.title}
       </h3>
-      <div class="flex items-center gap-1.5">
-        <span class="badge badge-sm text-[0.7rem] tracking-wider uppercase"
-          >{typeLabel}</span
-        >
+      <div class="flex flex-wrap items-center gap-1.5">
+        <span class="badge badge-outline badge-sm text-[0.7rem] uppercase tracking-wider">{typeLabel}</span>
         {#if genreLabel()}
-          <span
-            class="badge bg-purple-500/10 badge-sm font-medium text-purple-600"
-            >{genreLabel()}</span
-          >
+          <span class="badge badge-secondary badge-sm">{genreLabel()}</span>
         {/if}
         {#if sessionDurationLabel()}
-          <span
-            class="badge bg-[color:var(--color-today)]/10 badge-sm font-medium text-[color:var(--color-today)]"
-            >{sessionDurationLabel()}</span
-          >
+          <span class="badge badge-info badge-sm">{sessionDurationLabel()}</span>
         {/if}
       </div>
     </div>
-  </div>
 
-  <div class="mb-2 flex flex-col gap-1.5">
-    {#if task.type === "期限付き" && task.deadline}
-      <div
-        class="flex items-center gap-1 text-sm"
-        class:text-error={isUrgent()}
-        class:font-medium={isUrgent()}
-      >
-        <span class="text-[0.9rem]">📅</span>
-        <span>{deadlineText()}</span>
-      </div>
-    {/if}
-
-    {#if task.type === "ルーティン" && routineProgress()}
-      {@const prog = routineProgress()}
-      <div class="flex items-center gap-1 text-sm text-base-content/70">
-        <span class="text-[0.9rem]">🔄</span>
-        <span>{prog?.done}/{prog?.goal} this {task.recurrenceGoal?.period}</span
+    <!-- Meta info -->
+    <div class="flex flex-col gap-1.5 text-sm">
+      {#if task.type === "期限付き" && task.deadline}
+        <div
+          class="flex items-center gap-1"
+          class:text-error={isUrgent()}
+          class:font-medium={isUrgent()}
         >
-      </div>
-    {/if}
+          <span>📅</span>
+          <span>{deadlineText()}</span>
+        </div>
+      {/if}
 
-    <div class="flex items-center gap-1 text-sm text-base-content/70">
-      <span class="text-[0.9rem]">📍</span>
-      <span class="opacity-70">{locationLabel}</span>
+      {#if task.type === "ルーティン" && routineProgress()}
+        {@const prog = routineProgress()}
+        <div class="flex items-center gap-1 text-base-content/70">
+          <span>🔄</span>
+          <span>{prog?.done}/{prog?.goal} this {task.recurrenceGoal?.period}</span>
+        </div>
+      {/if}
+
+      <div class="flex items-center gap-1 text-base-content/60">
+        <span>📍</span>
+        <span>{locationLabel}</span>
+      </div>
     </div>
-  </div>
 
-  <div class="mb-2 flex items-center gap-2">
-    {#if task.type === "ルーティン" && routineProgress()}
-      {@const prog = routineProgress()}
-      <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-base-200">
-        <div
-          class="h-full rounded-full bg-[color:var(--color-primary)] transition-all duration-300"
-          style="width: {prog?.percent}%"
-        ></div>
-      </div>
-      <span class="min-w-[60px] text-right text-[0.7rem] text-base-content/50"
-        >Progress: {prog?.done}/{prog?.goal}</span
-      >
-    {:else}
-      {@const prog = timeProgress()}
-      <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-base-200">
-        <div
-          class="h-full rounded-full bg-[color:var(--color-accent)] transition-all duration-300"
-          style="width: {prog.percent}%"
-        ></div>
-      </div>
-      <span class="min-w-[60px] text-right text-[0.7rem] text-base-content/50"
-        >Progress: {prog.spent}/{prog.total} min</span
-      >
-    {/if}
-  </div>
+    <!-- Progress bar -->
+    <div class="flex items-center gap-2">
+      {#if task.type === "ルーティン" && routineProgress()}
+        {@const prog = routineProgress()}
+        <progress class="progress progress-primary flex-1" value={prog?.percent} max="100"></progress>
+        <span class="min-w-[60px] text-right text-xs text-base-content/50">
+          {prog?.done}/{prog?.goal}
+        </span>
+      {:else}
+        {@const prog = timeProgress()}
+        <progress class="progress progress-accent flex-1" value={prog.percent} max="100"></progress>
+        <span class="min-w-[60px] text-right text-xs text-base-content/50">
+          {prog.spent}/{prog.total} min
+        </span>
+      {/if}
+    </div>
 
-  <div
-    class="flex justify-end gap-2 opacity-0 transition-opacity duration-200 max-md:opacity-100 md:opacity-0 md:group-hover:opacity-100"
-  >
-    {#if task.status.completionState !== "completed"}
+    <!-- Action buttons -->
+    <div class="card-actions justify-end opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100">
+      {#if task.status.completionState !== "completed"}
+        <button
+          class="btn btn-success btn-outline btn-xs btn-square"
+          onclick={handleComplete}
+          title="Mark complete"
+        >
+          ✓
+        </button>
+      {/if}
       <button
-        class="btn h-7 min-h-0 w-7 border border-success bg-base-200 text-success transition-all duration-150 btn-xs hover:scale-110 hover:bg-success hover:text-white"
-        onclick={handleComplete}
-        title="Mark complete"
+        class="btn btn-primary btn-outline btn-xs btn-square"
+        onclick={handleEdit}
+        title="Edit"
       >
-        ✓
+        ✏️
       </button>
-    {/if}
-    <button
-      class="btn h-7 min-h-0 w-7 border border-[color:var(--color-primary)] bg-base-200 transition-all duration-150 btn-xs hover:scale-110 hover:bg-[color:var(--color-primary)] hover:text-base-100"
-      onclick={handleEdit}
-      title="Edit"
-    >
-      ✏️
-    </button>
-    <button
-      class="btn h-7 min-h-0 w-7 border border-error bg-base-200 text-error transition-all duration-150 btn-xs hover:scale-110 hover:bg-error hover:text-white"
-      onclick={handleDelete}
-      title="Delete"
-    >
-      🗑️
-    </button>
+      <button
+        class="btn btn-error btn-outline btn-xs btn-square"
+        onclick={handleDelete}
+        title="Delete"
+      >
+        🗑️
+      </button>
+    </div>
   </div>
 </div>

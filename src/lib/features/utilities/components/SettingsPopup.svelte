@@ -100,31 +100,23 @@
 <svelte:window onkeydown={handleKeydown} />
 
 {#if open}
-  <!-- Backdrop -->
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
-    class="fixed inset-0 z-[2100] flex items-end justify-center bg-black/40 backdrop-blur-sm md:items-center"
+    class="modal modal-open modal-bottom z-[2100] md:modal-middle"
     role="button"
     tabindex="-1"
     aria-label="Close settings"
     onclick={handleBackdropClick}
   >
-    <!-- Modal -->
-    <div
-      class="flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-2xl bg-[var(--color-bg-app)] shadow-xl md:max-w-lg md:rounded-2xl"
-    >
+    <div class="modal-box max-h-[85vh] w-full max-w-lg p-0">
       <!-- Header -->
-      <div
-        class="flex items-center justify-between border-b border-[var(--color-border-default)] p-4"
-      >
+      <div class="flex items-center justify-between border-b border-base-300 p-4">
         <div class="flex items-center gap-3">
           <span class="text-xl">⚙️</span>
-          <h2 class="m-0 text-xl font-medium text-[var(--color-text-primary)]">
-            Settings
-          </h2>
+          <h2 class="text-xl font-medium">Settings</h2>
         </div>
         <button
-          class="flex h-9 w-9 items-center justify-center rounded-lg text-xl text-[var(--color-text-secondary)] transition-colors duration-200 hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)]"
+          class="btn btn-ghost btn-sm btn-square"
           onclick={onClose}
           aria-label="Close"
         >
@@ -133,21 +125,17 @@
       </div>
 
       <!-- Tabs -->
-      <div class="flex border-b border-[var(--color-border-default)]">
+      <div role="tablist" class="tabs tabs-bordered">
         <button
-          class="flex-1 px-4 py-3 text-sm font-medium transition-colors duration-200 {activeTab ===
-          'account'
-            ? 'border-b-2 border-[var(--color-primary)] text-[var(--color-primary)]'
-            : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}"
+          role="tab"
+          class="tab flex-1 {activeTab === 'account' ? 'tab-active' : ''}"
           onclick={() => (activeTab = "account")}
         >
           Account
         </button>
         <button
-          class="flex-1 px-4 py-3 text-sm font-medium transition-colors duration-200 {activeTab ===
-          'data'
-            ? 'border-b-2 border-[var(--color-primary)] text-[var(--color-primary)]'
-            : 'text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'}"
+          role="tab"
+          class="tab flex-1 {activeTab === 'data' ? 'tab-active' : ''}"
           onclick={() => (activeTab = "data")}
         >
           Import / Export
@@ -159,40 +147,34 @@
         {#if activeTab === "account"}
           <!-- Account Tab -->
           <div class="flex flex-col gap-4">
-            <div
-              class="rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-800)] p-5 text-white shadow-[0_4px_20px_rgba(123,190,187,0.25)]"
-            >
-              <UserSettings />
+            <div class="card bg-gradient-to-br from-primary to-primary/80 text-primary-content shadow-lg">
+              <div class="card-body p-5">
+                <UserSettings />
+              </div>
             </div>
 
             <!-- Active Hours Setting -->
-            <div
-              class="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4"
-            >
-              <h3
-                class="mb-2 text-base font-medium text-[var(--color-text-primary)]"
-              >
-                Active Hours
-              </h3>
-              <p class="mb-3 text-sm text-[var(--color-text-secondary)]">
-                Set your active hours for task scheduling in the Assistant view.
-              </p>
-              <div class="flex items-center gap-2">
-                <input
-                  type="time"
-                  value={settingsState.activeStartTime}
-                  onchange={(e) =>
-                    settingsState.setActiveStartTime(e.currentTarget.value)}
-                  class="input-bordered input input-sm w-32 rounded-xl border-[var(--color-border-default)] bg-[var(--color-bg-app)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
-                />
-                <span class="text-sm text-[var(--color-text-muted)]">–</span>
-                <input
-                  type="time"
-                  value={settingsState.activeEndTime}
-                  onchange={(e) =>
-                    settingsState.setActiveEndTime(e.currentTarget.value)}
-                  class="input-bordered input input-sm w-32 rounded-xl border-[var(--color-border-default)] bg-[var(--color-bg-app)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
-                />
+            <div class="card card-sm bg-base-200">
+              <div class="card-body gap-2 p-4">
+                <h3 class="card-title text-base">Active Hours</h3>
+                <p class="text-sm text-base-content/60">
+                  Set your active hours for task scheduling in the Assistant view.
+                </p>
+                <div class="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={settingsState.activeStartTime}
+                    onchange={(e) => settingsState.setActiveStartTime(e.currentTarget.value)}
+                    class="input input-bordered input-sm w-32"
+                  />
+                  <span class="text-sm text-base-content/50">–</span>
+                  <input
+                    type="time"
+                    value={settingsState.activeEndTime}
+                    onchange={(e) => settingsState.setActiveEndTime(e.currentTarget.value)}
+                    class="input input-bordered input-sm w-32"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -200,143 +182,109 @@
           <!-- Import/Export Tab -->
           <div class="flex flex-col gap-4">
             <!-- Import Section -->
-            <div
-              class="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4"
-            >
-              <h3
-                class="mb-2 text-base font-medium text-[var(--color-text-primary)]"
-              >
-                Import Calendar
-              </h3>
-              <p class="mb-3 text-sm text-[var(--color-text-secondary)]">
-                Import events from Google Calendar, Apple Calendar, or any .ics
-                file.
-              </p>
+            <div class="card card-sm bg-base-200">
+              <div class="card-body gap-2 p-4">
+                <h3 class="card-title text-base">Import Calendar</h3>
+                <p class="text-sm text-base-content/60">
+                  Import events from Google Calendar, Apple Calendar, or any .ics file.
+                </p>
 
-              <input
-                type="file"
-                accept=".ics,text/calendar"
-                onchange={handleFileSelect}
-                bind:this={fileInputRef}
-                class="hidden"
-                disabled={importing || !isApiEnabled}
-              />
+                <input
+                  type="file"
+                  accept=".ics,text/calendar"
+                  onchange={handleFileSelect}
+                  bind:this={fileInputRef}
+                  class="hidden"
+                  disabled={importing || !isApiEnabled}
+                />
 
-              <button
-                class="btn w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-app)] text-sm text-[var(--color-text-secondary)] transition-all duration-200 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
-                onclick={triggerFileInput}
-                disabled={importing || !isApiEnabled}
-              >
-                {#if importing}
-                  <span class="loading loading-sm loading-spinner"></span>
-                  Importing...
-                {:else}
-                  📁 Select .ics File
-                {/if}
-              </button>
-
-              {#if importResult}
-                <div
-                  class="relative mt-3 rounded-lg border p-3 text-sm {importResult
-                    .errors.length > 0
-                    ? 'border-[var(--color-error-500)]/30 bg-[var(--color-error-100)]'
-                    : 'border-[var(--color-success-500)]/30 bg-[var(--color-success-100)]'}"
+                <button
+                  class="btn btn-outline btn-block"
+                  onclick={triggerFileInput}
+                  disabled={importing || !isApiEnabled}
                 >
-                  <button
-                    class="absolute top-2 right-2 text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)]"
-                    onclick={clearImportResult}>×</button
-                  >
-
-                  {#if importResult.imported > 0}
-                    <p class="text-[var(--color-success-500)]">
-                      ✓ Imported {importResult.imported} events
-                    </p>
+                  {#if importing}
+                    <span class="loading loading-spinner loading-sm"></span>
+                    Importing...
+                  {:else}
+                    📁 Select .ics File
                   {/if}
+                </button>
 
-                  {#if importResult.skipped > 0}
-                    <p class="text-[var(--color-primary)]">
-                      Skipped {importResult.skipped} duplicates
-                    </p>
-                  {/if}
-
-                  {#if importResult.errors.length > 0}
-                    <div class="text-[var(--color-error-500)]">
-                      {#each importResult.errors as error, idx (idx)}
-                        <p>{error}</p>
-                      {/each}
+                {#if importResult}
+                  <div class="alert mt-3 {importResult.errors.length > 0 ? 'alert-error' : 'alert-success'}">
+                    <div class="flex-1">
+                      {#if importResult.imported > 0}
+                        <p>✓ Imported {importResult.imported} events</p>
+                      {/if}
+                      {#if importResult.skipped > 0}
+                        <p>Skipped {importResult.skipped} duplicates</p>
+                      {/if}
+                      {#if importResult.errors.length > 0}
+                        {#each importResult.errors as error, idx (idx)}
+                          <p>{error}</p>
+                        {/each}
+                      {/if}
                     </div>
-                  {/if}
-                </div>
-              {/if}
+                    <button class="btn btn-ghost btn-xs btn-square" onclick={clearImportResult}>×</button>
+                  </div>
+                {/if}
+              </div>
             </div>
 
             <!-- Export Section -->
-            <div
-              class="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4"
-            >
-              <h3
-                class="mb-2 text-base font-medium text-[var(--color-text-primary)]"
-              >
-                Export Calendar
-              </h3>
-              <p class="mb-3 text-sm text-[var(--color-text-secondary)]">
-                Download all your events as an .ics file.
-              </p>
+            <div class="card card-sm bg-base-200">
+              <div class="card-body gap-2 p-4">
+                <h3 class="card-title text-base">Export Calendar</h3>
+                <p class="text-sm text-base-content/60">
+                  Download all your events as an .ics file.
+                </p>
 
-              <button
-                class="mb-3 flex items-center gap-1 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-                onclick={() => (showAdvanced = !showAdvanced)}
-              >
-                {showAdvanced ? "▼" : "▶"} Advanced
-              </button>
+                <button
+                  class="btn btn-ghost btn-xs justify-start gap-1"
+                  onclick={() => (showAdvanced = !showAdvanced)}
+                >
+                  {showAdvanced ? "▼" : "▶"} Advanced
+                </button>
 
-              {#if showAdvanced}
-                <div class="mb-3">
-                  <label class="flex flex-col gap-1">
-                    <span class="text-xs text-[var(--color-text-muted)]"
-                      >Calendar Name</span
-                    >
+                {#if showAdvanced}
+                  <div class="form-control">
+                    <label class="label">
+                      <span class="label-text text-xs">Calendar Name</span>
+                    </label>
                     <input
                       type="text"
-                      class="rounded-lg border border-[var(--color-border-default)] bg-[var(--color-bg-app)] px-3 py-2 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:outline-none"
+                      class="input input-bordered input-sm"
                       bind:value={exportName}
                       placeholder="Home-PA Calendar"
                     />
-                  </label>
-                </div>
-              {/if}
+                  </div>
+                {/if}
 
-              <button
-                class="btn w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-app)] text-sm text-[var(--color-text-secondary)] transition-all duration-200 hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] disabled:opacity-50"
-                onclick={handleExport}
-                disabled={!isApiEnabled}
-              >
-                📥 Download .ics File
-              </button>
+                <button
+                  class="btn btn-outline btn-block"
+                  onclick={handleExport}
+                  disabled={!isApiEnabled}
+                >
+                  📥 Download .ics File
+                </button>
+              </div>
             </div>
 
             <!-- Sync Info -->
-            <div
-              class="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4"
-            >
-              <h3
-                class="mb-2 text-base font-medium text-[var(--color-text-primary)]"
-              >
-                Calendar Sync
-              </h3>
-              <div class="flex items-center justify-between">
-                <span class="text-sm text-[var(--color-text-secondary)]"
-                  >CalDAV support</span
-                >
-                <span
-                  class="rounded-full bg-[var(--color-primary)]/10 px-3 py-1 text-xs font-medium text-[var(--color-primary)]"
-                  >Coming Soon</span
-                >
+            <div class="card card-sm bg-base-200">
+              <div class="card-body gap-2 p-4">
+                <h3 class="card-title text-base">Calendar Sync</h3>
+                <div class="flex items-center justify-between">
+                  <span class="text-sm text-base-content/60">CalDAV support</span>
+                  <span class="badge badge-primary badge-outline">Coming Soon</span>
+                </div>
               </div>
             </div>
           </div>
         {/if}
       </div>
     </div>
+    <div class="modal-backdrop bg-black/40 backdrop-blur-sm"></div>
   </div>
 {/if}
