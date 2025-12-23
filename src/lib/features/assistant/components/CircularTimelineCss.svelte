@@ -17,6 +17,13 @@
     svgCoordsToAngle,
     angleToMinutes,
   } from "../services/suggestion-drag.ts";
+  import {
+    createDragTracker,
+    startTracking,
+    updateTracking,
+    endTracking,
+    type DragState,
+  } from "../utils/interaction-helper.ts";
 
   interface Props {
     showLog?: boolean;
@@ -77,6 +84,17 @@
       newGapId: string;
     };
     suggestionDurationChange: { suggestionId: string; newDuration: number };
+    suggestionSelected: {
+      type: "pending" | "accepted";
+      data: PendingSuggestion | AcceptedSuggestion;
+    };
+    dragPreview: {
+      title: string;
+      startTime: string;
+      endTime: string;
+      duration: number;
+    };
+    clearSelection: void;
   }>();
 
   // Direct state access
@@ -438,6 +456,10 @@
     window.removeEventListener("mouseup", endDrag);
   }
 
+  // Drag tracking state
+  let dragTracker = $state<DragState>(createDragTracker());
+  let currentSuggestion = $state<PendingSuggestion | null>(null);
+
   // Midpoint drag handlers
   function startMidpointDrag(
     suggestion: PendingSuggestion,
@@ -446,6 +468,11 @@
   ) {
     e.preventDefault();
     e.stopPropagation();
+
+    // Start tracking for click vs drag detection
+    startTracking(dragTracker, e.clientX, e.clientY);
+    currentSuggestion = suggestion;
+
     isDraggingMidpoint = true;
     draggingSuggestionId = suggestion.suggestionId;
     draggingSuggestionDuration = suggestion.duration;
@@ -461,6 +488,12 @@
 
   function onMidpointDrag(e: MouseEvent) {
     if (!isDraggingMidpoint || !svgElement || !draggingSuggestionId) return;
+
+    // Update drag tracking
+    const hasMoved = updateTracking(dragTracker, e.clientX, e.clientY);
+
+    // Only start visual drag if movement threshold exceeded
+    if (!hasMoved) return;
 
     // Convert mouse position to SVG coordinates
     const svgCoords = clientToSvgCoords(e.clientX, e.clientY, svgElement);
@@ -485,20 +518,63 @@
         end: timeToAngle(snapResult.newEndTime),
       };
       dragPreviewGapId = snapResult.targetGap.gapId;
+
+      // Dispatch preview for info panel
+      if (currentSuggestion) {
+        const startMinutes = angleToMinutes(dragPreviewAngles.start);
+        const endMinutes = angleToMinutes(dragPreviewAngles.end);
+        dispatch("dragPreview", {
+          title: getTaskTitle(currentSuggestion.memoId),
+          startTime: minutesToTime(startMinutes),
+          endTime: minutesToTime(endMinutes),
+          duration: endMinutes - startMinutes,
+        });
+      }
     }
   }
 
   function endMidpointDrag() {
-    if (isDraggingMidpoint && draggingSuggestionId && dragPreviewAngles) {
+    const interactionType = endTracking(dragTracker);
+
+    if (
+      interactionType === "drag" &&
+      isDraggingMidpoint &&
+      draggingSuggestionId &&
+      dragPreviewAngles &&
+      currentSuggestion
+    ) {
       // Calculate final times from preview angles
       const startMinutes = angleToMinutes(dragPreviewAngles.start);
       const endMinutes = angleToMinutes(dragPreviewAngles.end);
+      const newStartTime = minutesToTime(startMinutes);
+      const newEndTime = minutesToTime(endMinutes);
+      const newGapId = dragPreviewGapId ?? draggingSuggestionGapId ?? "";
 
       dispatch("suggestionMove", {
         suggestionId: draggingSuggestionId,
-        newStartTime: minutesToTime(startMinutes),
-        newEndTime: minutesToTime(endMinutes),
-        newGapId: dragPreviewGapId ?? draggingSuggestionGapId ?? "",
+        newStartTime,
+        newEndTime,
+        newGapId,
+      });
+
+      // Select the moved suggestion with updated position
+      const updatedSuggestion: PendingSuggestion = {
+        ...currentSuggestion,
+        startTime: newStartTime,
+        endTime: newEndTime,
+        gapId: newGapId,
+        duration: endMinutes - startMinutes,
+      };
+
+      dispatch("suggestionSelected", {
+        type: "pending",
+        data: updatedSuggestion,
+      });
+    } else if (interactionType === "click" && currentSuggestion) {
+      // It was a click - dispatch selection
+      dispatch("suggestionSelected", {
+        type: "pending",
+        data: currentSuggestion,
       });
     }
 
@@ -509,6 +585,7 @@
     draggingSuggestionGapId = null;
     dragPreviewAngles = null;
     dragPreviewGapId = null;
+    currentSuggestion = null;
     window.removeEventListener("mousemove", onMidpointDrag);
     window.removeEventListener("mouseup", endMidpointDrag);
   }
@@ -687,11 +764,14 @@
             onmousedown={(e) => {
               if (isPending) {
                 startMidpointDrag(s.data as PendingSuggestion, s.data.gapId, e);
-              }
-            }}
-            onclick={(e) => {
-              if (!isDraggingMidpoint) {
-                onSuggestionClick(s.data, s.isAccepted, e);
+              } else {
+                // Accepted suggestion - just dispatch selection on click
+                e.preventDefault();
+                e.stopPropagation();
+                dispatch("suggestionSelected", {
+                  type: "accepted",
+                  data: s.data as AcceptedSuggestion,
+                });
               }
             }}
             onkeydown={(e) => {

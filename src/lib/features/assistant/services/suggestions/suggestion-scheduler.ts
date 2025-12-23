@@ -71,6 +71,9 @@ interface _AllocationState {
 const DEFAULT_PERMUTATION_LIMIT = 8;
 const TOLERANCE = 1e-6;
 
+/** Minimum session duration in minutes - suggestions can shrink down to this */
+const MIN_SESSION_MINUTES = 15;
+
 /**
  * Configuration for duration extension when extra gap time is available
  */
@@ -83,6 +86,10 @@ export interface DurationExtensionConfig {
   maxExtensionFactor: number;
   /** Extension step size in minutes (default: 15) */
   extensionStepMinutes: number;
+  /** Allow shrinking duration to fit smaller gaps (default: true) */
+  allowShrinking: boolean;
+  /** Minimum duration when shrinking (default: 15) */
+  minDurationMinutes: number;
 }
 
 export const DEFAULT_EXTENSION_CONFIG: DurationExtensionConfig = {
@@ -90,6 +97,8 @@ export const DEFAULT_EXTENSION_CONFIG: DurationExtensionConfig = {
   minExtensionMinutes: 15,
   maxExtensionFactor: 2.0,
   extensionStepMinutes: 15,
+  allowShrinking: true,
+  minDurationMinutes: MIN_SESSION_MINUTES,
 };
 
 // ============================================================================
@@ -256,10 +265,12 @@ function* permutations<T>(arr: T[]): Generator<T[]> {
  * Returns number of suggestions that can be scheduled (higher = better)
  *
  * Since we don't have travel time, we just check if suggestions fit in order
+ * Now uses flexible duration (can shrink to fit smaller gaps)
  */
 function evaluateOrder(
   order: Suggestion[],
   gaps: MutableGap[],
+  extensionConfig: DurationExtensionConfig = DEFAULT_EXTENSION_CONFIG,
 ): { schedulable: number; totalDuration: number } {
   // Clone gaps for simulation
   const simGaps = gaps.map((g) => ({ ...g }));
@@ -272,27 +283,38 @@ function evaluateOrder(
     let found = false;
     for (let i = gapIndex; i < simGaps.length; i++) {
       const gap = simGaps[i];
-      if (gap.remaining >= suggestion.duration - TOLERANCE) {
-        // Check location compatibility
-        const tempGap: Gap = {
-          gapId: gap.gapId,
-          start: gap.currentStartTime,
-          end: gap.end,
-          duration: gap.remaining,
-          locationLabel: gap.locationLabel,
-        };
-        if (canFit(suggestion, tempGap)) {
-          // Can fit here
-          gap.remaining -= suggestion.duration;
-          gap.currentStartTime = addMinutesToTime(
-            gap.currentStartTime,
-            suggestion.duration,
-          );
-          schedulable++;
-          totalDuration += suggestion.duration;
-          found = true;
-          break;
-        }
+
+      // Calculate effective duration (can extend or shrink)
+      const effectiveDuration = calculateEffectiveDuration(
+        suggestion.duration,
+        gap.remaining,
+        extensionConfig,
+      );
+
+      // Skip if can't fit
+      if (effectiveDuration < extensionConfig.minDurationMinutes - TOLERANCE) {
+        continue;
+      }
+
+      // Check location compatibility
+      const tempGap: Gap = {
+        gapId: gap.gapId,
+        start: gap.currentStartTime,
+        end: gap.end,
+        duration: gap.remaining,
+        locationLabel: gap.locationLabel,
+      };
+      if (canFit(suggestion, tempGap)) {
+        // Can fit here
+        gap.remaining -= effectiveDuration;
+        gap.currentStartTime = addMinutesToTime(
+          gap.currentStartTime,
+          effectiveDuration,
+        );
+        schedulable++;
+        totalDuration += effectiveDuration;
+        found = true;
+        break;
       }
     }
     if (!found) {
@@ -310,12 +332,14 @@ function evaluateOrder(
  * @param suggestions - Suggestions to order
  * @param gaps - Available gaps
  * @param permutationLimit - Max suggestions to permute (factorial explosion protection)
+ * @param extensionConfig - Duration extension/shrinking config
  * @returns Best order and number of permutations evaluated
  */
 export function enumerateBestOrder(
   suggestions: Suggestion[],
   gaps: MutableGap[],
   permutationLimit: number = DEFAULT_PERMUTATION_LIMIT,
+  extensionConfig: DurationExtensionConfig = DEFAULT_EXTENSION_CONFIG,
 ): { order: Suggestion[]; permutationsChecked: number } {
   const n = suggestions.length;
 
@@ -337,7 +361,11 @@ export function enumerateBestOrder(
 
   for (const perm of permutations(suggestions)) {
     permutationsChecked++;
-    const { schedulable, totalDuration } = evaluateOrder(perm, gaps);
+    const { schedulable, totalDuration } = evaluateOrder(
+      perm,
+      gaps,
+      extensionConfig,
+    );
     // Score: prioritize more schedulable, then more duration
     const score = schedulable * 10000 + totalDuration;
     if (score > bestScore) {
@@ -376,18 +404,33 @@ function totalRemainingCapacity(gaps: MutableGap[]): number {
 }
 
 /**
- * Calculate extended duration based on available gap time
+ * Calculate effective duration based on available gap time
+ * Can EXTEND duration when extra time is available, or SHRINK when gap is smaller
  *
  * @param baseDuration - Original session duration in minutes
  * @param availableTime - Remaining gap time in minutes
  * @param config - Extension configuration
- * @returns Extended duration (or base if extension not applicable)
+ * @returns Effective duration (extended, base, or shrunk)
  */
-export function calculateExtendedDuration(
+export function calculateEffectiveDuration(
   baseDuration: number,
   availableTime: number,
   config: DurationExtensionConfig = DEFAULT_EXTENSION_CONFIG,
 ): number {
+  // If gap is too small even for minimum, return 0 to indicate can't fit
+  if (availableTime < config.minDurationMinutes) {
+    return 0;
+  }
+
+  // If gap is smaller than base duration, shrink if allowed
+  if (availableTime < baseDuration) {
+    if (config.allowShrinking && availableTime >= config.minDurationMinutes) {
+      return availableTime; // Use all available time
+    }
+    return 0; // Can't fit
+  }
+
+  // Gap equals base duration - use as is
   if (!config.enabled) return baseDuration;
 
   // Check if there's enough extra time for extension
@@ -414,6 +457,18 @@ export function calculateExtendedDuration(
 }
 
 /**
+ * @deprecated Use calculateEffectiveDuration instead
+ * Kept for backward compatibility
+ */
+export function calculateExtendedDuration(
+  baseDuration: number,
+  availableTime: number,
+  config: DurationExtensionConfig = DEFAULT_EXTENSION_CONFIG,
+): number {
+  return calculateEffectiveDuration(baseDuration, availableTime, config);
+}
+
+/**
  * Assign an ordered list of suggestions to gaps
  * Returns scheduled blocks and updated gaps
  *
@@ -433,7 +488,16 @@ export function assignOrderToGaps(
     let allocated = false;
 
     for (const gap of gaps) {
-      if (gap.remaining < suggestion.duration - TOLERANCE) {
+      // Calculate effective duration (may extend OR shrink)
+      // Returns 0 if gap is too small even for minimum duration
+      const effectiveDuration = calculateEffectiveDuration(
+        suggestion.duration,
+        gap.remaining,
+        extensionConfig,
+      );
+
+      // Skip if can't fit (duration is 0)
+      if (effectiveDuration < extensionConfig.minDurationMinutes - TOLERANCE) {
         continue;
       }
 
@@ -449,13 +513,6 @@ export function assignOrderToGaps(
       if (!canFit(suggestion, tempGap)) {
         continue;
       }
-
-      // Calculate extended duration if extra gap time available
-      const effectiveDuration = calculateExtendedDuration(
-        suggestion.duration,
-        gap.remaining,
-        extensionConfig,
-      );
 
       // Allocate!
       const startTime = gap.currentStartTime;
@@ -569,6 +626,7 @@ export function scheduleSuggestions(
       sortByPriority(mandatory),
       mutableGaps,
       permutationLimit,
+      extensionConfig,
     );
     result.permutationsEvaluated += permutationsChecked;
 
@@ -601,7 +659,12 @@ export function scheduleSuggestions(
       if (selected.length > 0) {
         // Find best order via permutation
         const { order: optionalOrder, permutationsChecked } =
-          enumerateBestOrder(selected, mutableGaps, permutationLimit);
+          enumerateBestOrder(
+            selected,
+            mutableGaps,
+            permutationLimit,
+            extensionConfig,
+          );
         result.permutationsEvaluated += permutationsChecked;
 
         // Assign to gaps

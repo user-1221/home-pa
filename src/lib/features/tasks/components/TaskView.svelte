@@ -41,19 +41,19 @@
   class="flex h-full flex-col bg-[var(--color-bg-app)]/60 pb-[calc(48px+env(safe-area-inset-bottom)+1rem)] backdrop-blur-sm"
 >
   <div
-    class="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--color-border-default)] bg-[var(--color-bg-app)]/90 p-5 backdrop-blur-md"
+    class="sticky top-0 z-10 flex h-14 items-center justify-between border-b border-[var(--color-border-default)] bg-[var(--color-bg-app)]/90 p-3 backdrop-blur-md md:h-20 md:p-5"
   >
     <h1
-      class="m-0 text-3xl font-normal tracking-tight text-[var(--color-text-primary)] md:text-2xl"
+      class="m-0 text-base font-normal tracking-tight text-[var(--color-text-primary)] md:text-xl"
     >
       Tasks
     </h1>
     <button
-      class="btn btn-square h-12 w-12 rounded-xl border-none bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-800)] text-white shadow-[0_4px_12px_rgba(123,190,187,0.3)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_6px_20px_rgba(123,190,187,0.4)] active:translate-y-0"
+      class="btn btn-circle h-9 min-h-[36px] w-9 min-w-[36px] rounded-xl border-none bg-[var(--color-primary)] text-lg font-normal text-white shadow-[0_4px_12px_rgba(123,190,187,0.3)] transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-[var(--color-primary-400)] hover:shadow-[0_6px_20px_rgba(123,190,187,0.4)] md:h-11 md:min-h-[44px] md:w-11 md:min-w-[44px] md:text-xl"
       onclick={handleAddTask}
       aria-label="Add new task"
     >
-      <span class="text-2xl leading-none font-medium">+</span>
+      +
     </button>
   </div>
 

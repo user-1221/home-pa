@@ -9,9 +9,67 @@
  * - Gap constraints: Suggestions must stay within valid gaps
  * - Cross-gap snapping: When dragged past gap boundary, snap to next valid gap
  * - Duration extension: Symmetric-first, then one-sided
+ * - Overlap detection: Find suggestions that overlap with a time range
  */
 
 import type { Gap } from "$lib/types.ts";
+
+// ============================================================================
+// Overlap Detection
+// ============================================================================
+
+/**
+ * Check if two time ranges overlap
+ *
+ * @param start1 - Start time of first range (minutes from midnight)
+ * @param end1 - End time of first range (minutes from midnight)
+ * @param start2 - Start time of second range (minutes from midnight)
+ * @param end2 - End time of second range (minutes from midnight)
+ * @returns true if ranges overlap
+ */
+export function timeRangesOverlap(
+  start1: number,
+  end1: number,
+  start2: number,
+  end2: number,
+): boolean {
+  // Ranges overlap if one starts before the other ends
+  return start1 < end2 && start2 < end1;
+}
+
+/**
+ * Find suggestion IDs that overlap with a given time range
+ *
+ * @param blocks - Array of blocks with startTime, endTime, and suggestionId
+ * @param startTime - Start time in HH:mm format
+ * @param endTime - End time in HH:mm format
+ * @param excludeId - Suggestion ID to exclude from check (the one being moved)
+ * @returns Array of overlapping suggestion IDs
+ */
+export function findOverlappingSuggestions(
+  blocks: Array<{
+    suggestionId: string;
+    startTime: string;
+    endTime: string;
+  }>,
+  startTime: string,
+  endTime: string,
+  excludeId: string,
+): string[] {
+  const targetStart = timeToMinutes(startTime);
+  const targetEnd = timeToMinutes(endTime);
+
+  return blocks
+    .filter((block) => {
+      if (block.suggestionId === excludeId) return false;
+
+      const blockStart = timeToMinutes(block.startTime);
+      const blockEnd = timeToMinutes(block.endTime);
+
+      return timeRangesOverlap(targetStart, targetEnd, blockStart, blockEnd);
+    })
+    .map((block) => block.suggestionId);
+}
 
 // ============================================================================
 // Types

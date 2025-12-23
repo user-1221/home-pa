@@ -31,6 +31,7 @@ import {
   getBlockersFromAccepted,
   timeToMinutes,
   minutesToTime,
+  findOverlappingSuggestions,
 } from "../services/suggestion-drag.ts";
 
 // ============================================================================
@@ -110,10 +111,26 @@ export const lastScheduleTime = writable<Date | null>(null);
 export const acceptedSuggestions = writable<AcceptedSuggestion[]>([]);
 
 /**
- * Set of suggestion IDs that have been skipped
- * Used to exclude from regeneration
+ * Set of memo IDs that have been rejected (skipped)
+ * Rejected memos NEVER reappear in any future repopulation
+ * (Tracks by memoId, not suggestionId, so they're permanently excluded)
+ */
+export const rejectedMemoIds = writable<Set<string>>(new Set());
+
+/**
+ * Set of suggestion IDs that have been skipped (legacy - being replaced)
+ * @deprecated Use rejectedMemoIds instead
  */
 export const skippedSuggestionIds = writable<Set<string>>(new Set());
+
+/**
+ * Manually moved/dragged suggestions that should persist
+ * These are excluded from repopulation and maintain their position
+ */
+export interface MovedSuggestion extends ScheduledBlock {
+  movedAt: Date;
+}
+export const movedSuggestions = writable<MovedSuggestion[]>([]);
 
 // ============================================================================
 // Derived Stores
@@ -130,20 +147,56 @@ export const scheduledBlocks = derived(
 
 /**
  * Pending suggestions (generated but not yet accepted/skipped)
- * Excludes blocks that are already accepted
+ * Includes:
+ * - Generated suggestions from scheduleResult
+ * - Manually moved suggestions (with their new positions)
+ * Excludes:
+ * - Already accepted suggestions
+ * - Rejected memos (by memoId - permanent exclusion)
  */
 export const pendingSuggestions = derived(
-  [scheduleResult, acceptedSuggestions, skippedSuggestionIds],
-  ([$result, $accepted, $skipped]): PendingSuggestion[] => {
-    if (!$result?.scheduled) return [];
+  [
+    scheduleResult,
+    acceptedSuggestions,
+    rejectedMemoIds,
+    skippedSuggestionIds,
+    movedSuggestions,
+  ],
+  ([$result, $accepted, $rejected, $skipped, $moved]): PendingSuggestion[] => {
     const acceptedIds = new Set($accepted.map((a) => a.suggestionId));
-    return $result.scheduled
+    const movedIds = new Set($moved.map((m) => m.suggestionId));
+
+    // Get generated suggestions (excluding moved ones - they come from movedSuggestions)
+    const generatedSuggestions = ($result?.scheduled ?? [])
       .filter(
         (block) =>
           !acceptedIds.has(block.suggestionId) &&
-          !$skipped.has(block.suggestionId),
+          !$rejected.has(block.memoId) && // Filter by memoId for rejections
+          !$skipped.has(block.suggestionId) &&
+          !movedIds.has(block.suggestionId),
       )
-      .map((block) => ({ ...block }));
+      .map((block): PendingSuggestion => ({ ...block }));
+
+    // Add moved suggestions (they persist with their new positions)
+    const movedAsPending: PendingSuggestion[] = $moved
+      .filter(
+        (m) =>
+          !acceptedIds.has(m.suggestionId) &&
+          !$rejected.has(m.memoId) &&
+          !$skipped.has(m.suggestionId),
+      )
+      .map(
+        (m): PendingSuggestion => ({
+          suggestionId: m.suggestionId,
+          memoId: m.memoId,
+          gapId: m.gapId,
+          startTime: m.startTime,
+          endTime: m.endTime,
+          duration: m.duration,
+        }),
+      );
+
+    return [...generatedSuggestions, ...movedAsPending];
   },
 );
 
@@ -205,7 +258,20 @@ export const hasMandatoryDropped = derived(
 // ============================================================================
 
 /**
+ * Check if two time ranges overlap
+ */
+function timeRangesOverlapMinutes(
+  start1: number,
+  end1: number,
+  start2: number,
+  end2: number,
+): boolean {
+  return start1 < end2 && start2 < end1;
+}
+
+/**
  * Subtract accepted suggestions from gaps to get remaining available gaps
+ * Uses TIME RANGE matching, not just gapId, so moved suggestions are correctly subtracted
  */
 function subtractAcceptedFromGaps(
   gaps: Gap[],
@@ -213,36 +279,42 @@ function subtractAcceptedFromGaps(
 ): Gap[] {
   if (accepted.length === 0) return gaps;
 
-  // Group accepted by gapId
-  const acceptedByGap = new Map<string, AcceptedSuggestion[]>();
-  for (const a of accepted) {
-    const list = acceptedByGap.get(a.gapId) || [];
-    list.push(a);
-    acceptedByGap.set(a.gapId, list);
-  }
-
   const result: Gap[] = [];
   let gapCounter = 0;
 
   for (const gap of gaps) {
-    const blockers = acceptedByGap.get(gap.gapId) || [];
-    if (blockers.length === 0) {
+    const gapStart = timeToMinutes(gap.start);
+    const gapEnd = timeToMinutes(gap.end);
+
+    // Find ALL blockers that overlap with this gap's time range
+    // This works regardless of gapId matching
+    const overlappingBlockers = accepted.filter((a) => {
+      const blockerStart = timeToMinutes(a.startTime);
+      const blockerEnd = timeToMinutes(a.endTime);
+      return timeRangesOverlapMinutes(
+        gapStart,
+        gapEnd,
+        blockerStart,
+        blockerEnd,
+      );
+    });
+
+    if (overlappingBlockers.length === 0) {
       result.push(gap);
       continue;
     }
 
     // Sort blockers by start time
-    blockers.sort(
+    const sortedBlockers = [...overlappingBlockers].sort(
       (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime),
     );
 
     // Find remaining gaps between/around blockers
-    let currentStart = timeToMinutes(gap.start);
-    const gapEnd = timeToMinutes(gap.end);
+    let currentStart = gapStart;
 
-    for (const blocker of blockers) {
-      const blockerStart = timeToMinutes(blocker.startTime);
-      const blockerEnd = timeToMinutes(blocker.endTime);
+    for (const blocker of sortedBlockers) {
+      const blockerStart = Math.max(timeToMinutes(blocker.startTime), gapStart);
+      const blockerEnd = Math.min(timeToMinutes(blocker.endTime), gapEnd);
 
       // Gap before this blocker
       if (blockerStart > currentStart) {
@@ -309,17 +381,45 @@ export const scheduleActions = {
       const previous = get(scheduleResult);
       const previousKey = previous ? stableSerializeSchedule(previous) : null;
 
-      // Get gaps and subtract accepted suggestions
-      const rawGaps = options.gaps ?? get(enrichedGaps);
+      // Get current state for filtering
+      const rejected = get(rejectedMemoIds);
+      const moved = get(movedSuggestions);
       const accepted = get(acceptedSuggestions);
-      const availableGaps = subtractAcceptedFromGaps(rawGaps, accepted);
 
-      // Call engine with available gaps
+      // Build set of excluded memo IDs:
+      // - Rejected memos: NEVER reappear
+      // - Moved suggestion memos: excluded from repopulation (no duplicates)
+      const excludedMemoIds = new Set<string>(rejected);
+      for (const m of moved) {
+        excludedMemoIds.add(m.memoId);
+      }
+
+      // Filter memos to exclude rejected and moved
+      const filteredMemos = memos.filter(
+        (memo) => !excludedMemoIds.has(memo.id),
+      );
+
+      // Get gaps and subtract accepted + moved suggestions
+      const rawGaps = options.gaps ?? get(enrichedGaps);
+      const acceptedAndMoved: AcceptedSuggestion[] = [
+        ...accepted,
+        // Treat moved suggestions as accepted for gap subtraction
+        ...moved.map((m) => ({
+          ...m,
+          acceptedAt: m.movedAt,
+          originalDuration: m.duration,
+        })),
+      ];
+      const availableGaps = subtractAcceptedFromGaps(rawGaps, acceptedAndMoved);
+
+      // Call engine with available gaps and filtered memos
       const { schedule, summary } = await engine.generateSchedule(
-        memos,
+        filteredMemos,
         availableGaps,
         {
           skipLLMEnrichment: options.skipLLMEnrichment,
+          // Pass accepted memo IDs for score reduction
+          acceptedMemoIds: new Set(accepted.map((a) => a.memoId)),
         },
       );
 
@@ -345,6 +445,8 @@ export const scheduleActions = {
         dropped: schedule.dropped.length,
         mandatoryDropped: schedule.mandatoryDropped.length,
         acceptedFixed: accepted.length,
+        movedFixed: moved.length,
+        rejectedMemos: rejected.size,
         executionMs: summary.executionTimeMs,
       });
 
@@ -361,21 +463,48 @@ export const scheduleActions = {
 
   /**
    * Accept a suggestion, converting it to a fixed event
+   * Can accept from either result.scheduled or movedSuggestions
    *
    * @param suggestionId - ID of the suggestion to accept
    * @param memos - Current memos for regeneration
    */
   async accept(suggestionId: string, memos: Memo[]): Promise<void> {
     const result = get(scheduleResult);
-    if (!result) return;
+    const currentMoved = get(movedSuggestions);
 
-    const block = result.scheduled.find((b) => b.suggestionId === suggestionId);
+    // Try to find in scheduled blocks first
+    let block = result?.scheduled.find((b) => b.suggestionId === suggestionId);
+
+    // If not found, check movedSuggestions
+    if (!block) {
+      const movedBlock = currentMoved.find(
+        (m) => m.suggestionId === suggestionId,
+      );
+      if (movedBlock) {
+        block = {
+          suggestionId: movedBlock.suggestionId,
+          memoId: movedBlock.memoId,
+          gapId: movedBlock.gapId,
+          startTime: movedBlock.startTime,
+          endTime: movedBlock.endTime,
+          duration: movedBlock.duration,
+        };
+      }
+    }
+
     if (!block) {
       console.warn(
         "[Schedule] Cannot accept: suggestion not found",
         suggestionId,
       );
       return;
+    }
+
+    // Remove from movedSuggestions if it was there
+    if (currentMoved.some((m) => m.suggestionId === suggestionId)) {
+      movedSuggestions.update((list) =>
+        list.filter((m) => m.suggestionId !== suggestionId),
+      );
     }
 
     // Move to accepted
@@ -394,20 +523,45 @@ export const scheduleActions = {
   },
 
   /**
-   * Skip a suggestion, requesting a new one for that gap
+   * Reject a suggestion - the underlying memo will NEVER reappear
    *
-   * @param suggestionId - ID of the suggestion to skip
+   * @param suggestionId - ID of the suggestion to reject
    * @param memos - Current memos for regeneration
    */
   async skip(suggestionId: string, memos: Memo[]): Promise<void> {
-    // Add to skipped set
+    const result = get(scheduleResult);
+    if (!result) return;
+
+    // Find the suggestion to get its memoId
+    const block = result.scheduled.find((b) => b.suggestionId === suggestionId);
+    if (!block) {
+      console.warn(
+        "[Schedule] Cannot reject: suggestion not found",
+        suggestionId,
+      );
+      return;
+    }
+
+    // Add memoId to rejected set (permanent exclusion)
+    rejectedMemoIds.update((set) => {
+      const next = new Set(set);
+      next.add(block.memoId);
+      return next;
+    });
+
+    // Also add to legacy skipped set for backward compatibility
     skippedSuggestionIds.update((set) => {
       const next = new Set(set);
       next.add(suggestionId);
       return next;
     });
 
-    console.log("[Schedule] Skipped suggestion:", suggestionId);
+    console.log(
+      "[Schedule] Rejected suggestion:",
+      suggestionId,
+      "memoId:",
+      block.memoId,
+    );
 
     // Regenerate to get new suggestion for the gap
     await scheduleActions.regenerate(memos);
@@ -417,26 +571,42 @@ export const scheduleActions = {
    * Move a pending suggestion to a new time slot
    * Called when user drags a suggestion to a new position
    *
+   * Behavior:
+   * - The dragged suggestion persists at its new location (like a fixed event)
+   * - Any overlapping pending suggestions are IMMEDIATELY removed
+   * - Repopulation runs to fill remaining gaps
+   * - The dragged suggestion's memoId is excluded from repopulation (no duplicates)
+   * - The dragged suggestion can still be moved again
+   *
    * @param suggestionId - ID of the suggestion to move
    * @param newStartTime - New start time in HH:mm format
    * @param newEndTime - New end time in HH:mm format
    * @param newGapId - ID of the gap the suggestion is being moved to
    * @param memos - Current memos for regeneration
+   * @param gaps - Optional gaps to use for regeneration (uses enrichedGaps if not provided)
    */
   async moveSuggestion(
     suggestionId: string,
     newStartTime: string,
     newEndTime: string,
     newGapId: string,
-    _memos: Memo[],
+    memos: Memo[],
+    gaps?: Gap[],
   ): Promise<void> {
     const result = get(scheduleResult);
     if (!result) return;
 
-    const blockIndex = result.scheduled.findIndex(
+    // Find the suggestion being moved (could be in scheduleResult or movedSuggestions)
+    const currentMoved = get(movedSuggestions);
+    const existingMoved = currentMoved.find(
+      (m) => m.suggestionId === suggestionId,
+    );
+    const blockFromResult = result.scheduled.find(
       (b) => b.suggestionId === suggestionId,
     );
-    if (blockIndex === -1) {
+    const block = existingMoved ?? blockFromResult;
+
+    if (!block) {
       console.warn(
         "[Schedule] Cannot move: suggestion not found",
         suggestionId,
@@ -444,32 +614,82 @@ export const scheduleActions = {
       return;
     }
 
-    const block = result.scheduled[blockIndex];
-
     // Calculate new duration from time range
     const newDuration = timeToMinutes(newEndTime) - timeToMinutes(newStartTime);
 
-    // Update the schedule result with the moved suggestion
-    const updatedScheduled = [...result.scheduled];
-    updatedScheduled[blockIndex] = {
-      ...block,
+    // Create the moved suggestion with updated position
+    const movedBlock: MovedSuggestion = {
+      suggestionId: block.suggestionId,
+      memoId: block.memoId,
+      gapId: newGapId,
       startTime: newStartTime,
       endTime: newEndTime,
       duration: newDuration,
-      gapId: newGapId,
+      movedAt: new Date(),
     };
 
-    // Update the store
-    scheduleResult.set({
-      ...result,
-      scheduled: updatedScheduled,
+    // Find overlapping suggestions in scheduleResult
+    const overlappingIds = findOverlappingSuggestions(
+      result.scheduled,
+      newStartTime,
+      newEndTime,
+      suggestionId,
+    );
+
+    // Also check for overlaps with other moved suggestions
+    const overlappingMovedIds = findOverlappingSuggestions(
+      currentMoved,
+      newStartTime,
+      newEndTime,
+      suggestionId,
+    );
+
+    // Combine all overlapping IDs
+    const allOverlappingIds = new Set([
+      ...overlappingIds,
+      ...overlappingMovedIds,
+    ]);
+
+    if (allOverlappingIds.size > 0) {
+      console.log("[Schedule] Removing overlapping suggestions:", [
+        ...allOverlappingIds,
+      ]);
+    }
+
+    // IMMEDIATELY remove overlapping suggestions from scheduleResult
+    if (overlappingIds.length > 0) {
+      const overlappingSet = new Set(overlappingIds);
+      scheduleResult.set({
+        ...result,
+        scheduled: result.scheduled.filter(
+          (b) => !overlappingSet.has(b.suggestionId),
+        ),
+      });
+    }
+
+    // Update moved suggestions:
+    // - Remove any overlapping moved suggestions
+    // - Remove any existing entry for this suggestion (if moved again)
+    // - Add the new moved suggestion
+    movedSuggestions.update((list) => {
+      const filtered = list.filter(
+        (m) =>
+          m.suggestionId !== suggestionId &&
+          !allOverlappingIds.has(m.suggestionId),
+      );
+      return [...filtered, movedBlock];
     });
 
     console.log("[Schedule] Moved suggestion:", suggestionId, "to", {
       start: newStartTime,
       end: newEndTime,
       gap: newGapId,
+      overlapsRemoved: allOverlappingIds.size,
     });
+
+    // Trigger repopulation to fill remaining gaps with new suggestions
+    // The moved suggestion's time is subtracted from gaps during regeneration
+    await scheduleActions.regenerate(memos, { gaps });
   },
 
   /**
@@ -589,6 +809,51 @@ export const scheduleActions = {
   },
 
   /**
+   * Mark an accepted suggestion as complete
+   * Logs duration to the memo and removes from accepted list
+   *
+   * @param suggestionId - ID of the accepted suggestion
+   * @param memoId - ID of the memo to update
+   * @param duration - Duration in minutes to log
+   * @returns Promise resolving when complete
+   */
+  async completeSuggestion(
+    suggestionId: string,
+    memoId: string,
+    duration: number,
+  ): Promise<void> {
+    // Remove from accepted list
+    acceptedSuggestions.update((list) =>
+      list.filter((a) => a.suggestionId !== suggestionId),
+    );
+
+    console.log("[Schedule] Completed suggestion:", {
+      suggestionId,
+      memoId,
+      duration,
+    });
+
+    // Note: The actual memo update is done via the remote function
+    // called from PersonalAssistantView
+  },
+
+  /**
+   * Mark an accepted suggestion as missed
+   * Simply removes from accepted list without logging progress
+   *
+   * @param suggestionId - ID of the accepted suggestion
+   */
+  missedSuggestion(suggestionId: string): void {
+    // Remove from accepted list
+    acceptedSuggestions.update((list) =>
+      list.filter((a) => a.suggestionId !== suggestionId),
+    );
+
+    console.log("[Schedule] Missed suggestion:", suggestionId);
+    // No memo update for missed - just ignore
+  },
+
+  /**
    * Clear the current schedule
    * Useful for resetting state
    */
@@ -598,15 +863,19 @@ export const scheduleActions = {
     lastPipelineSummary.set(null);
     acceptedSuggestions.set([]);
     skippedSuggestionIds.set(new Set());
+    rejectedMemoIds.set(new Set());
+    movedSuggestions.set([]);
   },
 
   /**
-   * Clear only accepted and skipped state (keep schedule result)
+   * Clear only accepted, skipped, rejected, and moved state (keep schedule result)
    * Useful for daily reset
    */
   clearAcceptedAndSkipped(): void {
     acceptedSuggestions.set([]);
     skippedSuggestionIds.set(new Set());
+    rejectedMemoIds.set(new Set());
+    movedSuggestions.set([]);
   },
 
   /**

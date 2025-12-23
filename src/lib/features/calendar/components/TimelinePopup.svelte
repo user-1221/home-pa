@@ -49,31 +49,55 @@
     return `${hours}:${minutes}`;
   }
 
-  function getEventColumns(events: Event[]): Event[][] {
-    if (events.length === 0) return [];
+  /**
+   * Organize events into columns for display
+   * All-day events get their own columns first, then timed events
+   * This prevents all-day events from overlapping with timed events
+   */
+  function getEventColumns(evts: Event[]): Event[][] {
+    if (evts.length === 0) return [];
 
-    const sortedEvents = [...events].sort(
+    // Separate all-day events from timed events
+    const allDayEvents = evts.filter((e) => e.timeLabel === "all-day");
+    const timedEvents = evts.filter((e) => e.timeLabel !== "all-day");
+
+    // Sort timed events by start time
+    const sortedTimedEvents = [...timedEvents].sort(
       (a, b) => a.start.getTime() - b.start.getTime(),
     );
 
-    const columns: Event[][] = [];
-
-    for (const event of sortedEvents) {
-      let placed = false;
-      for (const column of columns) {
-        const lastEvent = column[column.length - 1];
-        if (lastEvent.end.getTime() <= event.start.getTime()) {
-          column.push(event);
-          placed = true;
-          break;
-        }
-      }
-      if (!placed) {
-        columns.push([event]);
-      }
+    // First, allocate columns for all-day events (each gets its own column)
+    const allDayColumns: Event[][] = [];
+    for (const allDayEvent of allDayEvents) {
+      allDayColumns.push([allDayEvent]);
     }
 
-    return columns;
+    // Handle timed events with overlap detection (only among timed events)
+    const timedColumns: Event[][] = [];
+    for (const event of sortedTimedEvents) {
+      // Find the first column where this event doesn't overlap with other timed events
+      let columnIndex = 0;
+      while (columnIndex < timedColumns.length) {
+        const column = timedColumns[columnIndex];
+        const lastEvent = column[column.length - 1];
+
+        // For timed events, check actual time overlap
+        if (event.start >= lastEvent.end) {
+          break;
+        }
+        columnIndex++;
+      }
+
+      // If no suitable column found, create a new one
+      if (columnIndex >= timedColumns.length) {
+        timedColumns.push([]);
+      }
+
+      timedColumns[columnIndex].push(event);
+    }
+
+    // Combine: all-day columns first, then timed columns
+    return [...allDayColumns, ...timedColumns];
   }
 
   function handleEventClick(event: Event) {

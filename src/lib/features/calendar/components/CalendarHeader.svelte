@@ -19,7 +19,7 @@
 </script>
 
 <div
-  class="sticky top-0 z-10 flex flex-shrink-0 items-center justify-between border-b border-[var(--color-border-default)] bg-[var(--color-bg-app)]/90 p-3 backdrop-blur-sm md:p-5"
+  class="sticky top-0 z-10 flex h-14 flex-shrink-0 items-center justify-between border-b border-[var(--color-border-default)] bg-[var(--color-bg-app)]/90 p-3 backdrop-blur-sm md:h-20 md:p-5"
 >
   <div class="flex items-center gap-2 md:gap-4">
     <button

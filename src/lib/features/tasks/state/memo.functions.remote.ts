@@ -340,3 +340,65 @@ export const deleteMemo = command(
     }
   },
 );
+
+/**
+ * Log progress for a completed suggestion session
+ * Updates timeSpentMinutes, lastActivity, and completionsThisPeriod
+ */
+export const logSuggestionComplete = command(
+  v.object({
+    memoId: v.string(),
+    durationMinutes: v.number(),
+  }),
+  async (input) => {
+    const userId = getAuthenticatedUser();
+
+    try {
+      // Verify ownership and get current state
+      const existing = await prisma.memo.findFirst({
+        where: {
+          id: input.memoId,
+          userId,
+        },
+      });
+
+      if (!existing) {
+        throw new Error("Memo not found");
+      }
+
+      // Calculate updates
+      const newTimeSpent = existing.timeSpentMinutes + input.durationMinutes;
+      const newCompletions = (existing.completionsThisPeriod ?? 0) + 1;
+      const now = new Date();
+
+      // Update memo with progress
+      const updated = await prisma.memo.update({
+        where: { id: input.memoId },
+        data: {
+          timeSpentMinutes: newTimeSpent,
+          completionsThisPeriod: newCompletions,
+          lastActivity: now,
+          // Update completionState if significant progress
+          completionState:
+            existing.completionState === "not_started"
+              ? "in_progress"
+              : existing.completionState,
+        },
+      });
+
+      console.log(
+        `[logSuggestionComplete] Logged ${input.durationMinutes}min for memo ${input.memoId}. Total: ${newTimeSpent}min, Completions: ${newCompletions}`,
+      );
+
+      return {
+        id: updated.id,
+        timeSpentMinutes: updated.timeSpentMinutes,
+        completionsThisPeriod: updated.completionsThisPeriod ?? 0,
+        lastActivity: updated.lastActivity?.toISOString(),
+      };
+    } catch (err) {
+      console.error("[logSuggestionComplete] Error:", err);
+      throw new Error("Failed to log progress");
+    }
+  },
+);

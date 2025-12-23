@@ -8,42 +8,71 @@
 >
   {#each toastState.toasts as toast (toast.id)}
     <div
-      class="pointer-events-auto flex max-w-[400px] min-w-[250px] items-center gap-3 rounded-xl border-l-4 bg-[var(--color-bg-app)] px-4 py-3 text-sm shadow-[0_4px_16px_rgba(0,0,0,0.12)] sm:max-w-none sm:min-w-0 {toast.type ===
-      'success'
-        ? 'border-l-[var(--color-success-500)] bg-gradient-to-br from-[var(--color-success-100)] to-[var(--color-bg-app)]'
-        : ''} {toast.type === 'error'
-        ? 'border-l-[var(--color-error-500)] bg-gradient-to-br from-[var(--color-error-100)] to-[var(--color-bg-app)]'
-        : ''} {toast.type === 'info'
-        ? 'border-l-[var(--color-primary)] bg-gradient-to-br from-[var(--color-primary-100)] to-[var(--color-bg-app)]'
-        : ''}"
+      class="pointer-events-auto flex items-center justify-end"
       transition:fly={{ y: -20, duration: 300 }}
       role="status"
       aria-live="polite"
     >
-      <span
-        class="flex-shrink-0 text-lg font-medium {toast.type === 'success'
-          ? 'text-[var(--color-success-700)]'
-          : ''} {toast.type === 'error'
-          ? 'text-[var(--color-error-500)]'
-          : ''} {toast.type === 'info'
-          ? 'text-[var(--color-primary-800)]'
-          : ''}"
-      >
-        {#if toast.type === "success"}✓{/if}
-        {#if toast.type === "error"}✕{/if}
-        {#if toast.type === "info"}ℹ{/if}
-      </span>
-      <span
-        class="flex-1 leading-[1.4] font-normal text-[var(--color-text-primary)]"
-        >{toast.message}</span
-      >
       <button
-        class="flex h-6 min-h-[44px] w-6 min-w-[44px] flex-shrink-0 cursor-pointer items-center justify-center rounded-lg border-none bg-transparent p-0 text-sm text-[var(--color-text-secondary)] transition-all duration-200 ease-out hover:bg-[var(--color-surface-100)] hover:text-[var(--color-text-primary)]"
+        class="toast-dot"
         onclick={() => toastState.remove(toast.id)}
-        aria-label="Close notification"
+        aria-label={`${toast.type}: ${toast.message}`}
       >
-        ✕
+        <span aria-hidden="true">
+          {toast.type === "success" ? "✓" : "✕"}
+        </span>
       </button>
     </div>
   {/each}
 </div>
+
+<style>
+  .toast-dot {
+    height: 44px;
+    width: 44px;
+    min-height: 44px;
+    min-width: 44px;
+    border: none;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    color: #fff;
+    background: var(--color-primary);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+    transition:
+      transform 120ms ease,
+      box-shadow 120ms ease,
+      opacity 120ms ease;
+  }
+
+  .toast-dot:hover {
+    transform: scale(1.05);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+  }
+
+  .toast-dot:active {
+    transform: scale(0.98);
+  }
+
+  .toast-dot:focus-visible {
+    outline: 2px solid var(--color-primary-300, #cde4ff);
+    outline-offset: 2px;
+  }
+
+  /* State colors */
+  :global(.toast-dot)[aria-label^="success"] {
+    background: var(--color-success-500, #22c55e);
+  }
+
+  :global(.toast-dot)[aria-label^="error"] {
+    background: var(--color-error-500, #ef4444);
+  }
+
+  :global(.toast-dot)[aria-label^="info"] {
+    background: var(--color-primary, #2563eb);
+  }
+</style>
