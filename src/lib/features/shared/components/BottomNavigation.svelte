@@ -16,7 +16,7 @@
 </script>
 
 <div
-  class="dock dock-sm fixed right-0 bottom-0 left-0 z-[2000] border-t border-base-300 bg-base-100/95 pb-[env(safe-area-inset-bottom)] shadow-lg backdrop-blur-md"
+  class="dock dock-sm fixed right-0 bottom-0 left-0 z-[2000] box-border h-[var(--bottom-nav-height,60px)] border-t border-base-300 bg-base-100/95 pb-[env(safe-area-inset-bottom)] shadow-lg backdrop-blur-md"
   role="navigation"
   aria-label="Main navigation"
 >
