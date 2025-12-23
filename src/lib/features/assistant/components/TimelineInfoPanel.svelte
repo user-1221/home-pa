@@ -110,136 +110,134 @@
   }
 </script>
 
-<div
-  class="timeline-info-panel mb-4 rounded-lg border border-base-300 bg-base-200 p-4 shadow-lg"
->
-  {#if selectedItem}
-    {#if selectedItem.type === "pending-suggestion"}
-      <!-- Compact layout: Badge + Title + Buttons in one row -->
-      <div class="flex items-center justify-between gap-2">
-        <div class="flex min-w-0 flex-1 items-center gap-2">
-          <span class="badge flex-shrink-0 badge-sm badge-warning">提案</span>
-          <h3 class="truncate text-lg font-bold">{selectedItem.title}</h3>
-        </div>
-        <div class="flex flex-shrink-0 items-center gap-2">
-          <button
-            class="btn btn-sm btn-success"
-            onclick={handleAccept}
-            title="承認"
-          >
-            ✓
-          </button>
-          <button
-            class="btn btn-sm btn-error"
-            onclick={handleReject}
-            title="却下"
-          >
-            ✗
-          </button>
-        </div>
-      </div>
-      <!-- Time range in separate row -->
-      <div class="mt-1 text-sm opacity-70">
-        {selectedItem.data.startTime} - {selectedItem.data.endTime}
-        <span class="ml-2 opacity-50">
-          ({formatDuration(selectedItem.data.duration)})
-        </span>
-      </div>
-    {:else if selectedItem.type === "event"}
-      <div class="mb-2 flex items-center gap-2">
-        <span class="badge badge-sm badge-primary">イベント</span>
-      </div>
-      <h3 class="text-lg font-bold">{selectedItem.data.title}</h3>
-      <div class="mt-1 text-sm opacity-70">
-        {#if selectedItem.data.timeLabel === "all-day"}
-          終日
-        {:else if selectedItem.data.timeLabel === "some-timing"}
-          どこかのタイミングで
-        {:else}
-          {new Date(selectedItem.data.start).toLocaleTimeString("ja-JP", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })} - {new Date(selectedItem.data.end).toLocaleTimeString("ja-JP", {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        {/if}
-      </div>
-    {:else if selectedItem.type === "gap"}
-      <div class="mb-2 flex items-center gap-2">
-        <span class="badge badge-sm badge-secondary">空き時間</span>
-      </div>
-      <h3 class="text-lg font-bold">
-        {selectedItem.data.start} - {selectedItem.data.end}
-      </h3>
-      <div class="mt-1 text-sm opacity-70">
-        {formatDuration(selectedItem.data.duration)}
-      </div>
-    {:else if selectedItem.type === "accepted-suggestion"}
-      <!-- Compact layout: Badge + Title + Buttons in one row -->
-      <div class="flex items-center justify-between gap-2">
-        <div class="flex min-w-0 flex-1 items-center gap-2">
-          <span class="badge flex-shrink-0 badge-sm badge-success"
-            >承認済み</span
-          >
-          <h3 class="truncate text-lg font-bold">{selectedItem.title}</h3>
-        </div>
-        <div class="flex flex-shrink-0 items-center gap-2">
-          {#if isInPast(selectedItem.data.endTime)}
-            <!-- Past: Complete or Missed -->
+<div class="card card-sm bg-base-100 shadow-sm">
+  <div class="card-body gap-1 p-4">
+    {#if selectedItem}
+      {#if selectedItem.type === "pending-suggestion"}
+        <!-- Compact layout: Badge + Title + Buttons in one row -->
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex min-w-0 flex-1 items-center gap-2">
+            <span class="badge badge-warning badge-sm flex-shrink-0">提案</span>
+            <h3 class="card-title truncate text-lg">{selectedItem.title}</h3>
+          </div>
+          <div class="card-actions flex-shrink-0">
             <button
-              class="btn btn-sm btn-success"
-              onclick={handleComplete}
-              title="完了"
+              class="btn btn-success btn-sm btn-square"
+              onclick={handleAccept}
+              title="承認"
             >
               ✓
             </button>
             <button
-              class="btn btn-ghost btn-sm"
-              onclick={handleMissed}
-              title="未達成"
+              class="btn btn-error btn-sm btn-square"
+              onclick={handleReject}
+              title="却下"
             >
               ✗
             </button>
-          {:else}
-            <!-- Future: Delete only -->
-            <button
-              class="btn btn-sm btn-error"
-              onclick={handleDelete}
-              title="削除"
-            >
-              🗑
-            </button>
-          {/if}
+          </div>
         </div>
+        <!-- Time range in separate row -->
+        <p class="text-sm text-base-content/70">
+          {selectedItem.data.startTime} - {selectedItem.data.endTime}
+          <span class="ml-2 text-base-content/50">
+            ({formatDuration(selectedItem.data.duration)})
+          </span>
+        </p>
+      {:else if selectedItem.type === "event"}
+        <div class="mb-1 flex items-center gap-2">
+          <span class="badge badge-primary badge-sm">イベント</span>
+        </div>
+        <h3 class="card-title text-lg">{selectedItem.data.title}</h3>
+        <p class="text-sm text-base-content/70">
+          {#if selectedItem.data.timeLabel === "all-day"}
+            終日
+          {:else if selectedItem.data.timeLabel === "some-timing"}
+            どこかのタイミングで
+          {:else}
+            {new Date(selectedItem.data.start).toLocaleTimeString("ja-JP", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })} - {new Date(selectedItem.data.end).toLocaleTimeString("ja-JP", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          {/if}
+        </p>
+      {:else if selectedItem.type === "gap"}
+        <div class="mb-1 flex items-center gap-2">
+          <span class="badge badge-secondary badge-sm">空き時間</span>
+        </div>
+        <h3 class="card-title text-lg">
+          {selectedItem.data.start} - {selectedItem.data.end}
+        </h3>
+        <p class="text-sm text-base-content/70">
+          {formatDuration(selectedItem.data.duration)}
+        </p>
+      {:else if selectedItem.type === "accepted-suggestion"}
+        <!-- Compact layout: Badge + Title + Buttons in one row -->
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex min-w-0 flex-1 items-center gap-2">
+            <span class="badge badge-success badge-sm flex-shrink-0">承認済み</span>
+            <h3 class="card-title truncate text-lg">{selectedItem.title}</h3>
+          </div>
+          <div class="card-actions flex-shrink-0">
+            {#if isInPast(selectedItem.data.endTime)}
+              <!-- Past: Complete or Missed -->
+              <button
+                class="btn btn-success btn-sm btn-square"
+                onclick={handleComplete}
+                title="完了"
+              >
+                ✓
+              </button>
+              <button
+                class="btn btn-ghost btn-sm btn-square"
+                onclick={handleMissed}
+                title="未達成"
+              >
+                ✗
+              </button>
+            {:else}
+              <!-- Future: Delete only -->
+              <button
+                class="btn btn-error btn-sm btn-square"
+                onclick={handleDelete}
+                title="削除"
+              >
+                🗑
+              </button>
+            {/if}
+          </div>
+        </div>
+        <!-- Time range in separate row -->
+        <p class="text-sm text-base-content/70">
+          {selectedItem.data.startTime} - {selectedItem.data.endTime}
+          <span class="ml-2 text-base-content/50">
+            ({formatDuration(selectedItem.data.duration)})
+          </span>
+        </p>
+      {:else if selectedItem.type === "drag-preview"}
+        <div class="mb-1 flex items-center gap-2">
+          <span class="badge badge-info badge-sm">プレビュー</span>
+        </div>
+        <h3 class="card-title text-lg">{selectedItem.title}</h3>
+        <p class="text-sm text-base-content/70">
+          {selectedItem.startTime} - {selectedItem.endTime}
+          <span class="ml-2 text-base-content/50">
+            ({formatDuration(selectedItem.duration)})
+          </span>
+        </p>
+      {/if}
+    {:else}
+      <!-- Empty state when nothing is selected -->
+      <div class="mb-1 flex items-center gap-2">
+        <span class="badge badge-ghost badge-sm">選択なし</span>
       </div>
-      <!-- Time range in separate row -->
-      <div class="mt-1 text-sm opacity-70">
-        {selectedItem.data.startTime} - {selectedItem.data.endTime}
-        <span class="ml-2 opacity-50">
-          ({formatDuration(selectedItem.data.duration)})
-        </span>
-      </div>
-    {:else if selectedItem.type === "drag-preview"}
-      <div class="mb-2 flex items-center gap-2">
-        <span class="badge badge-sm badge-info">プレビュー</span>
-      </div>
-      <h3 class="text-lg font-bold">{selectedItem.title}</h3>
-      <div class="mt-1 text-sm opacity-70">
-        {selectedItem.startTime} - {selectedItem.endTime}
-        <span class="ml-2 opacity-50">
-          ({formatDuration(selectedItem.duration)})
-        </span>
-      </div>
+      <h3 class="card-title text-lg text-base-content/50">項目を選択してください</h3>
+      <p class="text-sm text-base-content/40">
+        提案、イベント、または空き時間をクリック
+      </p>
     {/if}
-  {:else}
-    <!-- Empty state when nothing is selected -->
-    <div class="mb-2 flex items-center gap-2">
-      <span class="badge badge-ghost badge-sm">選択なし</span>
-    </div>
-    <h3 class="text-lg font-bold opacity-50">項目を選択してください</h3>
-    <div class="mt-1 text-sm opacity-40">
-      提案、イベント、または空き時間をクリック
-    </div>
-  {/if}
+  </div>
 </div>

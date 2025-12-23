@@ -447,20 +447,12 @@
   // Component-level event handling is wired directly on the child via on: handlers below
 </script>
 
-<div
-  class="relative m-0 flex h-full w-full flex-col overflow-hidden bg-[var(--color-bg-app)]/60 p-0 backdrop-blur-sm"
->
+<div class="relative flex h-full w-full flex-col overflow-hidden bg-base-200/60 backdrop-blur-sm">
   <!-- Main Content -->
-  <main
-    class="relative flex h-full min-h-0 w-full flex-1 flex-row items-start overflow-x-hidden overflow-y-auto"
-  >
+  <main class="relative flex h-full min-h-0 w-full flex-1 flex-row items-start overflow-x-hidden overflow-y-auto">
     <!-- Timeline Section - Takes majority of space -->
-    <section
-      class="z-10 m-4 flex w-full min-w-0 flex-1 items-stretch justify-center overflow-y-visible"
-    >
-      <div
-        class="flex min-h-0 w-full flex-1 flex-col items-center gap-4 overflow-y-visible"
-      >
+    <section class="z-10 m-4 flex w-full min-w-0 flex-1 items-stretch justify-center overflow-y-visible">
+      <div class="flex min-h-0 w-full flex-1 flex-col items-center gap-4 overflow-y-visible">
         <!-- Info Panel above timeline - always visible -->
         <div class="w-full max-w-2xl px-4">
           <TimelineInfoPanel
@@ -473,9 +465,7 @@
           />
         </div>
 
-        <div
-          class="relative h-[min(70vw,60vh)] w-[min(70vw,60vh)] flex-shrink-0 overflow-visible"
-        >
+        <div class="relative h-[min(70vw,60vh)] w-[min(70vw,60vh)] flex-shrink-0 overflow-visible">
           <CircularTimelineCss
             externalGaps={computedGaps}
             pendingSuggestions={$pendingSuggestions}
@@ -495,80 +485,35 @@
           />
         </div>
 
-        <div
-          class="mb-[calc(var(--bottom-nav-height,80px)+1rem)] w-full max-w-[720px] rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-app)] p-5 shadow-sm"
-        >
-          <div
-            class="mb-4 flex items-center justify-between border-b border-[var(--color-border-default)] pb-3"
-          >
-            <h3
-              class="m-0 text-xl font-normal text-[var(--color-text-primary)]"
-            >
-              Events
-            </h3>
-            <span
-              class="rounded-full bg-[var(--color-primary)]/10 px-3 py-1 text-sm font-medium text-[var(--color-primary)]"
-              >{formatDateLabel(dataState.selectedDate)}</span
-            >
+        <!-- Events Card using DaisyUI -->
+        <div class="card card-md mb-4 w-full max-w-[720px] bg-base-100 shadow-sm">
+          <div class="card-body gap-3">
+            <div class="flex items-center justify-between border-b border-base-300 pb-3">
+              <h3 class="card-title text-xl font-normal">Events</h3>
+              <span class="badge badge-primary badge-outline">{formatDateLabel(dataState.selectedDate)}</span>
+            </div>
+
+            {#if displayEvents.length === 0}
+              <p class="py-6 text-center text-sm text-base-content/60">
+                この日の予定はありません
+              </p>
+            {:else}
+              <ul class="list rounded-box">
+                {#each displayEvents as event (event.id)}
+                  <li class="list-row hover:bg-base-200/50 transition-colors duration-200">
+                    <div class="list-col-grow">
+                      <span class="text-sm font-medium">{event.title}</span>
+                    </div>
+                    <span class="badge badge-ghost text-xs font-medium">
+                      {formatEventTime(event)}
+                    </span>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
           </div>
-          {#if displayEvents.length === 0}
-            <p
-              class="m-0 py-6 text-center text-sm text-[var(--color-text-muted)]"
-            >
-              この日の予定はありません
-            </p>
-          {:else}
-            <ul class="m-0 flex list-none flex-col gap-2 p-0">
-              {#each displayEvents as event (event.id)}
-                <li
-                  class="flex items-center justify-between rounded-xl border border-transparent bg-[var(--color-bg-surface)] p-3 px-4 transition-all duration-200 hover:border-[var(--color-primary)]/20 hover:bg-[var(--color-surface-100)]"
-                >
-                  <div
-                    class="text-sm font-medium text-[var(--color-text-primary)]"
-                  >
-                    {event.title}
-                  </div>
-                  <div
-                    class="rounded-lg bg-[var(--color-bg-app)] px-2.5 py-1 text-xs font-medium text-[var(--color-text-secondary)] shadow-sm"
-                  >
-                    {formatEventTime(event)}
-                  </div>
-                </li>
-              {/each}
-            </ul>
-          {/if}
         </div>
       </div>
     </section>
-
-    <!-- Content Section (legacy, commented out)
-    <section class="content-section">
-     
-      {#if selectedGap}
-        <div class="gap-details">
-          <h3>Free Time: {selectedGap.start} - {selectedGap.end}</h3>
-          <p>{selectedGap.duration} minutes available</p>
-          <div class="gap-actions">
-            <button class="action-btn primary">Add Task</button>
-            <button class="action-btn secondary">Take Break</button>
-          </div>
-        </div>
-      {/if}
-
-      
-      {#if _selectedEvent}
-        <div class="event-details">
-          <h3>{_selectedEvent.title}</h3>
-          <p>{_selectedEvent.start.toTimeString().slice(0, 5)} - {_selectedEvent.end.toTimeString().slice(0, 5)}</p>
-          {#if _selectedEvent.description}
-            <p class="description">{_selectedEvent.description}</p>
-          {/if}
-          <div class="event-actions">
-            <button class="action-btn secondary">Edit</button>
-            <button class="action-btn danger">Delete</button>
-          </div>
-        </div>
-      {/if}
-    </section>-->
   </main>
 </div>

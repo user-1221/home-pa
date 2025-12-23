@@ -58,15 +58,16 @@
 </script>
 
 {#if $isTaskFormOpen}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
-    class="fixed inset-0 z-[2100] flex items-end justify-center bg-black/40 backdrop-blur-sm md:items-center"
+    class="modal modal-open modal-bottom z-[2100] md:modal-middle"
     onclick={handleClose}
     onkeydown={(e) => e.key === "Escape" && handleClose()}
     role="button"
     tabindex="-1"
   >
     <div
-      class="mb-[calc(80px+env(safe-area-inset-bottom))] max-h-[calc(90vh-80px)] w-full max-w-[500px] [animation:slideUp_0.3s_ease-out] overflow-y-auto rounded-t-2xl bg-base-100 p-6 pb-[calc(1.5rem+80px+env(safe-area-inset-bottom))] md:mb-0 md:rounded-2xl md:pb-6"
+      class="modal-box max-h-[calc(90vh-80px)] w-full max-w-[500px] overflow-y-auto p-6 md:max-h-[85vh]"
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.key === "Escape" && handleClose()}
       role="dialog"
@@ -240,17 +241,19 @@
           </button>
           <button
             type="submit"
-            class="btn flex-1 border-none bg-[var(--color-primary)] text-white hover:-translate-y-px hover:bg-[var(--color-primary-400)] hover:shadow-lg"
+            class="btn btn-primary flex-1"
             disabled={!$isTaskFormValid || $isTaskFormSubmitting}
           >
-            {$isTaskFormSubmitting
-              ? "Saving..."
-              : $taskForm.isEditing
-                ? "Update Task"
-                : "Create Task"}
+            {#if $isTaskFormSubmitting}
+              <span class="loading loading-spinner loading-sm"></span>
+              Saving...
+            {:else}
+              {$taskForm.isEditing ? "Update Task" : "Create Task"}
+            {/if}
           </button>
         </div>
       </form>
     </div>
+    <div class="modal-backdrop bg-black/40 backdrop-blur-sm"></div>
   </div>
 {/if}

@@ -239,8 +239,9 @@
   }
 </script>
 
+<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
-  class="fixed inset-0 z-[2100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+  class="modal modal-open modal-bottom z-[2100] md:modal-middle"
   onclick={() => eventFormState.close()}
   onkeydown={(e) => e.key === "Escape" && eventFormState.close()}
   role="button"
@@ -248,21 +249,19 @@
   aria-label="Close event form"
 >
   <div
-    class="max-h-[90vh] w-full max-w-[500px] overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl"
+    class="modal-box max-h-[90vh] w-full max-w-[500px] overflow-y-auto p-0"
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.key === "Escape" && eventFormState.close()}
     role="dialog"
     aria-modal="true"
     tabindex="-1"
   >
-    <div
-      class="sticky top-0 z-[1] flex items-center justify-between border-b border-base-300 bg-white p-4"
-    >
-      <h3 class="m-0 text-lg font-normal text-base-content">
+    <div class="sticky top-0 z-[1] flex items-center justify-between border-b border-base-300 bg-base-100 p-4">
+      <h3 class="text-lg font-medium">
         {isEventEditing ? "予定を編集" : "新しい予定"}
       </h3>
       <button
-        class="btn btn-ghost transition-all duration-200 btn-sm hover:bg-error hover:text-white"
+        class="btn btn-ghost btn-sm btn-square"
         onclick={() => eventFormState.close()}
         aria-label="Close"
       >
@@ -663,28 +662,31 @@
       </div>
     {/if}
 
-    <div
-      class="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4"
-    >
+    <div class="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4">
       {#if isEventEditing}
         <button
           type="button"
-          class="btn mr-auto btn-outline btn-error"
+          class="btn btn-error btn-outline mr-auto"
           onclick={handleDelete}
           disabled={isDeleting}
         >
-          {isDeleting ? "削除中..." : "削除"}
+          {#if isDeleting}
+            <span class="loading loading-spinner loading-sm"></span>
+            削除中...
+          {:else}
+            削除
+          {/if}
         </button>
         <button
           type="button"
-          class="btn border border-base-300 btn-ghost"
+          class="btn btn-ghost"
           onclick={() => eventActions.cancelEventForm()}
         >
           キャンセル
         </button>
         <button
           type="button"
-          class="btn border-none bg-[var(--color-primary)] font-normal text-white hover:bg-[var(--color-primary-400)]"
+          class="btn btn-primary"
           onclick={() => eventActions.submitEventForm()}
         >
           更新
@@ -692,14 +694,14 @@
       {:else}
         <button
           type="button"
-          class="btn border border-base-300 btn-ghost"
+          class="btn btn-ghost"
           onclick={() => eventActions.cancelEventForm()}
         >
           キャンセル
         </button>
         <button
           type="button"
-          class="btn border-none bg-[var(--color-primary)] font-normal text-white hover:bg-[var(--color-primary-400)]"
+          class="btn btn-primary"
           onclick={() => eventActions.submitEventForm()}
         >
           作成
@@ -707,4 +709,5 @@
       {/if}
     </div>
   </div>
+  <div class="modal-backdrop bg-black/40 backdrop-blur-sm"></div>
 </div>
