@@ -92,6 +92,13 @@ export interface GenerateScheduleOptions {
 
   /** Skip LLM enrichment for this call */
   skipLLMEnrichment?: boolean;
+
+  /**
+   * Set of memo IDs that are already accepted
+   * Suggestions for these memos will have reduced scores
+   * (always lower than mandatory, so they appear as lower-priority duplicates)
+   */
+  acceptedMemoIds?: Set<string>;
 }
 
 /**
@@ -202,6 +209,49 @@ export function memosToSuggestions(
 }
 
 /**
+ * Score reduction factor for accepted memos
+ * Ensures their duplicates are always lower priority than mandatory (need >= 1.0)
+ */
+const ACCEPTED_SCORE_REDUCTION = 0.5;
+const ACCEPTED_MAX_NEED = 0.85; // Always below mandatory threshold (1.0)
+
+/**
+ * Reduce scores for suggestions whose memos are already accepted
+ *
+ * When a suggestion is accepted, the same memo may reappear in future
+ * repopulation, but with reduced scores so it's always lower priority
+ * than mandatory suggestions.
+ *
+ * @param suggestions - All generated suggestions
+ * @param acceptedMemoIds - Set of memo IDs that are already accepted
+ * @returns Suggestions with reduced scores for accepted memos
+ */
+export function reduceScoresForAccepted(
+  suggestions: Suggestion[],
+  acceptedMemoIds: Set<string>,
+): Suggestion[] {
+  return suggestions.map((s) => {
+    if (!acceptedMemoIds.has(s.memoId)) {
+      return s;
+    }
+
+    // Reduce both need and importance for accepted memos
+    // Cap need below mandatory threshold to ensure mandatory always wins
+    const reducedNeed = Math.min(
+      s.need * ACCEPTED_SCORE_REDUCTION,
+      ACCEPTED_MAX_NEED,
+    );
+    const reducedImportance = s.importance * ACCEPTED_SCORE_REDUCTION;
+
+    return {
+      ...s,
+      need: reducedNeed,
+      importance: reducedImportance,
+    };
+  });
+}
+
+/**
  * Check if a memo is now complete based on time spent
  *
  * @param memo - Memo to check
@@ -291,7 +341,16 @@ export class SuggestionEngine {
     }
 
     // Step 4: Score memos → Suggestions
-    const suggestions = memosToSuggestions(enrichedMemos, currentTime);
+    let suggestions = memosToSuggestions(enrichedMemos, currentTime);
+
+    // Step 4.5: Reduce scores for already-accepted memos
+    // This allows duplicates but ensures they're always lower priority than mandatory
+    if (options.acceptedMemoIds && options.acceptedMemoIds.size > 0) {
+      suggestions = reduceScoresForAccepted(
+        suggestions,
+        options.acceptedMemoIds,
+      );
+    }
 
     // Step 5: Enrich gaps with location (if events provided)
     let enrichedGaps: Gap[];

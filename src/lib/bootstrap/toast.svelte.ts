@@ -53,7 +53,7 @@ class ToastState {
   /**
    * Show a toast notification
    */
-  show(message: string, type: ToastType = "success", duration = 3000): void {
+  show(message: string, type: ToastType = "success", duration = 1200): void {
     const id = Date.now().toString() + Math.random().toString(36);
     const toast: Toast = { id, message, type, duration };
 

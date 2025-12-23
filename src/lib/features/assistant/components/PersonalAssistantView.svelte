@@ -1,8 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
-  // LogsView removed from header; settings panel is minimal
-  import LogsView from "$lib/features/logs/components/LogsView.svelte";
   import CircularTimelineCss from "./CircularTimelineCss.svelte";
+  import TimelineInfoPanel from "./TimelineInfoPanel.svelte";
   import {
     calendarState,
     dataState,
@@ -23,16 +22,48 @@
     parseTimeOnDate,
   } from "$lib/utils/date-utils.ts";
 
-  // Local state
-  // Settings panel toggle (replaces top header controls)
-  let showSettings = $state(false);
-
   // Task list (synced from store)
   let taskList = $state(get(tasks));
 
-  // Selected items for details display
-  let _selectedEvent = $state<Event | null>(null);
-  let _selectedGap = $state<Gap | null>(null);
+  // Selected items for details display - track all separately
+  let selectedSuggestion = $state<
+    | {
+        type: "pending-suggestion";
+        data: import("$lib/features/assistant/state/schedule.ts").PendingSuggestion;
+        title: string;
+      }
+    | {
+        type: "accepted-suggestion";
+        data: import("$lib/features/assistant/state/schedule.ts").AcceptedSuggestion;
+        title: string;
+      }
+    | {
+        type: "drag-preview";
+        title: string;
+        startTime: string;
+        endTime: string;
+        duration: number;
+      }
+    | null
+  >(null);
+  let selectedEvent = $state<Event | null>(null);
+  let selectedGap = $state<Gap | null>(null);
+
+  // Priority-based display: suggestion → event → gap
+  let displayedItem = $derived.by(() => {
+    if (selectedSuggestion) return selectedSuggestion;
+    if (selectedEvent)
+      return {
+        type: "event" as const,
+        data: selectedEvent,
+      };
+    if (selectedGap)
+      return {
+        type: "gap" as const,
+        data: selectedGap,
+      };
+    return null;
+  });
 
   function dateKey(date: Date): string {
     return startOfDay(date).toISOString().slice(0, 10);
@@ -236,18 +267,189 @@
     );
   }
 
+  async function handleSuggestionMove(
+    event: CustomEvent<{
+      suggestionId: string;
+      newStartTime: string;
+      newEndTime: string;
+      newGapId: string;
+    }>,
+  ) {
+    const { suggestionId, newStartTime, newEndTime, newGapId } = event.detail;
+    await scheduleActions.moveSuggestion(
+      suggestionId,
+      newStartTime,
+      newEndTime,
+      newGapId,
+      taskList,
+      computedGaps, // Pass the correctly computed gaps with user's active time settings
+    );
+  }
+
+  async function handleSuggestionDurationChange(
+    event: CustomEvent<{ suggestionId: string; newDuration: number }>,
+  ) {
+    const { suggestionId, newDuration } = event.detail;
+    await scheduleActions.updateAcceptedDuration(
+      suggestionId,
+      newDuration,
+      taskList,
+      computedGaps, // Pass gaps for constraint calculation
+    );
+  }
+
+  // Info panel event handlers - update individual selections
+  function handleSuggestionSelected(
+    event: CustomEvent<{
+      type: "pending" | "accepted";
+      data:
+        | import("$lib/features/assistant/state/schedule.ts").PendingSuggestion
+        | import("$lib/features/assistant/state/schedule.ts").AcceptedSuggestion;
+    }>,
+  ) {
+    const { type, data } = event.detail;
+    if (type === "pending") {
+      selectedSuggestion = {
+        type: "pending-suggestion",
+        data: data as import("$lib/features/assistant/state/schedule.ts").PendingSuggestion,
+        title: getTaskTitle(data.memoId),
+      };
+    } else {
+      selectedSuggestion = {
+        type: "accepted-suggestion",
+        data: data as import("$lib/features/assistant/state/schedule.ts").AcceptedSuggestion,
+        title: getTaskTitle(data.memoId),
+      };
+    }
+    // Clear lower priority selections
+    selectedEvent = null;
+    selectedGap = null;
+  }
+
+  function handleDragPreview(
+    event: CustomEvent<{
+      title: string;
+      startTime: string;
+      endTime: string;
+      duration: number;
+    }>,
+  ) {
+    selectedSuggestion = {
+      type: "drag-preview",
+      ...event.detail,
+    };
+    // Clear lower priority selections
+    selectedEvent = null;
+    selectedGap = null;
+  }
+
+  function handleEventSelected(event: CustomEvent<Event>) {
+    selectedEvent = event.detail;
+    // Clear lower priority selection
+    selectedGap = null;
+    // Don't clear suggestion - it has higher priority
+  }
+
+  function handleGapSelected(
+    event: CustomEvent<{
+      start: string;
+      end: string;
+      duration: number;
+      startAngle: number;
+      endAngle: number;
+    }>,
+  ) {
+    const gapData = event.detail;
+    selectedGap = {
+      start: gapData.start,
+      end: gapData.end,
+      duration: gapData.duration,
+      gapId: `gap-${gapData.startAngle}`,
+    };
+    // Don't clear higher priority selections
+  }
+
+  function handleClearSelection() {
+    // Only clear suggestion (highest priority)
+    // Event and gap remain until explicitly cleared
+    selectedSuggestion = null;
+  }
+
+  // Info panel actions
+  async function handleInfoPanelAccept(event: CustomEvent<string>) {
+    const suggestionId = event.detail;
+    await scheduleActions.accept(suggestionId, taskList);
+    selectedSuggestion = null;
+  }
+
+  async function handleInfoPanelReject(event: CustomEvent<string>) {
+    const suggestionId = event.detail;
+    await scheduleActions.skip(suggestionId, taskList);
+    selectedSuggestion = null;
+  }
+
+  async function handleInfoPanelComplete(
+    event: CustomEvent<{
+      suggestionId: string;
+      memoId: string;
+      duration: number;
+    }>,
+  ) {
+    const { suggestionId, memoId, duration } = event.detail;
+
+    // Log progress via remote function
+    const { logSuggestionComplete } = await import(
+      "$lib/features/tasks/state/memo.functions.remote.ts"
+    );
+    await logSuggestionComplete({ memoId, durationMinutes: duration });
+
+    // Remove from accepted list
+    await scheduleActions.completeSuggestion(suggestionId, memoId, duration);
+
+    // Refresh tasks
+    const { fetchMemos } = await import(
+      "$lib/features/tasks/state/memo.functions.remote.ts"
+    );
+    const updatedMemos = await fetchMemos({});
+    if (updatedMemos) {
+      taskList = updatedMemos.map((m) => ({
+        ...m,
+        createdAt: new Date(m.createdAt),
+        deadline: m.deadline ? new Date(m.deadline) : undefined,
+        lastActivity: m.lastActivity ? new Date(m.lastActivity) : undefined,
+        status: {
+          ...m.status,
+          periodStartDate: m.status.periodStartDate
+            ? new Date(m.status.periodStartDate)
+            : undefined,
+        },
+      }));
+      tasks.set(taskList);
+    }
+
+    selectedSuggestion = null;
+  }
+
+  function handleInfoPanelMissed(event: CustomEvent<{ suggestionId: string }>) {
+    const { suggestionId } = event.detail;
+    scheduleActions.missedSuggestion(suggestionId);
+    selectedSuggestion = null;
+  }
+
+  async function handleInfoPanelDelete(
+    event: CustomEvent<{ suggestionId: string }>,
+  ) {
+    const { suggestionId } = event.detail;
+    await scheduleActions.deleteAccepted(suggestionId, taskList);
+    selectedSuggestion = null;
+  }
+
   // Component-level event handling is wired directly on the child via on: handlers below
 </script>
 
 <div
   class="relative m-0 flex h-full w-full flex-col overflow-hidden bg-[var(--color-bg-app)]/60 p-0 backdrop-blur-sm"
 >
-  <!-- Minimal top-left Settings trigger -->
-  <button
-    class="fixed top-3 left-3 z-[250] cursor-pointer rounded-lg border-none bg-[var(--color-bg-app)]/80 px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] shadow-sm backdrop-blur-sm transition-all duration-200 hover:bg-[var(--color-bg-app)] hover:text-[var(--color-primary)] hover:shadow-md"
-    onclick={() => (showSettings = true)}>settings</button
-  >
-
   <!-- Main Content -->
   <main
     class="relative flex h-full min-h-0 w-full flex-1 flex-row items-start overflow-x-hidden overflow-y-auto"
@@ -259,6 +461,18 @@
       <div
         class="flex min-h-0 w-full flex-1 flex-col items-center gap-4 overflow-y-visible"
       >
+        <!-- Info Panel above timeline - always visible -->
+        <div class="w-full max-w-2xl px-4">
+          <TimelineInfoPanel
+            selectedItem={displayedItem}
+            on:accept={handleInfoPanelAccept}
+            on:reject={handleInfoPanelReject}
+            on:complete={handleInfoPanelComplete}
+            on:missed={handleInfoPanelMissed}
+            on:delete={handleInfoPanelDelete}
+          />
+        </div>
+
         <div
           class="relative h-[min(70vw,60vh)] w-[min(70vw,60vh)] flex-shrink-0 overflow-visible"
         >
@@ -267,29 +481,17 @@
             pendingSuggestions={$pendingSuggestions}
             acceptedSuggestions={$acceptedSuggestions}
             {getTaskTitle}
-            on:eventSelected={(e: CustomEvent<Event>) =>
-              (_selectedEvent = e.detail)}
-            on:gapSelected={(
-              e: CustomEvent<{
-                start: string;
-                end: string;
-                duration: number;
-                startAngle: number;
-                endAngle: number;
-              }>,
-            ) => {
-              const gap = e.detail;
-              _selectedGap = {
-                gapId: `gap-${gap.start}-${gap.end}`,
-                start: gap.start,
-                end: gap.end,
-                duration: gap.duration,
-              };
-            }}
+            on:eventSelected={handleEventSelected}
+            on:gapSelected={handleGapSelected}
             on:suggestionAccept={handleSuggestionAccept}
             on:suggestionSkip={handleSuggestionSkip}
             on:suggestionDelete={handleSuggestionDelete}
             on:suggestionResize={handleSuggestionResize}
+            on:suggestionMove={handleSuggestionMove}
+            on:suggestionDurationChange={handleSuggestionDurationChange}
+            on:suggestionSelected={handleSuggestionSelected}
+            on:dragPreview={handleDragPreview}
+            on:clearSelection={handleClearSelection}
           />
         </div>
 
@@ -369,38 +571,4 @@
       {/if}
     </section>-->
   </main>
-
-  <!-- Settings Panel (bottom sheet) -->
-  {#if showSettings}
-    <div
-      class="fixed inset-0 modal-backdrop z-[499] animate-[fadeIn_0.2s_ease] bg-black/40 backdrop-blur-sm"
-      onclick={() => (showSettings = false)}
-      onkeydown={(e) => e.key === "Escape" && (showSettings = false)}
-      role="button"
-      tabindex="-1"
-      aria-label="Close settings"
-    ></div>
-    <section
-      class="fixed right-0 bottom-[calc(var(--bottom-nav-height,80px)+env(safe-area-inset-bottom))] left-0 z-[500] modal-box flex max-h-[calc(50vh-var(--bottom-nav-height,80px))] animate-[slideUp_0.3s_ease] flex-col overflow-y-auto rounded-t-xl border-t border-[var(--color-border-default)] bg-[var(--color-bg-app)] p-6 shadow-[0_-8px_32px_rgba(0,0,0,0.12)]"
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
-    >
-      <div
-        class="mb-6 flex items-center justify-between border-b border-[var(--color-border-default)] pb-4"
-      >
-        <h3 class="m-0 text-xl font-normal text-[var(--color-text-primary)]">
-          Settings
-        </h3>
-        <button
-          class="btn h-9 min-h-9 w-9 rounded-xl p-0 text-[var(--color-text-secondary)] btn-ghost transition-all duration-200 btn-sm hover:bg-[var(--color-error-100)] hover:text-[var(--color-error-500)]"
-          onclick={() => (showSettings = false)}
-          aria-label="Close">✕</button
-        >
-      </div>
-      <div class="flex flex-col gap-4">
-        <LogsView />
-      </div>
-    </section>
-  {/if}
 </div>

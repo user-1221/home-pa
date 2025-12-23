@@ -9,10 +9,11 @@
  * @version 1.0.0
  */
 
-import { writable, derived, readable, type Readable } from "svelte/store";
+import { derived, readable, type Readable } from "svelte/store";
 import type { DayBoundaries, Event } from "../services/gap-finder.ts";
 import { GapFinder } from "../services/gap-finder.ts";
 import { dataState } from "../../../bootstrap/data.svelte.ts";
+import { settingsState } from "../../../bootstrap/settings.svelte.ts";
 import { calendarState } from "../../calendar/state/calendar.svelte.ts";
 import type { Event as CalendarEvent } from "$lib/types.ts";
 import {
@@ -50,12 +51,23 @@ const calendarOccurrences = createPollingStore(() => calendarState.occurrences);
 
 /**
  * User-configurable day boundaries for gap calculation
- * Default: 8:00 AM to 11:00 PM
+ * Synced with settingsState.activeStartTime and activeEndTime
+ * This ensures enrichedGaps uses the user's active time settings, not defaults
  */
-export const dayBoundaries = writable<DayBoundaries>({
-  dayStart: "08:00",
-  dayEnd: "23:00",
-});
+const activeStartTimeStore = createPollingStore(
+  () => settingsState.activeStartTime,
+);
+const activeEndTimeStore = createPollingStore(
+  () => settingsState.activeEndTime,
+);
+
+export const dayBoundaries = derived(
+  [activeStartTimeStore, activeEndTimeStore],
+  ([$start, $end]): DayBoundaries => ({
+    dayStart: $start,
+    dayEnd: $end,
+  }),
+);
 
 /**
  * Converts calendar events to gap-finder format for the selected date
@@ -254,23 +266,26 @@ export const gapStats = derived(gaps, (gapList) => {
 
 /**
  * Actions for managing day boundaries
- * Provides methods to update start/end times and reset to defaults
+ * Updates settingsState which automatically syncs to dayBoundaries
+ * This ensures a single source of truth for active time settings
  */
 export const dayBoundaryActions = {
   updateDayStart: (start: string) => {
-    dayBoundaries.update((current) => ({ ...current, dayStart: start }));
+    settingsState.setActiveStartTime(start);
   },
 
   updateDayEnd: (end: string) => {
-    dayBoundaries.update((current) => ({ ...current, dayEnd: end }));
+    settingsState.setActiveEndTime(end);
   },
 
   resetToDefaults: () => {
-    dayBoundaries.set({ dayStart: "08:00", dayEnd: "23:00" });
+    settingsState.setActiveStartTime("08:00");
+    settingsState.setActiveEndTime("23:00");
   },
 
   setCustomBoundaries: (start: string, end: string) => {
-    dayBoundaries.set({ dayStart: start, dayEnd: end });
+    settingsState.setActiveStartTime(start);
+    settingsState.setActiveEndTime(end);
   },
 };
 

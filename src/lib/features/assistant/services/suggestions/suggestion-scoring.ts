@@ -187,6 +187,9 @@ export function calculateBacklogNeed(memo: Memo, currentTime: Date): number {
 // NEED CALCULATION - ROUTINE
 // ============================================================================
 
+/** Minimum hours between routine task suggestions after completion */
+const ROUTINE_COOLDOWN_HOURS = 4;
+
 /**
  * Calculate need for ルーティン (Routine) tasks
  *
@@ -194,6 +197,7 @@ export function calculateBacklogNeed(memo: Memo, currentTime: Date): number {
  * - { count: 3, period: "week" } with 1 done = behind schedule
  * - Range: 0.3 (min) to 0.8 (max) — never conflicts with mandatory deadlines
  * - Routines can NEVER become mandatory (capped at 0.8)
+ * - Recently completed routines get reduced priority (cooldown period)
  */
 export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
   const { min, max } = NEED_RANGES.routine;
@@ -211,6 +215,18 @@ export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
   // Goal met for this period — use minimum
   if (remaining <= 0) {
     return min;
+  }
+
+  // Check if recently completed (cooldown period)
+  // If lastActivity is within ROUTINE_COOLDOWN_HOURS, reduce priority significantly
+  const lastActivity = memo.lastActivity ? new Date(memo.lastActivity) : null;
+  if (lastActivity) {
+    const hoursSinceActivity =
+      (currentTime.getTime() - lastActivity.getTime()) / (1000 * 60 * 60);
+    if (hoursSinceActivity < ROUTINE_COOLDOWN_HOURS) {
+      // Very low priority during cooldown (but not zero, in case it's urgent)
+      return min * 0.5;
+    }
   }
 
   // Calculate how much of the period is left

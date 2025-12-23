@@ -75,13 +75,13 @@
     return task.genre;
   });
 
-  // Location label
+  // Location label (UI in Japanese, internal values unchanged)
   let locationLabel = $derived(
     task.locationPreference === "home/near_home"
-      ? "🏠 Home"
+      ? "🏠 自宅/自宅付近"
       : task.locationPreference === "workplace/near_workplace"
-        ? "🏢 Work"
-        : "📍 Anywhere",
+        ? "🏢 勤務地"
+        : "どこでも",
   );
 
   // Handlers

@@ -65,24 +65,24 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-  class="scrollbar-thin scrollbar-thumb-[var(--color-primary)] scrollbar-track-transparent mx-auto max-h-[calc(100vh-120px)] min-h-[calc(100vh-120px)] max-w-screen-xl overflow-y-auto bg-[var(--color-bg-app)]/60 p-8 backdrop-blur-sm max-md:p-4"
+  class="scrollbar-thin scrollbar-thumb-[var(--color-primary)] scrollbar-track-transparent mx-auto max-h-[calc(100vh-120px)] min-h-[calc(100vh-120px)] max-w-screen-xl overflow-y-auto bg-[var(--color-bg-app)]/60 p-3 backdrop-blur-sm md:p-5"
 >
   <!-- Header with Settings Icon -->
   <div
-    class="mb-8 flex items-start justify-between border-b border-[var(--color-border-default)] pb-4 max-md:mb-4"
+    class="mb-6 flex h-14 items-center justify-between border-b border-[var(--color-border-default)] pb-3 md:h-20"
   >
-    <div>
+    <div class="flex flex-col gap-1">
       <h2
-        class="m-0 mb-2 text-3xl font-normal text-[var(--color-text-primary)]"
+        class="m-0 text-base font-normal tracking-tight text-[var(--color-text-primary)] md:text-xl"
       >
         Utilities
       </h2>
-      <p class="m-0 text-base text-[var(--color-text-secondary)]">
+      <p class="m-0 text-sm text-[var(--color-text-secondary)] md:text-base">
         Mini apps and tools to enhance your workflow
       </p>
     </div>
     <button
-      class="flex h-11 w-11 items-center justify-center rounded-xl text-xl text-[var(--color-text-secondary)] transition-all duration-200 hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)]"
+      class="flex h-9 min-h-[36px] w-9 min-w-[36px] items-center justify-center rounded-xl text-lg text-[var(--color-text-secondary)] transition-all duration-200 hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)] md:h-11 md:w-11 md:text-xl"
       onclick={() => (showSettings = true)}
       aria-label="Settings"
     >
