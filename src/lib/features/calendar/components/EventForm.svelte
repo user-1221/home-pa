@@ -240,7 +240,7 @@
 </script>
 
 <div
-  class="modal-open modal z-[2100] modal-bottom md:modal-middle"
+  class="modal-open modal modal-mobile-fullscreen z-[2100] md:modal-middle"
   onkeydown={(e) => e.key === "Escape" && eventFormState.close()}
   role="dialog"
   aria-modal="true"
@@ -248,7 +248,7 @@
   tabindex="-1"
 >
   <div
-    class="modal-box max-h-[90vh] w-full max-w-[500px] overflow-y-auto p-0"
+    class="modal-box h-full w-full max-w-[500px] overflow-hidden p-0 md:max-h-[90vh] md:h-auto md:overflow-y-auto"
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.key === "Escape" && eventFormState.close()}
     role="dialog"
@@ -256,7 +256,7 @@
     tabindex="-1"
   >
     <div
-      class="sticky top-0 z-[1] flex items-center justify-between border-b border-base-300 bg-base-100 p-4"
+      class="flex items-center justify-between border-b border-base-300 bg-base-100 p-4 flex-shrink-0"
     >
       <h3 class="text-lg font-medium">
         {isEventEditing ? "予定を編集" : "新しい予定"}
@@ -270,7 +270,7 @@
       </button>
     </div>
 
-    <div class="flex flex-col gap-4 p-4">
+    <div class="flex flex-col gap-4 p-4 overflow-y-auto flex-1 min-h-0">
       <!-- Title -->
       <div class="form-control">
         <label class="label" for="event-title">
@@ -685,7 +685,7 @@
     {/if}
 
     <div
-      class="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4"
+      class="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 flex-shrink-0"
     >
       {#if isEventEditing}
         <button

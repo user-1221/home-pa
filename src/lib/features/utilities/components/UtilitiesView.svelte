@@ -133,13 +133,13 @@
 {#if activeMiniApp}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
-    class="modal-open modal z-[2100] modal-bottom md:modal-middle"
+    class="modal-open modal modal-mobile-fullscreen z-[2100] md:modal-middle"
     role="button"
     tabindex="-1"
     aria-label="Close mini app"
     onclick={handleBackdropClick}
   >
-    <div class="modal-box max-h-[90vh] w-full max-w-2xl p-0 md:max-h-[80vh]">
+    <div class="modal-box h-full w-full max-w-2xl p-0 md:max-h-[80vh] md:h-auto">
       {#if activeMiniApp === "transit"}
         <TransitView onClose={closeMiniApp} />
       {:else if activeMiniApp === "progress-memo"}

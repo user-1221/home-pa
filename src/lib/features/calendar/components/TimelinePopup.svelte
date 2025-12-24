@@ -174,7 +174,7 @@
 </script>
 
 <div
-  class="fixed inset-0 z-[2100] flex items-center justify-center bg-base-content/60 p-4 backdrop-blur-sm"
+  class="fixed inset-0 z-[2100] flex items-center justify-center bg-base-content/60 p-0 md:p-4 backdrop-blur-sm"
   onclick={() => onClose()}
   onkeydown={(e) => e.key === "Escape" && onClose()}
   role="button"
@@ -182,7 +182,7 @@
   aria-label="Close timeline"
 >
   <div
-    class="flex max-h-[80vh] w-full max-w-[600px] flex-col overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-xl"
+    class="flex h-full w-full max-w-[600px] flex-col overflow-hidden border-0 md:border rounded-xl md:rounded-xl border-base-300 bg-base-100 shadow-xl md:max-h-[80vh] md:h-auto animate-[slideUpFromBottom_0.3s_ease-out] md:animate-none"
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.key === "Escape" && onClose()}
     role="dialog"

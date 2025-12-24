@@ -59,7 +59,7 @@
 
 {#if $isTaskFormOpen}
   <div
-    class="modal-open modal z-[2100] modal-bottom md:modal-middle"
+    class="modal-open modal modal-mobile-fullscreen z-[2100] md:modal-middle"
     onkeydown={(e) => e.key === "Escape" && handleClose()}
     role="dialog"
     aria-modal="true"
@@ -67,7 +67,7 @@
     tabindex="-1"
   >
     <div
-      class="modal-box max-h-[calc(90vh-80px)] w-full max-w-[500px] overflow-y-auto p-6 md:max-h-[85vh]"
+      class="modal-box h-full w-full max-w-[500px] overflow-hidden p-6 md:max-h-[85vh] md:h-auto md:overflow-y-auto"
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.key === "Escape" && handleClose()}
       role="dialog"
@@ -75,7 +75,7 @@
       tabindex="-1"
     >
       <div
-        class="mb-6 flex items-center justify-between border-b border-base-300 pb-4"
+        class="mb-6 flex items-center justify-between border-b border-base-300 pb-4 flex-shrink-0"
       >
         <h2 class="m-0 text-lg font-normal text-base-content">
           {$taskForm.isEditing ? "Edit Task" : "New Task"}
@@ -87,7 +87,8 @@
         >
       </div>
 
-      <form onsubmit={handleSubmit}>
+      <form onsubmit={handleSubmit} class="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div class="overflow-y-auto flex-1 min-h-0">
         <div class="mb-4">
           <label
             for="title"
@@ -230,8 +231,9 @@
             {$taskFormErrors.general}
           </div>
         {/if}
+        </div>
 
-        <div class="mt-6 flex gap-2 border-t border-base-300 pt-4">
+        <div class="flex gap-2 border-t border-base-300 pt-4 flex-shrink-0">
           <button
             type="button"
             class="btn flex-1 border border-base-300 btn-ghost"

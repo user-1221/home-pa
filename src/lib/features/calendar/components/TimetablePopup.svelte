@@ -211,15 +211,15 @@
   <!-- Hidden when not open -->
 {:else}
   <div
-    class="modal-open modal z-[2100]"
+    class="modal-open modal modal-mobile-fullscreen z-[2100] md:modal-middle"
     role="dialog"
     aria-modal="true"
     aria-labelledby="timetable-title"
   >
-    <div class="modal-box w-11/12 max-w-4xl p-0">
+    <div class="modal-box h-full w-full max-w-4xl p-0 overflow-hidden md:h-auto md:w-11/12 md:overflow-visible">
       <!-- Header -->
       <div
-        class="flex items-center justify-between border-b border-base-300 p-4"
+        class="flex items-center justify-between border-b border-base-300 p-4 flex-shrink-0"
       >
         <h3 id="timetable-title" class="text-lg font-medium">時間割設定</h3>
         <button
@@ -232,13 +232,14 @@
       </div>
 
       {#if isLoading}
-        <div class="flex items-center justify-center p-12">
+        <div class="flex items-center justify-center p-12 flex-1">
           <span class="loading loading-lg loading-spinner"></span>
         </div>
       {:else}
+        <div class="flex-1 overflow-y-auto min-h-0 flex flex-col">
         <!-- Settings Row -->
         <div
-          class="grid grid-cols-2 gap-3 border-b border-base-300 p-4 md:grid-cols-5"
+          class="grid grid-cols-5 gap-3 border-b border-base-300 p-4 flex-shrink-0"
         >
           <label class="form-control w-full">
             <div class="label py-1">
@@ -351,7 +352,7 @@
 
         <!-- Legend -->
         <div
-          class="flex flex-wrap items-center justify-center gap-4 border-t border-base-300 px-4 py-3 text-xs"
+          class="flex flex-wrap items-center justify-center gap-4 border-t border-base-300 px-4 py-3 text-xs flex-shrink-0"
         >
           <div class="flex items-center gap-1.5">
             <div class="h-3 w-3 rounded bg-warning/30"></div>
@@ -366,23 +367,24 @@
             <span>欠席</span>
           </div>
         </div>
+        </div>
       {/if}
     </div>
 
     <!-- Cell Editor Sub-Modal -->
     {#if showCellEditor && editingCell}
       <div
-        class="modal-open modal z-[2200]"
+        class="modal-open modal modal-mobile-fullscreen z-[2200] md:modal-middle"
         role="dialog"
         aria-modal="true"
         aria-labelledby="cell-editor-title"
       >
-        <div class="modal-box max-w-sm">
-          <h3 id="cell-editor-title" class="mb-4 text-lg font-medium">
+        <div class="modal-box h-full w-full max-w-sm p-0 overflow-hidden md:h-auto md:overflow-visible flex flex-col">
+          <h3 id="cell-editor-title" class="mb-4 text-lg font-medium p-4 pb-0 flex-shrink-0">
             セルを編集
           </h3>
 
-          <div class="space-y-4">
+          <div class="space-y-4 p-4 overflow-y-auto flex-1 min-h-0">
             <label class="form-control w-full">
               <div class="label">
                 <span class="label-text">タイトル</span>
@@ -422,7 +424,7 @@
             </label>
           </div>
 
-          <div class="modal-action">
+          <div class="modal-action flex-shrink-0 p-4 pt-0">
             {#if editingCell.id}
               <button
                 class="btn btn-outline btn-error"

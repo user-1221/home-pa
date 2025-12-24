@@ -102,13 +102,13 @@
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
-    class="modal-open modal z-[2100] modal-bottom md:modal-middle"
+    class="modal-open modal modal-mobile-fullscreen z-[2100] md:modal-middle"
     role="button"
     tabindex="-1"
     aria-label="Close settings"
     onclick={handleBackdropClick}
   >
-    <div class="modal-box max-h-[85vh] w-full max-w-lg p-0">
+    <div class="modal-box max-h-[85vh] w-full max-w-lg p-0 md:max-h-[85vh]">
       <!-- Header -->
       <div
         class="flex items-center justify-between border-b border-base-300 p-4"

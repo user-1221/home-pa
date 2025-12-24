@@ -270,6 +270,41 @@ svg circle[tabindex="0"]:focus-visible {
   }
 }
 
+/* Mobile modal animation - slide from bottom */
+@keyframes slideUpFromBottom {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+/* Mobile modal styles */
+@media (max-width: 767px) {
+  .modal-mobile-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: var(--z-modal);
+    padding: 0 !important;
+  }
+
+  .modal-mobile-fullscreen .modal-box {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    animation: slideUpFromBottom 0.3s ease-out;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+}
+
 /* CircularTimelineCss Component Styles */
 .timeline-container {
   position: relative;
