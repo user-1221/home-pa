@@ -65,7 +65,7 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div
-  class="mx-auto flex h-full flex-1 flex-col overflow-y-auto bg-base-200/60 p-3 backdrop-blur-sm md:max-w-screen-xl md:p-5"
+  class="flex h-full flex-1 flex-col overflow-y-auto bg-base-200/60 p-3 backdrop-blur-sm md:p-5"
 >
   <!-- Header with Settings Icon -->
   <div class="mb-6 navbar min-h-14 border-b border-base-300 px-0 md:min-h-20">

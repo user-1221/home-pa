@@ -89,9 +89,10 @@
 
   <!-- Task List -->
   <div class="flex-1 overflow-y-auto p-4">
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
     {#if filteredTasks().length === 0}
       <div
-        class="flex flex-col items-center justify-center px-4 py-16 text-center"
+        class="col-span-2 flex flex-col items-center justify-center px-4 py-16 text-center"
       >
         {#if filter === "active"}
           <div class="mb-4 text-6xl opacity-50">🎯</div>
@@ -121,6 +122,7 @@
         <TaskCard {task} />
       {/each}
     {/if}
+    </div>
   </div>
 </div>
 
