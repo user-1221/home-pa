@@ -58,12 +58,12 @@
 </script>
 
 {#if $isTaskFormOpen}
-  <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
-    class="modal modal-open modal-bottom z-[2100] md:modal-middle"
-    onclick={handleClose}
+    class="modal-open modal z-[2100] modal-bottom md:modal-middle"
     onkeydown={(e) => e.key === "Escape" && handleClose()}
-    role="button"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Task form"
     tabindex="-1"
   >
     <div
@@ -81,7 +81,7 @@
           {$taskForm.isEditing ? "Edit Task" : "New Task"}
         </h2>
         <button
-          class="btn btn-square border-none bg-base-200 btn-sm hover:bg-error hover:text-white"
+          class="btn btn-square border-none bg-base-200 btn-sm hover:bg-error hover:text-error-content"
           onclick={handleClose}
           aria-label="Close">✕</button
         >
@@ -121,16 +121,16 @@
             {#each typeOptions as option (option)}
               <button
                 type="button"
-                class="flex flex-col items-start rounded-lg border p-3 text-left transition-all duration-150 hover:border-[color:var(--color-primary)] {$taskForm.type ===
+                class="flex flex-col items-start rounded-lg border p-3 text-left transition-all duration-150 hover:border-primary {$taskForm.type ===
                 option.value
-                  ? 'border-[color:var(--color-primary)] bg-[color:color-mix(in_oklab,var(--color-primary)_10%,transparent)]'
+                  ? 'border-primary bg-primary/10'
                   : 'border-base-300 bg-base-200'}"
                 onclick={() => handleTypeChange(option.value)}
                 aria-pressed={$taskForm.type === option.value}
               >
                 <span class="font-medium text-base-content">{option.label}</span
                 >
-                <span class="text-xs text-base-content/50"
+                <span class="text-xs text-[var(--color-text-secondary)]"
                   >{option.description}</span
                 >
               </button>
@@ -202,9 +202,9 @@
           <div class="flex flex-col gap-2">
             {#each locationOptions as option (option.value)}
               <label
-                class="flex cursor-pointer items-center gap-2 rounded-lg border p-3 transition-all duration-150 hover:border-[color:var(--color-primary)] {$taskForm.locationPreference ===
+                class="flex cursor-pointer items-center gap-2 rounded-lg border p-3 transition-all duration-150 hover:border-primary {$taskForm.locationPreference ===
                 option.value
-                  ? 'border-[color:var(--color-primary)] bg-[color:color-mix(in_oklab,var(--color-primary)_10%,transparent)]'
+                  ? 'border-primary bg-primary/10'
                   : 'border-base-300'}"
               >
                 <input
@@ -241,11 +241,11 @@
           </button>
           <button
             type="submit"
-            class="btn btn-primary flex-1"
+            class="btn flex-1 btn-primary"
             disabled={!$isTaskFormValid || $isTaskFormSubmitting}
           >
             {#if $isTaskFormSubmitting}
-              <span class="loading loading-spinner loading-sm"></span>
+              <span class="loading loading-sm loading-spinner"></span>
               Saving...
             {:else}
               {$taskForm.isEditing ? "Update Task" : "Create Task"}
@@ -254,6 +254,6 @@
         </div>
       </form>
     </div>
-    <div class="modal-backdrop bg-black/40 backdrop-blur-sm"></div>
+    <div class="modal-backdrop bg-base-content/40 backdrop-blur-sm"></div>
   </div>
 {/if}

@@ -51,16 +51,16 @@
 </script>
 
 <div
-  class="flex h-full flex-col gap-4 overflow-y-auto border-l border-[var(--color-border-default)] bg-[var(--color-bg-app)] p-4 md:border-t md:border-l-0"
+  class="flex h-full flex-col gap-4 overflow-y-auto border-l border-base-300 bg-base-100 p-4 md:border-t md:border-l-0"
 >
   <div class="flex items-center justify-between">
     <h3
-      class="m-0 text-lg font-normal tracking-wider text-[var(--color-text-primary)] uppercase"
+      class="m-0 text-lg font-normal tracking-wider text-base-content uppercase"
     >
       Schedule
     </h3>
     <button
-      class="btn btn-circle h-10 min-h-10 w-10 border-[var(--color-primary)] text-base text-[var(--color-primary)] transition-all duration-200 hover:bg-[var(--color-primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+      class="btn btn-circle h-10 min-h-10 w-10 text-base transition-all duration-200 btn-outline btn-primary disabled:cursor-not-allowed disabled:opacity-50"
       onclick={handleRegenerate}
       disabled={$isScheduleLoading}
     >
@@ -74,7 +74,7 @@
 
   {#if $scheduleError}
     <div
-      class="flex items-center gap-2 rounded-xl bg-[var(--color-error-100)] p-3 text-sm text-[var(--color-error-500)]"
+      class="flex items-center gap-2 rounded-xl bg-error/10 p-3 text-sm text-error"
       role="alert"
     >
       <span>⚠️</span>
@@ -84,7 +84,7 @@
 
   {#if $hasMandatoryDropped}
     <div
-      class="flex items-center gap-2 rounded-xl bg-[var(--color-warning-100)] p-3 text-sm text-[var(--color-warning-500)]"
+      class="flex items-center gap-2 rounded-xl bg-warning/10 p-3 text-sm text-warning"
       role="alert"
     >
       <span>⚠️</span>
@@ -99,7 +99,7 @@
         No schedule yet
       </p>
       <button
-        class="btn mt-4 border-none bg-[var(--color-primary)] text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+        class="btn mt-4 border-none text-primary-content transition-all duration-200 btn-primary hover:-translate-y-0.5 hover:shadow-lg"
         onclick={handleRegenerate}
       >
         Generate Schedule
@@ -121,7 +121,7 @@
       {@const title = getMemoTitle(next.memoId)}
       {@const _type = getMemoType(next.memoId)}
       <div
-        class="rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-800)] p-6 text-white shadow-lg"
+        class="to-primary-focus rounded-xl bg-gradient-to-br from-primary p-6 text-primary-content shadow-lg"
       >
         <div class="mb-1 text-xs tracking-widest uppercase opacity-80">
           Next
@@ -131,7 +131,7 @@
           {next.startTime} - {next.endTime}
         </div>
         <div class="mb-4 flex items-center gap-2">
-          <span class="rounded-full bg-white/20 px-2 py-0.5 text-xs"
+          <span class="rounded-full bg-primary-content/20 px-2 py-0.5 text-xs"
             >{_type}</span
           >
           <span class="text-sm opacity-90">{formatDuration(next.duration)}</span
@@ -139,12 +139,12 @@
         </div>
         <div class="flex gap-2">
           <button
-            class="btn flex-1 border-none bg-white text-[var(--color-primary-800)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/90 hover:shadow-lg"
+            class="btn flex-1 border-none bg-base-100 text-primary transition-all duration-200 hover:-translate-y-0.5 hover:bg-base-100/90 hover:shadow-lg"
           >
             Start
           </button>
           <button
-            class="btn flex-1 border-none bg-white/20 text-white transition-all duration-200 hover:bg-white/30"
+            class="btn flex-1 border-none bg-primary-content/20 text-primary-content transition-all duration-200 hover:bg-primary-content/30"
           >
             Skip
           </button>
@@ -163,14 +163,12 @@
           {#each $scheduledBlocks.slice(1) as block (block.suggestionId)}
             {@const title = getMemoTitle(block.memoId)}
             <li
-              class="flex items-center gap-2 rounded-lg bg-[var(--color-bg-surface)] p-2 text-sm"
+              class="flex items-center gap-2 rounded-lg bg-base-200 p-2 text-sm"
             >
-              <span class="min-w-[50px] font-normal text-[var(--color-primary)]"
+              <span class="min-w-[50px] font-normal text-primary"
                 >{block.startTime}</span
               >
-              <span class="flex-1 text-[var(--color-text-primary)]"
-                >{title}</span
-              >
+              <span class="flex-1 text-base-content">{title}</span>
               <span class="text-xs text-[var(--color-text-muted)]"
                 >{formatDuration(block.duration)}</span
               >
@@ -183,7 +181,7 @@
     {#if $droppedMandatory.length > 0}
       <div class="mt-4">
         <h4
-          class="m-0 mb-2 text-sm font-normal tracking-wider text-[var(--color-warning-500)] uppercase"
+          class="m-0 mb-2 text-sm font-normal tracking-wider text-warning uppercase"
         >
           ⚠️ Couldn't Schedule
         </h4>
@@ -191,9 +189,9 @@
           {#each $droppedMandatory as suggestion (suggestion.id)}
             {@const title = getMemoTitle(suggestion.memoId)}
             <li
-              class="flex items-center justify-between rounded-lg bg-[var(--color-error-100)] p-2 text-sm"
+              class="flex items-center justify-between rounded-lg bg-error/10 p-2 text-sm"
             >
-              <span class="text-[var(--color-error-500)]">{title}</span>
+              <span class="text-error">{title}</span>
               <span class="text-xs text-[var(--color-text-muted)]"
                 >No available gap</span
               >

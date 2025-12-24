@@ -57,40 +57,36 @@
   function getStatusColor(status: "on-time" | "delayed" | "cancelled") {
     switch (status) {
       case "on-time":
-        return "text-[var(--color-success-500)]";
+        return "text-success";
       case "delayed":
-        return "text-[var(--color-warning-500)]";
+        return "text-warning";
       case "cancelled":
-        return "text-[var(--color-error-500)]";
+        return "text-error";
     }
   }
 
   function getStatusBg(status: "on-time" | "delayed" | "cancelled") {
     switch (status) {
       case "on-time":
-        return "bg-[var(--color-success-100)]";
+        return "bg-success/10";
       case "delayed":
-        return "bg-[var(--color-warning-100)]";
+        return "bg-warning/10";
       case "cancelled":
-        return "bg-[var(--color-error-100)]";
+        return "bg-error/10";
     }
   }
 </script>
 
 <div class="flex h-full min-h-0 flex-col">
   <!-- Header -->
-  <div
-    class="flex items-center justify-between border-b border-[var(--color-border-default)] p-4"
-  >
+  <div class="flex items-center justify-between border-b border-base-300 p-4">
     <div class="flex items-center gap-3">
       <span class="text-2xl">🚃</span>
-      <h2 class="m-0 text-xl font-medium text-[var(--color-text-primary)]">
-        Transit
-      </h2>
+      <h2 class="m-0 text-xl font-medium text-base-content">Transit</h2>
     </div>
     {#if onClose}
       <button
-        class="flex h-9 w-9 items-center justify-center rounded-lg text-xl text-[var(--color-text-secondary)] transition-colors duration-200 hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)]"
+        class="flex h-9 w-9 items-center justify-center rounded-lg text-xl text-base-content/70 transition-colors duration-200 hover:bg-base-200 hover:text-base-content"
         onclick={onClose}
         aria-label="Close"
       >
@@ -104,26 +100,26 @@
     <!-- Search / Quick Routes -->
     <div class="mb-6">
       <div
-        class="flex items-center gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] px-4 py-3"
+        class="flex items-center gap-2 rounded-xl border border-base-300 bg-base-200 px-4 py-3"
       >
-        <span class="text-[var(--color-text-muted)]">🔍</span>
+        <span class="text-base-content/50">🔍</span>
         <input
           type="text"
           placeholder="Search destination..."
-          class="flex-1 border-none bg-transparent text-sm text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
+          class="flex-1 border-none bg-transparent text-sm text-base-content outline-none placeholder:text-base-content/50"
         />
       </div>
     </div>
 
     <!-- Saved Routes -->
     <section class="mb-6">
-      <h3 class="mb-3 text-sm font-medium text-[var(--color-text-secondary)]">
+      <h3 class="mb-3 text-sm font-medium text-base-content/70">
         Saved Routes
       </h3>
       <div class="flex flex-wrap gap-2">
         {#each savedRoutes as route (route.id)}
           <button
-            class="flex items-center gap-2 rounded-full border border-[var(--color-border-default)] bg-[var(--color-bg-app)] px-4 py-2 text-sm text-[var(--color-text-primary)] transition-all duration-200 hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-100)]"
+            class="flex items-center gap-2 rounded-full border border-base-300 bg-base-100 px-4 py-2 text-sm text-base-content transition-all duration-200 hover:border-primary hover:bg-primary/10"
             onclick={() => (_selectedRoute = route.id)}
           >
             <span>{route.icon}</span>
@@ -135,21 +131,20 @@
 
     <!-- Available Routes -->
     <section>
-      <h3 class="mb-3 text-sm font-medium text-[var(--color-text-secondary)]">
+      <h3 class="mb-3 text-sm font-medium text-base-content/70">
         Next Departures
       </h3>
       <div class="flex flex-col gap-3">
         {#each routes as route (route.id)}
           <div
-            class="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-app)] p-4 transition-all duration-200 hover:border-[var(--color-primary)]/50 hover:shadow-sm"
+            class="rounded-xl border border-base-300 bg-base-100 p-4 transition-all duration-200 hover:border-primary/50 hover:shadow-sm"
           >
             <div class="mb-2 flex items-start justify-between">
               <div>
-                <span
-                  class="text-base font-medium text-[var(--color-text-primary)]"
+                <span class="text-base font-medium text-base-content"
                   >{route.name}</span
                 >
-                <div class="mt-1 text-xs text-[var(--color-text-secondary)]">
+                <div class="mt-1 text-xs text-base-content/70">
                   {route.from} → {route.to}
                 </div>
               </div>
@@ -167,33 +162,25 @@
             </div>
 
             <div
-              class="flex items-center justify-between border-t border-[var(--color-border-default)] pt-3"
+              class="flex items-center justify-between border-t border-base-300 pt-3"
             >
               <div class="flex items-center gap-4">
                 <div class="text-center">
-                  <div
-                    class="text-lg font-semibold text-[var(--color-text-primary)]"
-                  >
+                  <div class="text-lg font-semibold text-base-content">
                     {route.departure}
                   </div>
-                  <div class="text-xs text-[var(--color-text-muted)]">
-                    Depart
-                  </div>
+                  <div class="text-xs text-base-content/50">Depart</div>
                 </div>
-                <div class="text-[var(--color-text-muted)]">→</div>
+                <div class="text-base-content/50">→</div>
                 <div class="text-center">
-                  <div
-                    class="text-lg font-semibold text-[var(--color-text-primary)]"
-                  >
+                  <div class="text-lg font-semibold text-base-content">
                     {route.arrival}
                   </div>
-                  <div class="text-xs text-[var(--color-text-muted)]">
-                    Arrive
-                  </div>
+                  <div class="text-xs text-base-content/50">Arrive</div>
                 </div>
               </div>
               <div class="text-right">
-                <div class="text-sm text-[var(--color-text-secondary)]">
+                <div class="text-sm text-base-content/70">
                   {route.transfers === 0
                     ? "Direct"
                     : `${route.transfers} transfer${route.transfers > 1 ? "s" : ""}`}
@@ -207,12 +194,12 @@
 
     <!-- API Notice -->
     <div
-      class="mt-6 rounded-xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 text-center"
+      class="mt-6 rounded-xl border border-dashed border-base-300 bg-base-200 p-4 text-center"
     >
-      <p class="text-sm text-[var(--color-text-muted)]">
+      <p class="text-sm text-base-content/50">
         🚧 Live transit data coming soon
       </p>
-      <p class="mt-1 text-xs text-[var(--color-text-muted)]">
+      <p class="mt-1 text-xs text-base-content/50">
         Currently showing mock data
       </p>
     </div>

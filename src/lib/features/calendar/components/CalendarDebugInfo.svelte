@@ -36,10 +36,8 @@
   );
 </script>
 
-<div
-  class="m-2 rounded-lg border border-[#00C8FF]/20 bg-[#00C8FF]/5 p-4 text-xs"
->
-  <h3 class="m-0 mb-2 text-sm text-[#0066CC]">Sliding Window Debug Info</h3>
+<div class="m-2 rounded-lg border border-primary/20 bg-primary/5 p-4 text-xs">
+  <h3 class="m-0 mb-2 text-sm text-primary">Sliding Window Debug Info</h3>
   <div class="flex flex-wrap gap-2">
     <div class="rounded bg-base-200 px-2 py-1 text-base-content/60">
       <strong class="text-base-content">Window:</strong>
@@ -63,7 +61,7 @@
     </div>
   </div>
   {#if foreverEvents.length > 0}
-    <div class="mt-2 border-t border-[#00C8FF]/20 pt-2">
+    <div class="mt-2 border-t border-primary/20 pt-2">
       <h4 class="m-0 mb-1 text-[0.8rem] text-base-content">
         Forever Recurring Events:
       </h4>
@@ -71,7 +69,7 @@
         {#each foreverEvents as event (event.id)}
           <li class="mb-1">
             {event.title}
-            <span class="text-[0.7rem] text-[#0066CC]">∞</span>
+            <span class="text-[0.7rem] text-primary">∞</span>
             (Master ID: {(event as Event & { eventId?: string }).eventId ||
               event.id})
           </li>

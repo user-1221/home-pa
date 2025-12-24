@@ -26,6 +26,7 @@ import {
   createMemo,
   updateMemo,
   deleteMemo,
+  logSuggestionComplete,
 } from "./memo.functions.remote.ts";
 
 // Toast compatibility wrapper
@@ -620,5 +621,58 @@ export const taskActions = {
    */
   cancel(): void {
     taskFormActions.closeForm();
+  },
+
+  /**
+   * Log progress for a task session (updates DB and store reactively)
+   * This is the preferred method for logging session completions.
+   *
+   * @param memoId - The task ID
+   * @param durationMinutes - Duration of the session
+   * @returns Updated status or null on error
+   */
+  async logProgress(
+    memoId: string,
+    durationMinutes: number,
+  ): Promise<{
+    timeSpentMinutes: number;
+    completionsThisPeriod: number;
+    lastActivity: string | undefined;
+  } | null> {
+    try {
+      // Call remote function to update DB
+      const result = await logSuggestionComplete({ memoId, durationMinutes });
+
+      // Update store reactively
+      tasks.update((currentTasks) => {
+        const index = currentTasks.findIndex((t) => t.id === memoId);
+        if (index === -1) return currentTasks;
+
+        const task = currentTasks[index];
+        const newTasks = [...currentTasks];
+        newTasks[index] = {
+          ...task,
+          status: {
+            ...task.status,
+            timeSpentMinutes: result.timeSpentMinutes,
+            completionsThisPeriod: result.completionsThisPeriod,
+          },
+          lastActivity: result.lastActivity
+            ? new Date(result.lastActivity)
+            : task.lastActivity,
+        };
+        return newTasks;
+      });
+
+      console.log(
+        `[taskActions.logProgress] Updated task ${memoId}: ${result.timeSpentMinutes}min total, ${result.completionsThisPeriod} completions`,
+      );
+
+      return result;
+    } catch (err) {
+      console.error("[taskActions.logProgress] Failed:", err);
+      toasts.show("進捗の記録に失敗しました", "error");
+      return null;
+    }
   },
 };

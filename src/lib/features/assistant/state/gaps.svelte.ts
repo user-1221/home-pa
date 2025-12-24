@@ -9,7 +9,7 @@
  * @version 1.0.0
  */
 
-import { derived, readable, type Readable } from "svelte/store";
+import { derived, readable, writable, type Readable } from "svelte/store";
 import type { DayBoundaries, Event } from "../services/gap-finder.ts";
 import { GapFinder } from "../services/gap-finder.ts";
 import { dataState } from "../../../bootstrap/data.svelte.ts";
@@ -21,6 +21,12 @@ import {
   type EnrichableEvent,
 } from "../services/suggestions/index.ts";
 import { startOfDay, endOfDay } from "$lib/utils/date-utils.ts";
+import {
+  loadTimetableData,
+  getTimetableEventsForDate,
+  getBlockingTimetableEvents,
+  type TimetableEvent,
+} from "$lib/features/calendar/services/timetable-events.ts";
 
 /**
  * Creates a polling-based store from Svelte 5 state
@@ -48,6 +54,27 @@ function createPollingStore<T>(getter: () => T): Readable<T> {
 const selectedDate = createPollingStore(() => dataState.selectedDate);
 const calendarEvents = createPollingStore(() => calendarState.events);
 const calendarOccurrences = createPollingStore(() => calendarState.occurrences);
+
+// Timetable blocking events store
+const timetableBlockingEvents = writable<TimetableEvent[]>([]);
+
+// Load timetable events when date changes
+let lastLoadedDate: string | null = null;
+selectedDate.subscribe(async ($date) => {
+  const dateKey = $date.toISOString().slice(0, 10);
+  if (dateKey !== lastLoadedDate) {
+    lastLoadedDate = dateKey;
+    try {
+      const { config, cells } = await loadTimetableData();
+      const allEvents = getTimetableEventsForDate($date, config, cells);
+      const blocking = getBlockingTimetableEvents(allEvents);
+      timetableBlockingEvents.set(blocking);
+    } catch (err) {
+      console.error("[gaps] Failed to load timetable:", err);
+      timetableBlockingEvents.set([]);
+    }
+  }
+});
 
 /**
  * User-configurable day boundaries for gap calculation
@@ -162,12 +189,36 @@ function convertCalendarEventToGapEvent(
 }
 
 /**
- * Gap-finder events derived from calendar events for the selected date
- * Automatically converts and filters events when calendar or date changes
+ * Convert timetable blocking event to gap-finder event format
+ */
+function convertTimetableEventToGapEvent(ttEvent: TimetableEvent): Event {
+  const startTime = ttEvent.start.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const endTime = ttEvent.end.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  return {
+    id: ttEvent.id,
+    title: `[時間割] ${ttEvent.title}`,
+    start: startTime,
+    end: endTime,
+    crossesMidnight: false,
+  };
+}
+
+/**
+ * Gap-finder events derived from calendar events AND timetable blocking events
+ * Automatically converts and filters events when calendar, date, or timetable changes
  */
 export const events = derived(
-  [calendarEvents, calendarOccurrences, selectedDate],
-  ([$events, $occurrences, $selectedDate]) => {
+  [calendarEvents, calendarOccurrences, selectedDate, timetableBlockingEvents],
+  ([$events, $occurrences, $selectedDate, $timetableEvents]) => {
     // Combine master events and expanded recurring occurrences
     const allEvents: Array<
       | CalendarEvent
@@ -195,10 +246,18 @@ export const events = derived(
       })),
     ];
 
-    // Let convertCalendarEventToGapEvent handle overlap detection and day clipping
-    return allEvents
+    // Convert calendar events to gap-finder format
+    const calendarGapEvents = allEvents
       .map((event) => convertCalendarEventToGapEvent(event, $selectedDate))
       .filter((event): event is Event => event !== null);
+
+    // Convert timetable blocking events to gap-finder format
+    const timetableGapEvents = $timetableEvents.map(
+      convertTimetableEventToGapEvent,
+    );
+
+    // Combine both sources - timetable events block gaps just like calendar events
+    return [...calendarGapEvents, ...timetableGapEvents];
   },
 );
 

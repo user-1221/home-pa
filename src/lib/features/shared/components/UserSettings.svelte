@@ -72,7 +72,7 @@
   {#if $session.data?.user}
     <!-- Logged In State -->
     <div
-      class="flex items-center gap-4 rounded-xl bg-white/20 p-4 backdrop-blur-sm"
+      class="flex items-center gap-4 rounded-xl bg-base-100/20 p-4 backdrop-blur-sm"
     >
       <div class="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full">
         {#if $session.data.user.image}
@@ -83,7 +83,7 @@
           />
         {:else}
           <span
-            class="flex h-full w-full items-center justify-center bg-white/30 text-xl font-medium text-white"
+            class="flex h-full w-full items-center justify-center bg-base-100/30 text-xl font-medium text-base-100"
           >
             {$session.data.user.name?.charAt(0).toUpperCase() ||
               $session.data.user.email?.charAt(0).toUpperCase() ||
@@ -93,12 +93,12 @@
       </div>
       <div class="flex min-w-0 flex-col gap-1">
         <span
-          class="overflow-hidden font-medium text-ellipsis whitespace-nowrap text-white"
+          class="overflow-hidden font-medium text-ellipsis whitespace-nowrap text-base-100"
         >
           {$session.data.user.name || "User"}
         </span>
         <span
-          class="overflow-hidden text-sm font-normal text-ellipsis whitespace-nowrap text-white/80"
+          class="overflow-hidden text-sm font-normal text-ellipsis whitespace-nowrap text-base-100/80"
         >
           {$session.data.user.email}
         </span>
@@ -106,16 +106,16 @@
     </div>
 
     <div
-      class="flex flex-col gap-1 rounded-xl bg-white/20 p-3 backdrop-blur-sm"
+      class="flex flex-col gap-1 rounded-xl bg-base-100/20 p-3 backdrop-blur-sm"
     >
-      <span class="text-sm font-medium text-white">● Connected</span>
-      <span class="text-xs font-normal text-white/70"
+      <span class="text-sm font-medium text-base-100">● Connected</span>
+      <span class="text-xs font-normal text-base-100/70"
         >Your calendar syncs to the cloud</span
       >
     </div>
 
     <button
-      class="min-h-[44px] w-full cursor-pointer rounded-xl border-2 border-white/30 bg-transparent px-4 py-3 font-normal text-white transition-all duration-200 ease-out hover:border-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+      class="min-h-[44px] w-full cursor-pointer rounded-xl border-2 border-base-100/30 bg-transparent px-4 py-3 font-normal text-base-100 transition-all duration-200 ease-out hover:border-base-100 hover:bg-base-100/10 disabled:cursor-not-allowed disabled:opacity-50"
       onclick={signOut}
       disabled={isLoading}
     >
@@ -124,7 +124,7 @@
   {:else}
     <!-- Logged Out State -->
     <div
-      class="rounded-xl bg-white/20 p-4 text-sm text-white/90 backdrop-blur-sm"
+      class="rounded-xl bg-base-100/20 p-4 text-sm text-base-100/90 backdrop-blur-sm"
     >
       <p class="m-0">
         Sign in to sync your calendar across devices and enable import/export
@@ -147,7 +147,7 @@
           bind:value={form.name}
           disabled={isLoading}
           required
-          class="min-h-[44px] w-full rounded-xl border-2 border-white/30 bg-white/10 px-4 text-white placeholder-white/60 backdrop-blur-sm transition-colors duration-200 focus:border-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          class="min-h-[44px] w-full rounded-xl border-2 border-base-100/30 bg-base-100/10 px-4 text-base-100 backdrop-blur-sm transition-colors duration-200 placeholder:text-base-100/60 focus:border-base-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
         <input
           type="email"
@@ -155,7 +155,7 @@
           bind:value={form.email}
           disabled={isLoading}
           required
-          class="min-h-[44px] w-full rounded-xl border-2 border-white/30 bg-white/10 px-4 text-white placeholder-white/60 backdrop-blur-sm transition-colors duration-200 focus:border-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          class="min-h-[44px] w-full rounded-xl border-2 border-base-100/30 bg-base-100/10 px-4 text-base-100 backdrop-blur-sm transition-colors duration-200 placeholder:text-base-100/60 focus:border-base-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
         <input
           type="password"
@@ -164,18 +164,18 @@
           disabled={isLoading}
           required
           minlength="6"
-          class="min-h-[44px] w-full rounded-xl border-2 border-white/30 bg-white/10 px-4 text-white placeholder-white/60 backdrop-blur-sm transition-colors duration-200 focus:border-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          class="min-h-[44px] w-full rounded-xl border-2 border-base-100/30 bg-base-100/10 px-4 text-base-100 backdrop-blur-sm transition-colors duration-200 placeholder:text-base-100/60 focus:border-base-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
         <button
           type="submit"
-          class="btn min-h-[44px] rounded-xl border-none bg-white font-normal text-[var(--color-primary)] shadow-sm transition-all duration-200 ease-out hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
+          class="btn min-h-[44px] rounded-xl border-none bg-base-100 font-normal text-primary shadow-sm transition-all duration-200 ease-out hover:bg-base-100/90 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={isLoading}
         >
           {isLoading ? "Creating account..." : "Create Account"}
         </button>
         <button
           type="button"
-          class="min-h-[44px] cursor-pointer border-none bg-transparent text-sm font-normal text-white/90 underline transition-colors duration-200 ease-out hover:text-white"
+          class="min-h-[44px] cursor-pointer border-none bg-transparent text-sm font-normal text-base-100/90 underline transition-colors duration-200 ease-out hover:text-base-100"
           onclick={() => {
             showSignUp = false;
             msg = "";
@@ -199,7 +199,7 @@
           bind:value={form.email}
           disabled={isLoading}
           required
-          class="min-h-[44px] w-full rounded-xl border-2 border-white/30 bg-white/10 px-4 text-white placeholder-white/60 backdrop-blur-sm transition-colors duration-200 focus:border-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          class="min-h-[44px] w-full rounded-xl border-2 border-base-100/30 bg-base-100/10 px-4 text-base-100 backdrop-blur-sm transition-colors duration-200 placeholder:text-base-100/60 focus:border-base-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
         <input
           type="password"
@@ -207,18 +207,18 @@
           bind:value={form.password}
           disabled={isLoading}
           required
-          class="min-h-[44px] w-full rounded-xl border-2 border-white/30 bg-white/10 px-4 text-white placeholder-white/60 backdrop-blur-sm transition-colors duration-200 focus:border-white focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          class="min-h-[44px] w-full rounded-xl border-2 border-base-100/30 bg-base-100/10 px-4 text-base-100 backdrop-blur-sm transition-colors duration-200 placeholder:text-base-100/60 focus:border-base-100 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
         <button
           type="submit"
-          class="btn min-h-[44px] rounded-xl border-none bg-white font-normal text-[var(--color-primary)] shadow-sm transition-all duration-200 ease-out hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
+          class="btn min-h-[44px] rounded-xl border-none bg-base-100 font-normal text-primary shadow-sm transition-all duration-200 ease-out hover:bg-base-100/90 disabled:cursor-not-allowed disabled:opacity-50"
           disabled={isLoading}
         >
           {isLoading ? "Signing in..." : "Sign In"}
         </button>
         <button
           type="button"
-          class="min-h-[44px] cursor-pointer border-none bg-transparent text-sm font-normal text-white/90 underline transition-colors duration-200 ease-out hover:text-white"
+          class="min-h-[44px] cursor-pointer border-none bg-transparent text-sm font-normal text-base-100/90 underline transition-colors duration-200 ease-out hover:text-base-100"
           onclick={() => {
             showSignUp = true;
             msg = "";
@@ -234,8 +234,8 @@
     <div
       class="rounded-xl px-4 py-3 text-sm {msg.includes('failed') ||
       msg.includes('error')
-        ? 'bg-[#EF4444]/20 text-white'
-        : 'bg-white/20 text-white'}"
+        ? 'bg-error/20 text-base-100'
+        : 'bg-base-100/20 text-base-100'}"
     >
       {msg}
     </div>

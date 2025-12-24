@@ -21,9 +21,51 @@
     endOfDay,
     parseTimeOnDate,
   } from "$lib/utils/date-utils.ts";
+  import {
+    loadTimetableData,
+    getTimetableEventsForDate,
+    getBlockingTimetableEvents,
+    type TimetableEvent,
+  } from "$lib/features/calendar/services/timetable-events.ts";
 
-  // Task list (synced from store)
+  // Task list (synced from store via subscription)
   let taskList = $state(get(tasks));
+
+  // Subscribe to tasks store to keep local state in sync
+  $effect(() => {
+    const unsubscribe = tasks.subscribe((newTasks) => {
+      taskList = newTasks;
+    });
+    return unsubscribe;
+  });
+
+  // Timetable blocking events state
+  let timetableBlockingEvents = $state<TimetableEvent[]>([]);
+  let lastTimetableLoadKey: string | null = null;
+
+  // Load timetable blocking events when date changes
+  $effect(() => {
+    const dateKey = dataState.selectedDate.toISOString().slice(0, 10);
+    if (dateKey !== lastTimetableLoadKey) {
+      lastTimetableLoadKey = dateKey;
+      loadTimetableForGaps();
+    }
+  });
+
+  async function loadTimetableForGaps() {
+    try {
+      const { config, cells } = await loadTimetableData();
+      const allEvents = getTimetableEventsForDate(
+        dataState.selectedDate,
+        config,
+        cells,
+      );
+      timetableBlockingEvents = getBlockingTimetableEvents(allEvents);
+    } catch (err) {
+      console.error("[PersonalAssistantView] Failed to load timetable:", err);
+      timetableBlockingEvents = [];
+    }
+  }
 
   // Selected items for details display - track all separately
   let selectedSuggestion = $state<
@@ -171,6 +213,29 @@
   });
 
   // Reactively compute gaps based on selected day events
+  // Convert timetable event to gap-finder event format
+  function timetableEventToGapEvent(
+    ttEvent: TimetableEvent,
+  ): import("$lib/features/assistant/services/gap-finder.ts").Event {
+    const startTime = ttEvent.start.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const endTime = ttEvent.end.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+    return {
+      id: ttEvent.id,
+      title: `[時間割] ${ttEvent.title}`,
+      start: startTime,
+      end: endTime,
+    };
+  }
+
   let computedGaps = $derived.by(() => {
     const gf = new GapFinder({
       dayStart: settingsState.activeStartTime,
@@ -178,10 +243,107 @@
     });
     const currentDate = startOfDay(dataState.selectedDate);
 
-    const mapped = selectedDayEvents.map((e) =>
+    // Convert calendar events to gap-finder format
+    const calendarMapped = selectedDayEvents.map((e) =>
       toGapEventForDay(e, currentDate),
     );
-    return gf.findGaps(mapped);
+
+    // Convert timetable blocking events to gap-finder format
+    const timetableMapped = timetableBlockingEvents.map(
+      timetableEventToGapEvent,
+    );
+
+    // Combine both sources - timetable events block gaps just like calendar events
+    const allEvents = [...calendarMapped, ...timetableMapped];
+
+    return gf.findGaps(allEvents);
+  });
+
+  // Helper to convert time string to minutes
+  function timeToMinutes(time: string): number {
+    const [h, m] = time.split(":").map(Number);
+    return h * 60 + m;
+  }
+
+  // Helper to convert minutes to time string
+  function minutesToTime(minutes: number): string {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+  }
+
+  // Gaps with accepted suggestions subtracted (for drag interactions)
+  // This ensures pending suggestions can't overlap with accepted ones
+  let availableGaps = $derived.by((): Gap[] => {
+    const accepted = $acceptedSuggestions;
+    if (accepted.length === 0) return computedGaps;
+
+    const result: Gap[] = [];
+    let gapCounter = 0;
+
+    for (const gap of computedGaps) {
+      const gapStart = timeToMinutes(gap.start);
+      const gapEnd = timeToMinutes(gap.end);
+
+      // Find blockers that overlap with this gap
+      const overlappingBlockers = accepted.filter((a) => {
+        const blockerStart = timeToMinutes(a.startTime);
+        const blockerEnd = timeToMinutes(a.endTime);
+        return blockerStart < gapEnd && blockerEnd > gapStart;
+      });
+
+      if (overlappingBlockers.length === 0) {
+        result.push(gap);
+        continue;
+      }
+
+      // Sort blockers by start time
+      const sortedBlockers = [...overlappingBlockers].sort(
+        (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime),
+      );
+
+      // Find remaining gaps between/around blockers
+      let currentStart = gapStart;
+
+      for (const blocker of sortedBlockers) {
+        const blockerStart = Math.max(
+          timeToMinutes(blocker.startTime),
+          gapStart,
+        );
+        const blockerEnd = Math.min(timeToMinutes(blocker.endTime), gapEnd);
+
+        // Gap before this blocker
+        if (blockerStart > currentStart) {
+          const duration = blockerStart - currentStart;
+          if (duration >= 5) {
+            result.push({
+              gapId: `${gap.gapId}-sub-${gapCounter++}`,
+              start: minutesToTime(currentStart),
+              end: minutesToTime(blockerStart),
+              duration,
+              locationLabel: gap.locationLabel,
+            });
+          }
+        }
+        currentStart = Math.max(currentStart, blockerEnd);
+      }
+
+      // Gap after all blockers
+      if (currentStart < gapEnd) {
+        const duration = gapEnd - currentStart;
+        if (duration >= 5) {
+          result.push({
+            gapId: `${gap.gapId}-sub-${gapCounter++}`,
+            start: minutesToTime(currentStart),
+            end: minutesToTime(gapEnd),
+            duration,
+            locationLabel: gap.locationLabel,
+          });
+        }
+      }
+    }
+
+    return result;
   });
 
   // Reactively compute schedule signature for auto-generation
@@ -397,35 +559,17 @@
   ) {
     const { suggestionId, memoId, duration } = event.detail;
 
-    // Log progress via remote function
-    const { logSuggestionComplete } = await import(
-      "$lib/features/tasks/state/memo.functions.remote.ts"
+    // Log progress via taskActions (updates DB AND store reactively)
+    const { taskActions: actions } = await import(
+      "$lib/features/tasks/state/taskActions.ts"
     );
-    await logSuggestionComplete({ memoId, durationMinutes: duration });
+    await actions.logProgress(memoId, duration);
 
     // Remove from accepted list
     await scheduleActions.completeSuggestion(suggestionId, memoId, duration);
 
-    // Refresh tasks
-    const { fetchMemos } = await import(
-      "$lib/features/tasks/state/memo.functions.remote.ts"
-    );
-    const updatedMemos = await fetchMemos({});
-    if (updatedMemos) {
-      taskList = updatedMemos.map((m) => ({
-        ...m,
-        createdAt: new Date(m.createdAt),
-        deadline: m.deadline ? new Date(m.deadline) : undefined,
-        lastActivity: m.lastActivity ? new Date(m.lastActivity) : undefined,
-        status: {
-          ...m.status,
-          periodStartDate: m.status.periodStartDate
-            ? new Date(m.status.periodStartDate)
-            : undefined,
-        },
-      }));
-      tasks.set(taskList);
-    }
+    // Update local taskList from store
+    taskList = get(tasks);
 
     selectedSuggestion = null;
   }
@@ -447,12 +591,20 @@
   // Component-level event handling is wired directly on the child via on: handlers below
 </script>
 
-<div class="relative flex h-full w-full flex-col overflow-hidden bg-base-200/60 backdrop-blur-sm">
+<div
+  class="relative flex h-full w-full flex-col overflow-hidden bg-base-200/60 backdrop-blur-sm"
+>
   <!-- Main Content -->
-  <main class="relative flex h-full min-h-0 w-full flex-1 flex-row items-start overflow-x-hidden overflow-y-auto">
+  <main
+    class="relative flex h-full min-h-0 w-full flex-1 flex-row items-start overflow-x-hidden overflow-y-auto"
+  >
     <!-- Timeline Section - Takes majority of space -->
-    <section class="z-10 m-4 flex w-full min-w-0 flex-1 items-stretch justify-center overflow-y-visible">
-      <div class="flex min-h-0 w-full flex-1 flex-col items-center gap-4 overflow-y-visible">
+    <section
+      class="z-10 m-4 flex w-full min-w-0 flex-1 items-stretch justify-center overflow-y-visible"
+    >
+      <div
+        class="flex min-h-0 w-full flex-1 flex-col items-center gap-4 overflow-y-visible"
+      >
         <!-- Info Panel above timeline - always visible -->
         <div class="w-full max-w-2xl px-4">
           <TimelineInfoPanel
@@ -465,9 +617,11 @@
           />
         </div>
 
-        <div class="relative h-[min(70vw,60vh)] w-[min(70vw,60vh)] flex-shrink-0 overflow-visible">
+        <div
+          class="relative h-[min(70vw,60vh)] w-[min(70vw,60vh)] flex-shrink-0 overflow-visible"
+        >
           <CircularTimelineCss
-            externalGaps={computedGaps}
+            externalGaps={availableGaps}
             pendingSuggestions={$pendingSuggestions}
             acceptedSuggestions={$acceptedSuggestions}
             {getTaskTitle}
@@ -486,31 +640,42 @@
         </div>
 
         <!-- Events Card using DaisyUI -->
-        <div class="card card-md mb-4 w-full max-w-[720px] bg-base-100 shadow-sm">
+        <div
+          class="card mb-4 w-full max-w-[720px] bg-base-100 shadow-sm card-md"
+        >
           <div class="card-body gap-3">
-            <div class="flex items-center justify-between border-b border-base-300 pb-3">
+          <div
+              class="flex items-center justify-between border-b border-base-300 pb-3"
+            >
               <h3 class="card-title text-xl font-normal">Events</h3>
-              <span class="badge badge-primary badge-outline">{formatDateLabel(dataState.selectedDate)}</span>
-            </div>
+            <span
+                class="badge border border-[var(--color-primary)] bg-[var(--color-primary-100)] badge-sm text-[var(--color-primary-800)]"
+              >{formatDateLabel(dataState.selectedDate)}</span
+            >
+          </div>
 
-            {#if displayEvents.length === 0}
-              <p class="py-6 text-center text-sm text-base-content/60">
-                この日の予定はありません
-              </p>
-            {:else}
+          {#if displayEvents.length === 0}
+            <p
+                class="py-6 text-center text-sm text-[var(--color-text-secondary)]"
+            >
+              この日の予定はありません
+            </p>
+          {:else}
               <ul class="list rounded-box">
-                {#each displayEvents as event (event.id)}
-                  <li class="list-row hover:bg-base-200/50 transition-colors duration-200">
+              {#each displayEvents as event (event.id)}
+                <li
+                    class="list-row transition-colors duration-200 hover:bg-base-200/50"
+                  >
                     <div class="list-col-grow">
                       <span class="text-sm font-medium">{event.title}</span>
-                    </div>
+                  </div>
                     <span class="badge badge-ghost text-xs font-medium">
-                      {formatEventTime(event)}
+                    {formatEventTime(event)}
                     </span>
-                  </li>
-                {/each}
-              </ul>
-            {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
           </div>
         </div>
       </div>

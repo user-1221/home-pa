@@ -102,7 +102,7 @@
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
-    class="modal modal-open modal-bottom z-[2100] md:modal-middle"
+    class="modal-open modal z-[2100] modal-bottom md:modal-middle"
     role="button"
     tabindex="-1"
     aria-label="Close settings"
@@ -110,13 +110,15 @@
   >
     <div class="modal-box max-h-[85vh] w-full max-w-lg p-0">
       <!-- Header -->
-      <div class="flex items-center justify-between border-b border-base-300 p-4">
+      <div
+        class="flex items-center justify-between border-b border-base-300 p-4"
+      >
         <div class="flex items-center gap-3">
           <span class="text-xl">⚙️</span>
           <h2 class="text-xl font-medium">Settings</h2>
         </div>
         <button
-          class="btn btn-ghost btn-sm btn-square"
+          class="btn btn-square btn-ghost btn-sm"
           onclick={onClose}
           aria-label="Close"
         >
@@ -125,7 +127,7 @@
       </div>
 
       <!-- Tabs -->
-      <div role="tablist" class="tabs tabs-bordered">
+      <div role="tablist" class="tabs-bordered tabs">
         <button
           role="tab"
           class="tab flex-1 {activeTab === 'account' ? 'tab-active' : ''}"
@@ -147,32 +149,37 @@
         {#if activeTab === "account"}
           <!-- Account Tab -->
           <div class="flex flex-col gap-4">
-            <div class="card bg-gradient-to-br from-primary to-primary/80 text-primary-content shadow-lg">
+            <div
+              class="card bg-gradient-to-br from-primary to-primary/80 text-primary-content shadow-lg"
+            >
               <div class="card-body p-5">
                 <UserSettings />
               </div>
             </div>
 
             <!-- Active Hours Setting -->
-            <div class="card card-sm bg-base-200">
+            <div class="card bg-base-200 card-sm">
               <div class="card-body gap-2 p-4">
                 <h3 class="card-title text-base">Active Hours</h3>
-                <p class="text-sm text-base-content/60">
-                  Set your active hours for task scheduling in the Assistant view.
+                <p class="text-sm text-[var(--color-text-secondary)]">
+                  Set your active hours for task scheduling in the Assistant
+                  view.
                 </p>
                 <div class="flex items-center gap-2">
                   <input
                     type="time"
                     value={settingsState.activeStartTime}
-                    onchange={(e) => settingsState.setActiveStartTime(e.currentTarget.value)}
-                    class="input input-bordered input-sm w-32"
+                    onchange={(e) =>
+                      settingsState.setActiveStartTime(e.currentTarget.value)}
+                    class="input-bordered input input-sm w-32"
                   />
-                  <span class="text-sm text-base-content/50">–</span>
+                  <span class="text-sm text-[var(--color-text-muted)]">–</span>
                   <input
                     type="time"
                     value={settingsState.activeEndTime}
-                    onchange={(e) => settingsState.setActiveEndTime(e.currentTarget.value)}
-                    class="input input-bordered input-sm w-32"
+                    onchange={(e) =>
+                      settingsState.setActiveEndTime(e.currentTarget.value)}
+                    class="input-bordered input input-sm w-32"
                   />
                 </div>
               </div>
@@ -182,11 +189,12 @@
           <!-- Import/Export Tab -->
           <div class="flex flex-col gap-4">
             <!-- Import Section -->
-            <div class="card card-sm bg-base-200">
+            <div class="card bg-base-200 card-sm">
               <div class="card-body gap-2 p-4">
                 <h3 class="card-title text-base">Import Calendar</h3>
-                <p class="text-sm text-base-content/60">
-                  Import events from Google Calendar, Apple Calendar, or any .ics file.
+                <p class="text-sm text-[var(--color-text-secondary)]">
+                  Import events from Google Calendar, Apple Calendar, or any
+                  .ics file.
                 </p>
 
                 <input
@@ -199,12 +207,12 @@
                 />
 
                 <button
-                  class="btn btn-outline btn-block"
+                  class="btn btn-block btn-outline"
                   onclick={triggerFileInput}
                   disabled={importing || !isApiEnabled}
                 >
                   {#if importing}
-                    <span class="loading loading-spinner loading-sm"></span>
+                    <span class="loading loading-sm loading-spinner"></span>
                     Importing...
                   {:else}
                     📁 Select .ics File
@@ -212,7 +220,11 @@
                 </button>
 
                 {#if importResult}
-                  <div class="alert mt-3 {importResult.errors.length > 0 ? 'alert-error' : 'alert-success'}">
+                  <div
+                    class="mt-3 alert {importResult.errors.length > 0
+                      ? 'alert-error'
+                      : 'alert-success'}"
+                  >
                     <div class="flex-1">
                       {#if importResult.imported > 0}
                         <p>✓ Imported {importResult.imported} events</p>
@@ -226,22 +238,25 @@
                         {/each}
                       {/if}
                     </div>
-                    <button class="btn btn-ghost btn-xs btn-square" onclick={clearImportResult}>×</button>
+                    <button
+                      class="btn btn-square btn-ghost btn-xs"
+                      onclick={clearImportResult}>×</button
+                    >
                   </div>
                 {/if}
               </div>
             </div>
 
             <!-- Export Section -->
-            <div class="card card-sm bg-base-200">
+            <div class="card bg-base-200 card-sm">
               <div class="card-body gap-2 p-4">
                 <h3 class="card-title text-base">Export Calendar</h3>
-                <p class="text-sm text-base-content/60">
+                <p class="text-sm text-[var(--color-text-secondary)]">
                   Download all your events as an .ics file.
                 </p>
 
                 <button
-                  class="btn btn-ghost btn-xs justify-start gap-1"
+                  class="btn justify-start gap-1 btn-ghost btn-xs"
                   onclick={() => (showAdvanced = !showAdvanced)}
                 >
                   {showAdvanced ? "▼" : "▶"} Advanced
@@ -254,7 +269,7 @@
                     </label>
                     <input
                       type="text"
-                      class="input input-bordered input-sm"
+                      class="input-bordered input input-sm"
                       bind:value={exportName}
                       placeholder="Home-PA Calendar"
                     />
@@ -262,7 +277,7 @@
                 {/if}
 
                 <button
-                  class="btn btn-outline btn-block"
+                  class="btn btn-block btn-outline"
                   onclick={handleExport}
                   disabled={!isApiEnabled}
                 >
@@ -272,12 +287,17 @@
             </div>
 
             <!-- Sync Info -->
-            <div class="card card-sm bg-base-200">
+            <div class="card bg-base-200 card-sm">
               <div class="card-body gap-2 p-4">
                 <h3 class="card-title text-base">Calendar Sync</h3>
                 <div class="flex items-center justify-between">
-                  <span class="text-sm text-base-content/60">CalDAV support</span>
-                  <span class="badge badge-primary badge-outline">Coming Soon</span>
+                  <span class="text-sm text-base-content/60"
+                    >CalDAV support</span
+                  >
+                  <span
+                    class="badge border border-[var(--color-primary)] bg-[var(--color-primary-100)] badge-sm text-[var(--color-primary-800)]"
+                    >Coming Soon</span
+                  >
                 </div>
               </div>
             </div>
@@ -285,6 +305,6 @@
         {/if}
       </div>
     </div>
-    <div class="modal-backdrop bg-black/40 backdrop-blur-sm"></div>
+    <div class="modal-backdrop bg-base-content/40 backdrop-blur-sm"></div>
   </div>
 {/if}
