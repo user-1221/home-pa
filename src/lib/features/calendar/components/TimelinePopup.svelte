@@ -6,6 +6,12 @@
     eventActions,
   } from "$lib/bootstrap/compat.svelte.ts";
   import { getEventColor } from "../utils/index.ts";
+  import {
+    loadTimetableData,
+    getTimetableEventsForDate,
+    getVisibleTimetableEvents,
+    type TimetableEvent,
+  } from "../services/timetable-events.ts";
 
   interface Props {
     events: Event[];
@@ -14,6 +20,31 @@
   }
 
   let { events, parseRecurrenceForEdit, onClose }: Props = $props();
+
+  // Timetable events state
+  let timetableEvents = $state<TimetableEvent[]>([]);
+  let _timetableLoaded = $state(false);
+
+  // Load timetable events on mount
+  $effect(() => {
+    loadTimetableForDate();
+  });
+
+  async function loadTimetableForDate() {
+    try {
+      const { config, cells } = await loadTimetableData();
+      const allEvents = getTimetableEventsForDate(
+        dataState.selectedDate,
+        config,
+        cells,
+      );
+      timetableEvents = getVisibleTimetableEvents(allEvents);
+      _timetableLoaded = true;
+    } catch (err) {
+      console.error("[TimelinePopup] Failed to load timetable:", err);
+      _timetableLoaded = true;
+    }
+  }
 
   function getCurrentTimePositionScaled(): number {
     const now = new Date();
@@ -111,11 +142,39 @@
     parseRecurrenceForEdit(masterEvent);
   }
 
+  // Timetable event helpers
+  function getTimetableEventPosition(event: TimetableEvent): number {
+    const hours = event.start.getHours();
+    const minutes = event.start.getMinutes();
+    const totalMinutes = hours * 60 + minutes;
+    return (totalMinutes / 60) * 16.67;
+  }
+
+  function getTimetableEventHeight(event: TimetableEvent): number {
+    const startMinutes = event.start.getHours() * 60 + event.start.getMinutes();
+    const endMinutes = event.end.getHours() * 60 + event.end.getMinutes();
+    const durationMinutes = Math.max(endMinutes - startMinutes, 30);
+    return (durationMinutes / 60) * 16.67;
+  }
+
+  function getTimetableEventColor(event: TimetableEvent): string {
+    // 作業不可 (work not allowed) = blocking = red-ish
+    // 作業可 (work allowed) = green-ish
+    if (event.workAllowed === "作業不可") {
+      return "var(--color-error-400)";
+    }
+    return "var(--color-success-400)";
+  }
+
   let eventColumns = $derived(getEventColumns(events));
+  let hasTimetableEvents = $derived(timetableEvents.length > 0);
+  let totalColumns = $derived(
+    eventColumns.length + (hasTimetableEvents ? 1 : 0),
+  );
 </script>
 
 <div
-  class="fixed inset-0 z-[2100] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+  class="fixed inset-0 z-[2100] flex items-center justify-center bg-base-content/60 p-4 backdrop-blur-sm"
   onclick={() => onClose()}
   onkeydown={(e) => e.key === "Escape" && onClose()}
   role="button"
@@ -123,7 +182,7 @@
   aria-label="Close timeline"
 >
   <div
-    class="flex max-h-[80vh] w-full max-w-[600px] flex-col overflow-hidden rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-app)] shadow-xl"
+    class="flex max-h-[80vh] w-full max-w-[600px] flex-col overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-xl"
     onclick={(e) => e.stopPropagation()}
     onkeydown={(e) => e.key === "Escape" && onClose()}
     role="dialog"
@@ -131,13 +190,13 @@
     tabindex="-1"
   >
     <div
-      class="flex items-center justify-between border-b border-[var(--color-border-default)] bg-[var(--color-bg-app)] p-4"
+      class="flex items-center justify-between border-b border-base-300 bg-base-100 p-4"
     >
-      <h3 class="m-0 text-lg font-normal text-[var(--color-text-primary)]">
+      <h3 class="m-0 text-lg font-normal text-base-content">
         タイムライン - {dataState.selectedDate.toLocaleDateString("ja-JP")}
       </h3>
       <button
-        class="btn btn-ghost transition-all duration-200 btn-sm hover:bg-[var(--color-error-500)] hover:text-white"
+        class="btn btn-ghost transition-all duration-200 btn-sm hover:bg-error hover:text-error-content"
         onclick={() => onClose()}
         aria-label="Close"
       >
@@ -146,7 +205,7 @@
     </div>
 
     <div class="flex-1 overflow-y-auto p-4">
-      {#if events.length === 0}
+      {#if events.length === 0 && timetableEvents.length === 0}
         <p class="py-12 text-center text-[var(--color-text-muted)]">
           この日の予定はありません
         </p>
@@ -163,26 +222,71 @@
                   class="w-10 pr-1 text-right text-xs text-[var(--color-text-muted)]"
                   >{hour.toString().padStart(2, "0")}:00</span
                 >
-                <div class="h-px flex-1 bg-[var(--color-border-default)]"></div>
+                <div class="h-px flex-1 bg-base-300"></div>
               </div>
             {/each}
           </div>
 
           <!-- Current time indicator -->
           <div
-            class="absolute z-[5] h-0.5 bg-[var(--color-error-500)] before:absolute before:top-[-3px] before:left-[-4px] before:h-2 before:w-2 before:rounded-full before:bg-[var(--color-error-500)] before:content-['']"
+            class="absolute z-[5] h-0.5 bg-error before:absolute before:top-[-3px] before:left-[-4px] before:h-2 before:w-2 before:rounded-full before:bg-error before:content-['']"
             style="top: {getCurrentTimePositionScaled()}px; left: 50px; right: 0;"
           ></div>
 
-          <!-- Event columns -->
+          <!-- Event columns (including timetable lane) -->
           <div
             class="absolute flex"
             style="left: 55px; right: 0; top: 0; height: 100%;"
           >
+            <!-- Timetable lane (first column if exists) -->
+            {#if hasTimetableEvents}
+              <div
+                class="relative h-full border-r border-base-300/50"
+                style="width: {100 / totalColumns}%;"
+              >
+                <div
+                  class="absolute inset-x-0 top-[-20px] text-center text-[10px] font-medium text-[var(--color-text-secondary)]"
+                >
+                  時間割
+                </div>
+                {#each timetableEvents as ttEvent (ttEvent.id)}
+                  <div
+                    class="absolute right-0.5 left-0.5 min-h-[20px] overflow-hidden rounded border-l-2 px-1 py-0.5"
+                    style="
+                      top: {getTimetableEventPosition(ttEvent)}px;
+                      height: {getTimetableEventHeight(ttEvent)}px;
+                      background-color: {getTimetableEventColor(ttEvent)}20;
+                      border-left-color: {getTimetableEventColor(ttEvent)};
+                    "
+                  >
+                    <div
+                      class="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap"
+                      style="color: {getTimetableEventColor(ttEvent)};"
+                    >
+                      {ttEvent.title}
+                    </div>
+                    <div
+                      class="text-[10px] opacity-70"
+                      style="color: {getTimetableEventColor(ttEvent)};"
+                    >
+                      {formatTime(ttEvent.start)} - {formatTime(ttEvent.end)}
+                    </div>
+                    <div
+                      class="text-[9px] opacity-60"
+                      style="color: {getTimetableEventColor(ttEvent)};"
+                    >
+                      {ttEvent.workAllowed}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+
+            <!-- Regular event columns -->
             {#each eventColumns as column, columnIndex (columnIndex)}
               <div
                 class="relative h-full"
-                style="width: {100 / eventColumns.length}%;"
+                style="width: {100 / totalColumns}%;"
               >
                 {#each column as event (event.id)}
                   <div

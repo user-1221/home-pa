@@ -129,6 +129,47 @@
   --z-nav: 2000;
   --z-suggestion: 1000;
   --z-settings: 500;
+
+  /* === DaisyUI v5 Theme Mapping === */
+  /* Maps DaisyUI semantic classes to custom palette */
+
+  /* Primary — Neptune */
+  --color-primary: #7bbebb;
+  --color-primary-content: #ffffff;
+
+  /* Secondary — Surf Crest */
+  --color-secondary: #cee3d3;
+  --color-secondary-content: #1f2937;
+
+  /* Accent — Primary (Neptune) */
+  --color-accent: #7bbebb;
+  --color-accent-content: #ffffff;
+
+  /* Neutral */
+  --color-neutral: #1f2937;
+  --color-neutral-content: #ffffff;
+
+  /* Base colors */
+  --color-base-100: #ffffff;
+  --color-base-200: #f6f7f8;
+  --color-base-300: #e5e7eb;
+  --color-base-content: #1f2937;
+
+  /* Success — Jungle Green */
+  --color-success: #2ab388;
+  --color-success-content: #ffffff;
+
+  /* Warning */
+  --color-warning: #f59e0b;
+  --color-warning-content: #1f2937;
+
+  /* Error */
+  --color-error: #dc2626;
+  --color-error-content: #ffffff;
+
+  /* Info — Neptune */
+  --color-info: #7bbebb;
+  --color-info-content: #ffffff;
 }
 
 @media (min-width: 768px) {
@@ -162,7 +203,7 @@ body {
 
 /* Focus ring using primary color at 60% opacity */
 :focus-visible {
-  outline: 2px solid rgba(123, 190, 187, 0.6);
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 60%, transparent);
   outline-offset: 2px;
 }
 

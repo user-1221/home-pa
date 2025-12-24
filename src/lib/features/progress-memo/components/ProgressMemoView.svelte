@@ -77,18 +77,14 @@
 
 <div class="flex h-full min-h-0 flex-col">
   <!-- Header -->
-  <div
-    class="flex items-center justify-between border-b border-[var(--color-border-default)] p-4"
-  >
+  <div class="flex items-center justify-between border-b border-base-300 p-4">
     <div class="flex items-center gap-3">
       <span class="text-2xl">📊</span>
-      <h2 class="m-0 text-xl font-medium text-[var(--color-text-primary)]">
-        Progress Memo
-      </h2>
+      <h2 class="m-0 text-xl font-medium text-base-content">Progress Memo</h2>
     </div>
     {#if onClose}
       <button
-        class="flex h-9 w-9 items-center justify-center rounded-lg text-xl text-[var(--color-text-secondary)] transition-colors duration-200 hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-primary)]"
+        class="flex h-9 w-9 items-center justify-center rounded-lg text-xl text-base-content/70 transition-colors duration-200 hover:bg-base-200 hover:text-base-content"
         onclick={onClose}
         aria-label="Close"
       >
@@ -101,20 +97,16 @@
   <div class="flex-1 overflow-y-auto p-4">
     <!-- Quick Log Section -->
     <section class="mb-6">
-      <h3 class="mb-3 text-sm font-medium text-[var(--color-text-secondary)]">
-        Quick Log
-      </h3>
+      <h3 class="mb-3 text-sm font-medium text-base-content/70">Quick Log</h3>
       <div class="grid grid-cols-3 gap-3">
         {#each quickLogs as log (log.id)}
           <button
-            class="flex flex-col items-center gap-2 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-app)] p-4 transition-all duration-200 hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-100)] active:scale-95"
+            class="flex flex-col items-center gap-2 rounded-xl border border-base-300 bg-base-100 p-4 transition-all duration-200 hover:border-primary hover:bg-primary/10 active:scale-95"
             onclick={() => incrementQuickLog(log.id)}
           >
             <span class="text-2xl">{log.emoji}</span>
-            <span class="text-xs text-[var(--color-text-secondary)]"
-              >{log.title}</span
-            >
-            <span class="text-lg font-semibold text-[var(--color-text-primary)]"
+            <span class="text-xs text-base-content/70">{log.title}</span>
+            <span class="text-lg font-semibold text-base-content"
               >{log.count}</span
             >
           </button>
@@ -125,11 +117,9 @@
     <!-- Goals Section -->
     <section class="mb-6">
       <div class="mb-3 flex items-center justify-between">
-        <h3 class="text-sm font-medium text-[var(--color-text-secondary)]">
-          Goals
-        </h3>
+        <h3 class="text-sm font-medium text-base-content/70">Goals</h3>
         <button
-          class="rounded-lg px-3 py-1.5 text-xs font-medium text-[var(--color-primary)] transition-colors duration-200 hover:bg-[var(--color-primary-100)]"
+          class="rounded-lg px-3 py-1.5 text-xs font-medium text-primary transition-colors duration-200 hover:bg-primary/10"
         >
           + Add Goal
         </button>
@@ -137,20 +127,17 @@
 
       <div class="flex flex-col gap-3">
         {#each goals as goal (goal.id)}
-          <div
-            class="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-app)] p-4"
-          >
+          <div class="rounded-xl border border-base-300 bg-base-100 p-4">
             <div class="mb-3 flex items-start justify-between">
               <div>
-                <span
-                  class="text-base font-medium text-[var(--color-text-primary)]"
+                <span class="text-base font-medium text-base-content"
                   >{goal.title}</span
                 >
                 <div class="mt-1 flex items-center gap-2">
-                  <span class="text-xs text-[var(--color-text-muted)]"
+                  <span class="text-xs text-base-content/50"
                     >🔥 {goal.streak} day streak</span
                   >
-                  <span class="text-xs text-[var(--color-text-muted)]"
+                  <span class="text-xs text-base-content/50"
                     >• {goal.lastUpdated}</span
                   >
                 </div>
@@ -162,7 +149,7 @@
 
             <!-- Progress Bar -->
             <div
-              class="mb-2 h-2 w-full overflow-hidden rounded-full bg-[var(--color-bg-surface)]"
+              class="mb-2 h-2 w-full overflow-hidden rounded-full bg-base-200"
             >
               <div
                 class="h-full rounded-full transition-all duration-300"
@@ -174,11 +161,11 @@
             </div>
 
             <div
-              class="flex items-center justify-between text-xs text-[var(--color-text-muted)]"
+              class="flex items-center justify-between text-xs text-base-content/50"
             >
               <span>{goal.progress} / {goal.target} {goal.unit}</span>
               <button
-                class="rounded-lg bg-[var(--color-bg-surface)] px-3 py-1.5 font-medium text-[var(--color-text-secondary)] transition-colors duration-200 hover:bg-[var(--color-primary-100)] hover:text-[var(--color-primary)]"
+                class="rounded-lg bg-base-200 px-3 py-1.5 font-medium text-base-content/70 transition-colors duration-200 hover:bg-primary/10 hover:text-primary"
               >
                 + Log
               </button>
@@ -190,47 +177,37 @@
 
     <!-- Stats Overview -->
     <section>
-      <h3 class="mb-3 text-sm font-medium text-[var(--color-text-secondary)]">
-        This Week
-      </h3>
+      <h3 class="mb-3 text-sm font-medium text-base-content/70">This Week</h3>
       <div
-        class="grid grid-cols-2 gap-3 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4"
+        class="grid grid-cols-2 gap-3 rounded-xl border border-base-300 bg-base-200 p-4"
       >
         <div class="text-center">
-          <div class="text-2xl font-semibold text-[var(--color-text-primary)]">
-            23
-          </div>
-          <div class="text-xs text-[var(--color-text-muted)]">Activities</div>
+          <div class="text-2xl font-semibold text-base-content">23</div>
+          <div class="text-xs text-base-content/50">Activities</div>
         </div>
         <div class="text-center">
-          <div class="text-2xl font-semibold text-[var(--color-success-500)]">
-            85%
-          </div>
-          <div class="text-xs text-[var(--color-text-muted)]">Completion</div>
+          <div class="text-2xl font-semibold text-success">85%</div>
+          <div class="text-xs text-base-content/50">Completion</div>
         </div>
         <div class="text-center">
-          <div class="text-2xl font-semibold text-[var(--color-primary)]">
-            12
-          </div>
-          <div class="text-xs text-[var(--color-text-muted)]">Best Streak</div>
+          <div class="text-2xl font-semibold text-primary">12</div>
+          <div class="text-xs text-base-content/50">Best Streak</div>
         </div>
         <div class="text-center">
-          <div class="text-2xl font-semibold text-[var(--color-warning-500)]">
-            3
-          </div>
-          <div class="text-xs text-[var(--color-text-muted)]">Goals Active</div>
+          <div class="text-2xl font-semibold text-warning">3</div>
+          <div class="text-xs text-base-content/50">Goals Active</div>
         </div>
       </div>
     </section>
 
     <!-- API Notice -->
     <div
-      class="mt-6 rounded-xl border border-dashed border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-4 text-center"
+      class="mt-6 rounded-xl border border-dashed border-base-300 bg-base-200 p-4 text-center"
     >
-      <p class="text-sm text-[var(--color-text-muted)]">
+      <p class="text-sm text-base-content/50">
         🚧 Data persistence coming soon
       </p>
-      <p class="mt-1 text-xs text-[var(--color-text-muted)]">
+      <p class="mt-1 text-xs text-base-content/50">
         Currently showing mock data
       </p>
     </div>

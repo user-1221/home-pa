@@ -24,6 +24,12 @@
     endTracking,
     type DragState,
   } from "../utils/interaction-helper.ts";
+  import {
+    loadTimetableData,
+    getTimetableEventsForDate,
+    getVisibleTimetableEvents,
+    type TimetableEvent,
+  } from "$lib/features/calendar/services/timetable-events.ts";
 
   interface Props {
     showLog?: boolean;
@@ -55,6 +61,30 @@
       gapId: g.gapId ?? `gap-${i}`,
     }));
   });
+
+  // Timetable events state
+  let timetableEvents = $state<TimetableEvent[]>([]);
+
+  // Load timetable events when selected date changes
+  $effect(() => {
+    const _date = selectedDateCurrent; // Track dependency
+    loadTimetableForDate();
+  });
+
+  async function loadTimetableForDate() {
+    try {
+      const { config, cells } = await loadTimetableData();
+      const allEvents = getTimetableEventsForDate(
+        selectedDateCurrent,
+        config,
+        cells,
+      );
+      timetableEvents = getVisibleTimetableEvents(allEvents);
+    } catch (err) {
+      console.error("[CircularTimeline] Failed to load timetable:", err);
+      timetableEvents = [];
+    }
+  }
 
   // DOM refs & sizing
   let containerElement: HTMLDivElement | null = null;
@@ -307,10 +337,28 @@
     return [...pending, ...accepted];
   });
 
-  // Ring radii - gap arcs on outermost, then events, then suggestions
+  // Normalize timetable events
+  interface NormalizedTimetableEvent {
+    event: TimetableEvent;
+    startAngle: number;
+    endAngle: number;
+  }
+
+  let normalizedTimetableEvents = $derived.by(
+    (): NormalizedTimetableEvent[] => {
+      return timetableEvents.map((ev) => ({
+        event: ev,
+        startAngle: dateToAngle(ev.start),
+        endAngle: dateToAngle(ev.end),
+      }));
+    },
+  );
+
+  // Ring radii - gap arcs on outermost, then timetable, then events, then suggestions
   const gapRingRadius = outerRadius - 1; // Outermost ring for gaps
-  const eventBaseRadius = outerRadius - 6; // Events next layer in
-  const suggestionRingRadius = outerRadius - 12; // Suggestions inner layer
+  const timetableRingRadius = outerRadius - 5; // Timetable lane (new)
+  const eventBaseRadius = outerRadius - 10; // Events next layer in (adjusted)
+  const suggestionRingRadius = outerRadius - 16; // Suggestions inner layer (adjusted)
 
   // Current time
   let currentTime = $state(new Date());
@@ -658,15 +706,26 @@
       cy={center}
       r={outerRadius}
       fill="none"
-      stroke="rgba(0,0,0,0.1)"
+      stroke="var(--color-border-default)"
+      stroke-opacity="0.4"
       stroke-width="0.3"
+    />
+    <circle
+      cx={center}
+      cy={center}
+      r={timetableRingRadius}
+      fill="none"
+      stroke="var(--color-border-default)"
+      stroke-opacity="0.2"
+      stroke-width="0.15"
     />
     <circle
       cx={center}
       cy={center}
       r={eventBaseRadius}
       fill="none"
-      stroke="rgba(0,0,0,0.05)"
+      stroke="var(--color-border-default)"
+      stroke-opacity="0.25"
       stroke-width="0.2"
     />
     <circle
@@ -674,7 +733,8 @@
       cy={center}
       r={suggestionRingRadius}
       fill="none"
-      stroke="rgba(0,0,0,0.05)"
+      stroke="var(--color-border-default)"
+      stroke-opacity="0.25"
       stroke-width="0.2"
     />
 
@@ -687,13 +747,23 @@
       {@const y2 = center + (outerRadius + 1.5) * Math.sin(angle)}
       {@const lx = center + (outerRadius + 5) * Math.cos(angle)}
       {@const ly = center + (outerRadius + 5) * Math.sin(angle)}
-      <line {x1} {y1} {x2} {y2} stroke="rgba(0,0,0,0.4)" stroke-width="0.5" />
+      <line
+        {x1}
+        {y1}
+        {x2}
+        {y2}
+        stroke="var(--color-text-muted)"
+        stroke-opacity="0.6"
+        stroke-width="0.5"
+      />
       <circle
         cx={lx}
         cy={ly}
         r="2.5"
-        fill="rgba(255,255,255,0.95)"
-        stroke="rgba(0,0,0,0.2)"
+        fill="var(--color-bg-app)"
+        fill-opacity="0.95"
+        stroke="var(--color-border-strong)"
+        stroke-opacity="0.6"
         stroke-width="0.3"
       />
       <text
@@ -701,12 +771,50 @@
         y={ly}
         font-size="3"
         font-weight="600"
-        fill="rgba(0,0,0,0.8)"
+        fill="var(--color-text-primary)"
+        fill-opacity="0.8"
         text-anchor="middle"
         dominant-baseline="middle"
       >
         {String(hour).padStart(2, "0")}
       </text>
+    {/each}
+
+    <!-- Timetable arcs (dedicated lane) -->
+    {#each normalizedTimetableEvents as tt (tt.event.id)}
+      {@const isBlocking = tt.event.workAllowed === "作業不可"}
+      <path
+        d={arcPath(tt.startAngle, tt.endAngle, timetableRingRadius)}
+        fill="none"
+        stroke={isBlocking
+          ? "var(--color-error-400)"
+          : "var(--color-success-400)"}
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-opacity="0.85"
+        class="timetable-arc"
+        filter="url(#softGlow)"
+      />
+      <!-- Title label for larger arcs -->
+      {#if tt.endAngle - tt.startAngle > 0.3}
+        {@const midAngle = (tt.startAngle + tt.endAngle) / 2 - Math.PI / 2}
+        {@const labelRadius = timetableRingRadius + 2}
+        {@const labelX = center + labelRadius * Math.cos(midAngle)}
+        {@const labelY = center + labelRadius * Math.sin(midAngle)}
+        <text
+          x={labelX}
+          y={labelY}
+          font-size="2.5"
+          fill={isBlocking
+            ? "var(--color-error-500)"
+            : "var(--color-success-500)"}
+          text-anchor="middle"
+          dominant-baseline="middle"
+          class="pointer-events-none"
+        >
+          {tt.event.title.slice(0, 8)}
+        </text>
+      {/if}
     {/each}
 
     <!-- Suggestion arcs -->
@@ -793,8 +901,9 @@
             cx={handlePos.x}
             cy={handlePos.y}
             r="1.2"
-            fill="#38EF7D"
-            stroke="rgba(255,255,255,0.9)"
+            fill="var(--color-success-500)"
+            stroke="var(--color-bg-app)"
+            stroke-opacity="0.9"
             stroke-width="0.3"
             class="resize-handle"
             onmousedown={(e) =>
@@ -888,8 +997,10 @@
       cx={center}
       cy={center}
       r="15"
-      fill="rgba(255, 255, 255, 0.95)"
-      stroke="rgba(0,0,0,0.1)"
+      fill="var(--color-bg-app)"
+      fill-opacity="0.95"
+      stroke="var(--color-border-default)"
+      stroke-opacity="0.6"
       stroke-width="0.3"
     />
   </svg>
@@ -900,12 +1011,12 @@
     onclick={handleCenterClick}
   >
     <div
-      class="text-[clamp(10px,3vw,16px)] font-light tracking-wide text-black/80"
+      class="text-[clamp(10px,3vw,16px)] font-light tracking-wide text-base-content/80"
     >
       {formatDate(selectedDateCurrent)}
     </div>
     <div
-      class="mt-0.5 text-[clamp(6px,1.5vw,8px)] tracking-widest text-black/50 uppercase"
+      class="mt-0.5 text-[clamp(6px,1.5vw,8px)] tracking-widest text-[var(--color-text-muted)] uppercase"
     >
       tap to change
     </div>
@@ -922,17 +1033,17 @@
   <!-- Tooltips (fixed position) -->
   {#if hoveredEvent}
     <div
-      class="pointer-events-none fixed z-[1000] max-w-[220px] animate-[fadeIn_0.15s_ease] rounded-lg border border-black/10 bg-white/98 p-3 shadow-lg backdrop-blur-md"
+      class="pointer-events-none fixed z-[1000] max-w-[220px] animate-[fadeIn_0.15s_ease] rounded-lg border border-base-300/70 bg-base-100/98 p-3 shadow-lg backdrop-blur-md"
       style="left: {mousePos.x}px; top: {mousePos.y}px;"
     >
       <div class="mb-1 text-sm font-medium">{hoveredEvent.title}</div>
-      <div class="text-xs text-black/70">
+      <div class="text-xs text-[var(--color-text-secondary)]">
         {hoveredEvent.timeLabel === "all-day"
           ? "All day"
           : `${dateToHM(new Date(hoveredEvent.start))} - ${dateToHM(new Date(hoveredEvent.end))}`}
       </div>
       {#if hoveredEvent.description}
-        <div class="mt-1 text-[10px] text-black/60 italic">
+        <div class="mt-1 text-[10px] text-[var(--color-text-muted)] italic">
           {hoveredEvent.description}
         </div>
       {/if}
@@ -941,14 +1052,14 @@
 
   {#if hoveredGap}
     <div
-      class="pointer-events-none fixed z-[1000] max-w-[220px] animate-[fadeIn_0.15s_ease] rounded-lg border border-[#a8edea]/40 bg-white/98 p-3 shadow-lg backdrop-blur-md"
+      class="pointer-events-none fixed z-[1000] max-w-[220px] animate-[fadeIn_0.15s_ease] rounded-lg border border-primary/40 bg-base-100/98 p-3 shadow-lg backdrop-blur-md"
       style="left: {mousePos.x}px; top: {mousePos.y}px;"
     >
       <div class="mb-1 text-sm font-medium">Free Time</div>
-      <div class="text-xs text-black/70">
+      <div class="text-xs text-[var(--color-text-secondary)]">
         {hoveredGap.start} - {hoveredGap.end}
       </div>
-      <div class="mt-0.5 text-xs text-[#11998e]">
+      <div class="mt-0.5 text-xs text-success">
         {hoveredGap.duration} min available
       </div>
     </div>
@@ -956,9 +1067,10 @@
 
   {#if showLog}
     <div
-      class="pointer-events-none absolute bottom-1 left-1 text-[8px] text-black/40"
+      class="pointer-events-none absolute bottom-1 left-1 text-[8px] text-[var(--color-text-muted)] opacity-70"
     >
-      events: {normalizedEvents.length} | gaps: {normalizedGaps.length} | suggestions:
+      events: {normalizedEvents.length} | timetable: {normalizedTimetableEvents.length}
+      | gaps: {normalizedGaps.length} | suggestions:
       {normalizedSuggestions.length}
     </div>
   {/if}
@@ -966,7 +1078,7 @@
   <!-- Suggestion Card -->
   {#if selectedSuggestion}
     <div
-      class="fixed inset-0 bg-black/40 backdrop-blur-sm"
+      class="fixed inset-0 bg-base-content/40 backdrop-blur-sm"
       style="z-index: 2100;"
       onclick={closeSuggestionCard}
       onkeydown={(e) => e.key === "Escape" && closeSuggestionCard()}

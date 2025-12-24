@@ -239,14 +239,13 @@
   }
 </script>
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div
-  class="modal modal-open modal-bottom z-[2100] md:modal-middle"
-  onclick={() => eventFormState.close()}
+  class="modal-open modal z-[2100] modal-bottom md:modal-middle"
   onkeydown={(e) => e.key === "Escape" && eventFormState.close()}
-  role="button"
+  role="dialog"
+  aria-modal="true"
+  aria-label="Event form"
   tabindex="-1"
-  aria-label="Close event form"
 >
   <div
     class="modal-box max-h-[90vh] w-full max-w-[500px] overflow-y-auto p-0"
@@ -256,12 +255,14 @@
     aria-modal="true"
     tabindex="-1"
   >
-    <div class="sticky top-0 z-[1] flex items-center justify-between border-b border-base-300 bg-base-100 p-4">
+    <div
+      class="sticky top-0 z-[1] flex items-center justify-between border-b border-base-300 bg-base-100 p-4"
+    >
       <h3 class="text-lg font-medium">
         {isEventEditing ? "予定を編集" : "新しい予定"}
       </h3>
       <button
-        class="btn btn-ghost btn-sm btn-square"
+        class="btn btn-square btn-ghost btn-sm"
         onclick={() => eventFormState.close()}
         aria-label="Close"
       >
@@ -273,7 +274,9 @@
       <!-- Title -->
       <div class="form-control">
         <label class="label" for="event-title">
-          <span class="label-text text-sm text-base-content/60">タイトル</span>
+          <span class="label-text text-sm text-[var(--color-text-secondary)]"
+            >タイトル</span
+          >
         </label>
         <input
           id="event-title"
@@ -296,7 +299,9 @@
       <!-- Address -->
       <div class="form-control">
         <label class="label" for="event-address">
-          <span class="label-text text-sm text-base-content/60">場所</span>
+          <span class="label-text text-sm text-[var(--color-text-secondary)]"
+            >場所</span
+          >
         </label>
         <input
           id="event-address"
@@ -310,13 +315,15 @@
       <!-- Importance -->
       <div class="form-control">
         <span class="label">
-          <span class="label-text text-sm text-base-content/60">重要度</span>
+          <span class="label-text text-sm text-[var(--color-text-secondary)]"
+            >重要度</span
+          >
         </span>
         <div class="flex gap-2" role="group" aria-label="重要度">
           <button
             type="button"
             class="btn flex-1 btn-sm {eventImportance === 'low'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+              ? 'border-primary bg-primary/10'
               : 'border-base-300 btn-ghost'} border transition-all duration-200"
             onclick={() => (eventImportance = "low")}
           >
@@ -325,7 +332,7 @@
           <button
             type="button"
             class="btn flex-1 btn-sm {eventImportance === 'medium'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+              ? 'border-primary bg-primary/10'
               : 'border-base-300 btn-ghost'} border transition-all duration-200"
             onclick={() => (eventImportance = "medium")}
           >
@@ -334,7 +341,7 @@
           <button
             type="button"
             class="btn flex-1 btn-sm {eventImportance === 'high'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+              ? 'border-primary bg-primary/10'
               : 'border-base-300 btn-ghost'} border transition-all duration-200"
             onclick={() => (eventImportance = "high")}
           >
@@ -350,7 +357,7 @@
             type="button"
             class="btn flex-1 transition-all duration-200 btn-sm
               {timeMode === 'all-day'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
+              ? 'border-primary bg-primary/10 text-primary'
               : 'border-base-300 btn-ghost'}
               {isGreyState ? 'opacity-60' : ''}"
             onclick={() => {
@@ -368,7 +375,7 @@
             type="button"
             class="btn flex-1 transition-all duration-200 btn-sm
               {timeMode === 'some-timing'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
+              ? 'border-primary bg-primary/10 text-primary'
               : 'border-base-300 btn-ghost'}
               {isGreyState ? 'opacity-60' : ''}"
             onclick={() => {
@@ -391,7 +398,9 @@
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="label" for="event-start-date">
-              <span class="label-text text-sm text-base-content/60">開始日</span
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
+                >開始日</span
               >
             </label>
             <input
@@ -407,7 +416,9 @@
           </div>
           <div>
             <label class="label" for="event-end-date">
-              <span class="label-text text-sm text-base-content/60">終了日</span
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
+                >終了日</span
               >
             </label>
             <input
@@ -429,7 +440,8 @@
         <div class="grid grid-cols-2 gap-2">
           <div>
             <label class="label" for="event-start-time">
-              <span class="label-text text-sm text-base-content/60"
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
                 >開始時間</span
               >
             </label>
@@ -459,7 +471,8 @@
           </div>
           <div>
             <label class="label" for="event-end-time">
-              <span class="label-text text-sm text-base-content/60"
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
                 >終了時間</span
               >
             </label>
@@ -506,7 +519,8 @@
         <div class="card flex flex-col gap-4 bg-base-200 p-4">
           <div class="form-control">
             <label class="label" for="recurrence-interval-input">
-              <span class="label-text text-sm text-base-content/60"
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
                 >繰り返し</span
               >
             </label>
@@ -528,21 +542,25 @@
                 <option value="MONTHLY">月</option>
                 <option value="YEARLY">年</option>
               </select>
-              <span class="text-sm text-base-content/60">ごと</span>
+              <span class="text-sm text-[var(--color-text-secondary)]"
+                >ごと</span
+              >
             </div>
           </div>
 
           {#if recurrenceFrequency === "WEEKLY"}
             <div class="form-control">
               <span class="label">
-                <span class="label-text text-sm text-base-content/60">曜日</span
+                <span
+                  class="label-text text-sm text-[var(--color-text-secondary)]"
+                  >曜日</span
                 >
               </span>
               <div class="flex flex-wrap gap-1" role="group" aria-label="曜日">
                 {#each ["日", "月", "火", "水", "木", "金", "土"] as day, i (i)}
                   <label
                     class="btn btn-sm {weeklyDays[i]
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white'
+                      ? 'btn-primary'
                       : 'border-base-300 btn-ghost'} cursor-pointer transition-all duration-200"
                   >
                     <input
@@ -570,7 +588,8 @@
 
             <fieldset class="form-control">
               <legend class="label">
-                <span class="label-text text-sm text-base-content/60"
+                <span
+                  class="label-text text-sm text-[var(--color-text-secondary)]"
                   >繰り返しパターン</span
                 >
               </legend>
@@ -578,7 +597,7 @@
                 <label
                   class="card cursor-pointer border border-base-300 p-2 transition-all duration-200 {monthlyType ===
                   'dayOfMonth'
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+                    ? 'border-primary bg-primary/10'
                     : ''}"
                 >
                   <div class="flex items-center gap-2">
@@ -595,7 +614,7 @@
                 <label
                   class="card cursor-pointer border border-base-300 p-2 transition-all duration-200 {monthlyType ===
                   'nthWeekday'
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+                    ? 'border-primary bg-primary/10'
                     : ''}"
                 >
                   <div class="flex items-center gap-2">
@@ -622,7 +641,8 @@
 
             <div class="form-control">
               <span class="label">
-                <span class="label-text text-sm text-base-content/60"
+                <span
+                  class="label-text text-sm text-[var(--color-text-secondary)]"
                   >繰り返しパターン</span
                 >
               </span>
@@ -634,7 +654,9 @@
 
           <div class="form-control">
             <label class="label" for="recurrence-end">
-              <span class="label-text text-sm text-base-content/60">
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
+              >
                 終了日
                 <span class="ml-1 text-xs opacity-70"
                   >空欄 = ずっと繰り返す</span
@@ -662,16 +684,18 @@
       </div>
     {/if}
 
-    <div class="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4">
+    <div
+      class="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4"
+    >
       {#if isEventEditing}
         <button
           type="button"
-          class="btn btn-error btn-outline mr-auto"
+          class="btn mr-auto btn-outline btn-error"
           onclick={handleDelete}
           disabled={isDeleting}
         >
           {#if isDeleting}
-            <span class="loading loading-spinner loading-sm"></span>
+            <span class="loading loading-sm loading-spinner"></span>
             削除中...
           {:else}
             削除
@@ -709,5 +733,5 @@
       {/if}
     </div>
   </div>
-  <div class="modal-backdrop bg-black/40 backdrop-blur-sm"></div>
+  <div class="modal-backdrop bg-base-content/40 backdrop-blur-sm"></div>
 </div>

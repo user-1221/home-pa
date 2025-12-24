@@ -77,20 +77,18 @@
 <div class="mx-auto max-w-[600px]">
   <!-- Account Section -->
   <section
-    class="mb-4 rounded-xl bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-primary-800)] p-6 text-white shadow-[0_4px_20px_rgba(123,190,187,0.25)]"
+    class="to-primary-focus mb-4 rounded-xl bg-gradient-to-br from-primary p-6 text-primary-content shadow-lg"
   >
-    <h3 class="mb-3 text-xl font-normal text-white">Account</h3>
+    <h3 class="mb-3 text-xl font-normal text-primary-content">Account</h3>
     <UserSettings />
   </section>
 
   <!-- Import Section -->
   <section
-    class="mb-4 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-app)] p-6 shadow-sm"
+    class="mb-4 rounded-xl border border-base-300 bg-base-100 p-6 shadow-sm"
   >
-    <h3 class="mb-2 text-xl font-normal text-[var(--color-text-primary)]">
-      Import Calendar
-    </h3>
-    <p class="mb-4 text-sm text-[var(--color-text-secondary)]">
+    <h3 class="mb-2 text-xl font-normal text-base-content">Import Calendar</h3>
+    <p class="mb-4 text-sm text-base-content/70">
       Import events from Google Calendar, Apple Calendar, or any .ics file.
     </p>
 
@@ -104,7 +102,7 @@
     />
 
     <button
-      class="btn w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] shadow-sm transition-all duration-200 hover:bg-[var(--color-surface-100)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
+      class="btn w-full rounded-xl border border-base-300 bg-base-200 text-base-content/70 shadow-sm transition-all duration-200 hover:bg-base-200/80 hover:text-base-content disabled:opacity-50"
       onclick={triggerFileInput}
       disabled={importing || !isApiEnabled}
     >
@@ -120,32 +118,30 @@
       <div
         class="relative mt-4 rounded-xl border p-4 {importResult.errors.length >
         0
-          ? 'border-[var(--color-error-500)]/30 bg-[var(--color-error-100)]'
-          : 'border-[var(--color-success-500)]/30 bg-[var(--color-success-100)]'}"
+          ? 'border-error/30 bg-error/10'
+          : 'border-success/30 bg-success/10'}"
       >
         <button
-          class="btn absolute top-2 right-2 h-8 min-h-8 w-8 rounded-lg p-0 text-[var(--color-text-secondary)] btn-ghost btn-xs hover:bg-[var(--color-bg-surface)]"
+          class="btn absolute top-2 right-2 h-8 min-h-8 w-8 rounded-lg p-0 text-base-content/70 btn-ghost btn-xs hover:bg-base-200"
           onclick={clearImportResult}>×</button
         >
 
         {#if importResult.imported > 0}
-          <p class="my-1 text-[var(--color-success-500)]">
+          <p class="my-1 text-success">
             ✓ Imported {importResult.imported} events
           </p>
         {/if}
 
         {#if importResult.skipped > 0}
-          <p class="my-1 text-[var(--color-primary)]">
+          <p class="my-1 text-primary">
             Skipped {importResult.skipped} duplicates
           </p>
         {/if}
 
         {#if importResult.errors.length > 0}
           <div class="mt-2">
-            <p class="font-medium text-[var(--color-error-500)]">Errors:</p>
-            <ul
-              class="mt-2 ml-4 list-disc text-sm text-[var(--color-error-500)]"
-            >
+            <p class="font-medium text-error">Errors:</p>
+            <ul class="mt-2 ml-4 list-disc text-sm text-error">
               {#each importResult.errors as error, idx (idx)}
                 <li>{error}</li>
               {/each}
@@ -158,32 +154,30 @@
 
   <!-- Export Section -->
   <section
-    class="mb-4 rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-app)] p-6 shadow-sm"
+    class="mb-4 rounded-xl border border-base-300 bg-base-100 p-6 shadow-sm"
   >
-    <h3 class="mb-2 text-xl font-normal text-[var(--color-text-primary)]">
-      Export Calendar
-    </h3>
-    <p class="mb-4 text-sm text-[var(--color-text-secondary)]">
+    <h3 class="mb-2 text-xl font-normal text-base-content">Export Calendar</h3>
+    <p class="mb-4 text-sm text-base-content/70">
       Download all your events as an .ics file for backup or import into other
       apps.
     </p>
 
     <button
-      class="btn mb-3 h-auto min-h-0 border-none bg-transparent p-0 text-sm font-medium text-[var(--color-text-secondary)] hover:bg-transparent hover:text-[var(--color-primary)]"
+      class="btn mb-3 h-auto min-h-0 border-none bg-transparent p-0 text-sm font-medium text-base-content/70 hover:bg-transparent hover:text-primary"
       onclick={() => (showAdvanced = !showAdvanced)}
     >
       {showAdvanced ? "▼" : "▶"} Advanced Options
     </button>
 
     {#if showAdvanced}
-      <div class="mb-4 rounded-xl bg-[var(--color-bg-surface)] p-4">
+      <div class="mb-4 rounded-xl bg-base-200 p-4">
         <label class="flex flex-col gap-2">
-          <span class="text-sm font-medium text-[var(--color-text-secondary)]"
+          <span class="text-sm font-medium text-base-content/70"
             >Calendar Name</span
           >
           <input
             type="text"
-            class="input w-full rounded-xl border-[var(--color-border-default)] bg-[var(--color-bg-app)] px-4 py-2.5 text-sm text-[var(--color-text-primary)] focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20"
+            class="input w-full rounded-xl border-base-300 bg-base-100 px-4 py-2.5 text-sm text-base-content focus:border-primary focus:ring-2 focus:ring-primary/20"
             bind:value={exportName}
             placeholder="Home-PA Calendar"
           />
@@ -192,7 +186,7 @@
     {/if}
 
     <button
-      class="btn w-full rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] text-[var(--color-text-secondary)] shadow-sm transition-all duration-200 hover:bg-[var(--color-surface-100)] hover:text-[var(--color-text-primary)] disabled:opacity-50"
+      class="btn w-full rounded-xl border border-base-300 bg-base-200 text-base-content/70 shadow-sm transition-all duration-200 hover:bg-base-200/80 hover:text-base-content disabled:opacity-50"
       onclick={handleExport}
       disabled={!isApiEnabled}
     >
@@ -201,23 +195,19 @@
   </section>
 
   <!-- Sync Info -->
-  <section
-    class="rounded-xl border border-[var(--color-border-default)] bg-[var(--color-bg-surface)] p-6 shadow-sm"
-  >
-    <h3 class="mb-2 text-xl font-normal text-[var(--color-text-primary)]">
-      Calendar Sync
-    </h3>
-    <p class="mb-4 text-sm text-[var(--color-text-secondary)]">
+  <section class="rounded-xl border border-base-300 bg-base-200 p-6 shadow-sm">
+    <h3 class="mb-2 text-xl font-normal text-base-content">Calendar Sync</h3>
+    <p class="mb-4 text-sm text-base-content/70">
       Two-way sync with Google Calendar and Apple Calendar is coming soon!
     </p>
     <div
-      class="mt-2 flex items-center justify-between rounded-xl bg-[var(--color-bg-app)] p-4 shadow-sm"
+      class="mt-2 flex items-center justify-between rounded-xl bg-base-100 p-4 shadow-sm"
     >
-      <span class="text-sm font-medium text-[var(--color-text-secondary)]"
+      <span class="text-sm font-medium text-base-content/70"
         >CalDAV support</span
       >
       <span
-        class="rounded-full bg-[var(--color-primary)]/10 px-3 py-1.5 text-xs font-medium text-[var(--color-primary)]"
+        class="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
         >Coming Soon</span
       >
     </div>

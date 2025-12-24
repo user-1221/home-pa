@@ -157,3 +157,41 @@ model Memo {
   @@index([userId, deadline])
   @@map("memo")
 }
+
+// Timetable configuration (時間割 settings)
+model TimetableConfig {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique
+  
+  // Time settings (stored as "HH:mm" strings)
+  dayStartTime    String   @default("09:00")    // Start of first class
+  lunchStartTime  String   @default("12:00")    // Lunch break start
+  lunchEndTime    String   @default("13:00")    // Lunch break end
+  breakDuration   Int      @default(10)          // Minutes between classes
+  cellDuration    Int      @default(50)          // Minutes per class
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("timetable_config")
+}
+
+// Timetable cells (individual class slots)
+model TimetableCell {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String
+  
+  dayOfWeek       Int      // 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri
+  slotIndex       Int      // 0-4 (5 slots per day, excluding lunch)
+  
+  title           String   @default("")
+  attendance      String   @default("出席する")    // 出席する | 出席しない
+  workAllowed     String   @default("作業不可")    // 作業可 | 作業不可
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, dayOfWeek, slotIndex])
+  @@index([userId])
+  @@map("timetable_cell")
+}

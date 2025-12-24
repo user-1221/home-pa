@@ -40,9 +40,10 @@
     font-size: 18px;
     font-weight: 700;
     cursor: pointer;
-    color: #fff;
+    color: var(--color-primary-content);
     background: var(--color-primary);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 6px 18px
+      color-mix(in srgb, var(--color-text-primary) 12%, transparent);
     transition:
       transform 120ms ease,
       box-shadow 120ms ease,
@@ -51,7 +52,8 @@
 
   .toast-dot:hover {
     transform: scale(1.05);
-    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+    box-shadow: 0 8px 22px
+      color-mix(in srgb, var(--color-text-primary) 16%, transparent);
   }
 
   .toast-dot:active {
@@ -59,20 +61,20 @@
   }
 
   .toast-dot:focus-visible {
-    outline: 2px solid var(--color-primary-300, #cde4ff);
+    outline: 2px solid var(--color-primary-400);
     outline-offset: 2px;
   }
 
   /* State colors */
   :global(.toast-dot)[aria-label^="success"] {
-    background: var(--color-success-500, #22c55e);
+    background: var(--color-success-500);
   }
 
   :global(.toast-dot)[aria-label^="error"] {
-    background: var(--color-error-500, #ef4444);
+    background: var(--color-error-500);
   }
 
   :global(.toast-dot)[aria-label^="info"] {
-    background: var(--color-primary, #2563eb);
+    background: var(--color-primary);
   }
 </style>

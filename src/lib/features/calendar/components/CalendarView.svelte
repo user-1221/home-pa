@@ -13,11 +13,13 @@
   import CalendarGrid from "./CalendarGrid.svelte";
   import CalendarDebugInfo from "./CalendarDebugInfo.svelte";
   import TimelinePopup from "./TimelinePopup.svelte";
+  import TimetablePopup from "./TimetablePopup.svelte";
   import { startOfDay, endOfDay } from "$lib/utils/date-utils.ts";
 
   // Local reactive variables for calendar state
   let currentMonth = $state(new Date());
   let showTimelinePopup = $state(false);
+  let showTimetablePopup = $state(false);
 
   // Track previous month to only fetch when month actually changes
   let previousMonthKey: string | null = null;
@@ -234,6 +236,7 @@
     onNavigateMonth={navigateMonth}
     onToggleDebug={() => (showDebugInfo = !showDebugInfo)}
     onCreateEvent={createEvent}
+    onOpenTimetable={() => (showTimetablePopup = true)}
   />
 
   <!-- Debug Information -->
@@ -266,3 +269,9 @@
     onClose={() => (showTimelinePopup = false)}
   />
 {/if}
+
+<!-- Timetable Popup -->
+<TimetablePopup
+  isOpen={showTimetablePopup}
+  onClose={() => (showTimetablePopup = false)}
+/>
