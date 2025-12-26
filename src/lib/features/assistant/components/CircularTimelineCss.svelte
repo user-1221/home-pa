@@ -181,11 +181,9 @@
   }
 
   function formatDate(d: Date): string {
-    return d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${month}/${day}`;
   }
 
   function getEffectiveEnd(ev: MyEvent): Date {
@@ -295,6 +293,13 @@
 
     return [...placed, ...allDayPlaced];
   });
+
+  // Compute max event lanes for lane rails
+  const maxEventLanes = $derived.by(() =>
+    normalizedEvents.length > 0
+      ? Math.max(...normalizedEvents.map((e) => e.lane)) + 1
+      : 1
+  );
 
   // Normalize gaps
   interface NormalizedGap {
@@ -681,22 +686,28 @@
 </script>
 
 <div bind:this={containerElement} class="timeline-container">
-  <svg bind:this={svgElement} viewBox="0 0 100 100" class="timeline-svg">
+  <svg bind:this={svgElement} viewBox="-10 -10 120 120" class="timeline-svg">
     <defs>
       <!-- Solid color refs for arcs -->
 
       <!-- Glow filters -->
-      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <filter id="glow"
+        filterUnits="userSpaceOnUse"
+        x="-20" y="-20" width="140" height="140">
         <feGaussianBlur stdDeviation="0.5" result="blur" />
-        <feMerge
-          ><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge
-        >
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
       </filter>
-      <filter id="softGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <filter id="softGlow"
+        filterUnits="userSpaceOnUse"
+        x="-20" y="-20" width="140" height="140">
         <feGaussianBlur stdDeviation="0.3" result="blur" />
-        <feMerge
-          ><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge
-        >
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
       </filter>
     </defs>
 
@@ -913,19 +924,51 @@
       {/if}
     {/each}
 
+    <!-- Event lane rails (background guides) -->
+    {#each Array.from({ length: maxEventLanes }) as _, i (i)}
+      {@const laneRadius = eventBaseRadius - i * (laneWidth + laneGap)}
+      {@const railOpacity = Math.max(0.06, 0.18 - i * 0.03)}
+      <circle
+        cx={center}
+        cy={center}
+        r={laneRadius}
+        fill="none"
+        stroke="var(--color-border-default)"
+        stroke-width="0.45"
+        stroke-opacity={railOpacity}
+        class="lane-rail"
+        pointer-events="none"
+      />
+    {/each}
+
     <!-- Event arcs with lane packing -->
     {#each normalizedEvents as ev (ev.ref.id)}
       {@const radius = eventBaseRadius - ev.lane * (laneWidth + laneGap)}
       {@const isAllDay = ev.ref.timeLabel === "all-day"}
+      {@const baseColor = getEventColor(ev.ref)}
+      {@const laneFade = Math.max(0.55, 0.92 - ev.lane * 0.08)}
+      <!-- Halo underlay (non-interactive) -->
+      <path
+        d={arcPath(ev.startAngle, ev.endAngle, radius)}
+        fill="none"
+        stroke={baseColor}
+        stroke-width={isAllDay ? "4" : "6.5"}
+        stroke-linecap="round"
+        stroke-opacity={isAllDay ? 0.08 : 0.14}
+        class="event-arc-halo"
+        filter="url(#glow)"
+        pointer-events="none"
+      />
+      <!-- Core (interactive) - KEEP ALL EXISTING HANDLERS EXACTLY -->
       <path
         role="button"
         tabindex="0"
         d={arcPath(ev.startAngle, ev.endAngle, radius)}
         fill="none"
-        stroke={getEventColor(ev.ref)}
-        stroke-width={isAllDay ? "2" : "3.5"}
+        stroke={baseColor}
+        stroke-width={isAllDay ? "2" : "3.2"}
         stroke-linecap="round"
-        stroke-opacity={isAllDay ? 0.5 : 0.95}
+        stroke-opacity={isAllDay ? 0.5 : laneFade}
         class="event-arc"
         class:all-day={isAllDay}
         filter="url(#glow)"
@@ -944,6 +987,18 @@
 
     <!-- Gap arcs (outermost, rendered last to appear on top) -->
     {#each normalizedGaps as gap (gap.start + gap.end)}
+      <!-- Underlay -->
+      <path
+        d={arcPath(gap.startAngle, gap.endAngle, gapRingRadius)}
+        fill="none"
+        stroke="var(--color-border-default)"
+        stroke-width="4.5"
+        stroke-linecap="round"
+        stroke-opacity="0.10"
+        class="gap-arc-underlay"
+        pointer-events="none"
+      />
+      <!-- Active (KEEP handlers exactly) -->
       <path
         role="button"
         tabindex="0"
@@ -1099,3 +1154,24 @@
     />
   {/if}
 </div>
+
+<style>
+  .timeline-svg {
+    overflow: visible;
+  }
+
+  .lane-rail,
+  .event-arc-halo,
+  .gap-arc-underlay {
+    pointer-events: none;
+  }
+
+  .event-arc {
+    transition: stroke-opacity 120ms ease, stroke-width 120ms ease;
+  }
+
+  .event-arc:hover,
+  .event-arc:focus {
+    stroke-opacity: 1;
+  }
+</style>

@@ -151,35 +151,34 @@
     </div>
 
     <!-- Meta info -->
-    <div class="flex flex-col gap-1.5 text-sm">
-      {#if task.type === "期限付き" && task.deadline}
-        <div
-          class="flex items-center gap-1"
-          class:text-error={isUrgent()}
-          class:font-medium={isUrgent()}
-        >
-          <span>📅</span>
-          <span>{deadlineText()}</span>
-        </div>
-      {/if}
-
-      {#if task.type === "ルーティン" && routineProgress()}
-        {@const prog = routineProgress()}
-        <div class="flex items-center gap-1 text-[var(--color-text-secondary)]">
-          <span>🔄</span>
-          <span
-            >{prog?.done}/{prog?.goal} this {task.recurrenceGoal?.period}</span
+    <div class="flex items-center justify-between gap-1.5 text-sm">
+      <div class="flex flex-wrap items-center gap-1.5">
+        {#if task.type === "期限付き" && task.deadline}
+          <div
+            class="flex items-center gap-1"
+            class:text-error={isUrgent()}
+            class:font-medium={isUrgent()}
           >
-        </div>
-      {/if}
+            <span>{deadlineText()}</span>
+          </div>
+        {/if}
+
+        {#if task.type === "ルーティン" && routineProgress()}
+          {@const prog = routineProgress()}
+          <div class="flex items-center gap-1 text-[var(--color-text-secondary)]">
+            <span
+              >{prog?.done}/{prog?.goal} this {task.recurrenceGoal?.period}</span
+            >
+          </div>
+        {/if}
+      </div>
 
       <div class="flex items-center gap-1 text-[var(--color-text-secondary)]">
-        <span>📍</span>
         <span>{locationLabel}</span>
       </div>
     </div>
 
-    <!-- Progress bar -->
+    <!-- Progress bar, Time text and Action buttons -->
     <div class="flex items-center gap-2">
       {#if task.type === "ルーティン" && routineProgress()}
         {@const prog = routineProgress()}
@@ -188,11 +187,6 @@
           value={prog?.percent}
           max="100"
         ></progress>
-        <span
-          class="min-w-[60px] text-right text-xs text-[var(--color-text-secondary)]"
-        >
-          {prog?.done}/{prog?.goal}
-        </span>
       {:else}
         {@const prog = timeProgress()}
         <progress
@@ -200,41 +194,51 @@
           value={prog.percent}
           max="100"
         ></progress>
-        <span
-          class="min-w-[60px] text-right text-xs text-[var(--color-text-secondary)]"
-        >
-          {prog.spent}/{prog.total} min
-        </span>
       {/if}
-    </div>
-
-    <!-- Action buttons -->
-    <div
-      class="card-actions justify-end opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100"
-    >
-      {#if task.status.completionState !== "completed"}
-        <button
-          class="btn btn-square btn-outline btn-xs btn-success"
-          onclick={handleComplete}
-          title="Mark complete"
+      <div class="flex items-center gap-2">
+        {#if task.type === "ルーティン" && routineProgress()}
+          {@const prog = routineProgress()}
+          <span
+            class="text-xs text-[var(--color-text-secondary)]"
+          >
+            {prog?.done}/{prog?.goal}
+          </span>
+        {:else}
+          {@const prog = timeProgress()}
+          <span
+            class="text-xs text-[var(--color-text-secondary)]"
+          >
+            {prog.spent}/{prog.total} min
+          </span>
+        {/if}
+        <div
+          class="card-actions justify-end opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100"
         >
-          ✓
-        </button>
-      {/if}
-      <button
-        class="btn btn-square btn-outline btn-xs btn-primary"
-        onclick={handleEdit}
-        title="Edit"
-      >
-        ✏️
-      </button>
-      <button
-        class="btn btn-square btn-outline btn-xs btn-error"
-        onclick={handleDelete}
-        title="Delete"
-      >
-        🗑️
-      </button>
+          {#if task.status.completionState !== "completed"}
+            <button
+              class="btn btn-square btn-outline btn-xs btn-success"
+              onclick={handleComplete}
+              title="Mark complete"
+            >
+              ✓
+            </button>
+          {/if}
+          <button
+            class="btn btn-square btn-outline btn-xs btn-primary"
+            onclick={handleEdit}
+            title="Edit"
+          >
+            ✏️
+          </button>
+          <button
+            class="btn btn-square btn-outline btn-xs btn-error"
+            onclick={handleDelete}
+            title="Delete"
+          >
+            🗑️
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </div>

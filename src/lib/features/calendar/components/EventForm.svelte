@@ -258,11 +258,37 @@
     <div
       class="flex items-center justify-between border-b border-base-300 bg-base-100 p-4 flex-shrink-0"
     >
-      <h3 class="text-lg font-medium">
+      <button
+        class="btn btn-square btn-ghost btn-sm md:hidden"
+        onclick={() => eventFormState.close()}
+        aria-label="Close"
+      >
+        ✕
+      </button>
+      <h3 class="text-lg font-medium flex-1 md:flex-none text-left">
         {isEventEditing ? "予定を編集" : "新しい予定"}
       </h3>
+      {#if isEventEditing}
+        <button
+          type="button"
+          class="btn btn-sm md:hidden border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
+          style="background-color: var(--color-primary);"
+          onclick={() => eventActions.submitEventForm()}
+        >
+          更新
+        </button>
+      {:else}
+        <button
+          type="button"
+          class="btn btn-sm md:hidden border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
+          style="background-color: var(--color-primary);"
+          onclick={() => eventActions.submitEventForm()}
+        >
+          作成
+        </button>
+      {/if}
       <button
-        class="btn btn-square btn-ghost btn-sm"
+        class="btn btn-square btn-ghost btn-sm hidden md:flex"
         onclick={() => eventFormState.close()}
         aria-label="Close"
       >
@@ -289,7 +315,7 @@
         />
         {#if eventFormState.errors.title}
           <p class="label">
-            <span class="label-text-alt text-error"
+            <span class="label-text-alt text-[var(--color-error-500)]"
               >{eventFormState.errors.title}</span
             >
           </p>
@@ -323,7 +349,7 @@
           <button
             type="button"
             class="btn flex-1 btn-sm {eventImportance === 'low'
-              ? 'border-primary bg-primary/10'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
               : 'border-base-300 btn-ghost'} border transition-all duration-200"
             onclick={() => (eventImportance = "low")}
           >
@@ -332,7 +358,7 @@
           <button
             type="button"
             class="btn flex-1 btn-sm {eventImportance === 'medium'
-              ? 'border-primary bg-primary/10'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
               : 'border-base-300 btn-ghost'} border transition-all duration-200"
             onclick={() => (eventImportance = "medium")}
           >
@@ -341,7 +367,7 @@
           <button
             type="button"
             class="btn flex-1 btn-sm {eventImportance === 'high'
-              ? 'border-primary bg-primary/10'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
               : 'border-base-300 btn-ghost'} border transition-all duration-200"
             onclick={() => (eventImportance = "high")}
           >
@@ -357,7 +383,7 @@
             type="button"
             class="btn flex-1 transition-all duration-200 btn-sm
               {timeMode === 'all-day'
-              ? 'border-primary bg-primary/10 text-primary'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
               : 'border-base-300 btn-ghost'}
               {isGreyState ? 'opacity-60' : ''}"
             onclick={() => {
@@ -375,7 +401,7 @@
             type="button"
             class="btn flex-1 transition-all duration-200 btn-sm
               {timeMode === 'some-timing'
-              ? 'border-primary bg-primary/10 text-primary'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
               : 'border-base-300 btn-ghost'}
               {isGreyState ? 'opacity-60' : ''}"
             onclick={() => {
@@ -463,7 +489,7 @@
             />
             {#if eventFormState.errors.start}
               <p class="label">
-                <span class="label-text-alt text-error"
+                <span class="label-text-alt text-[var(--color-error-500)]"
                   >{eventFormState.errors.start}</span
                 >
               </p>
@@ -494,7 +520,7 @@
             />
             {#if eventFormState.errors.end}
               <p class="label">
-                <span class="label-text-alt text-error"
+                <span class="label-text-alt text-[var(--color-error-500)]"
                   >{eventFormState.errors.end}</span
                 >
               </p>
@@ -560,8 +586,9 @@
                 {#each ["日", "月", "火", "水", "木", "金", "土"] as day, i (i)}
                   <label
                     class="btn btn-sm {weeklyDays[i]
-                      ? 'btn-primary'
+                      ? 'border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]'
                       : 'border-base-300 btn-ghost'} cursor-pointer transition-all duration-200"
+                    style={weeklyDays[i] ? 'background-color: var(--color-primary);' : ''}
                   >
                     <input
                       type="checkbox"
@@ -597,7 +624,7 @@
                 <label
                   class="card cursor-pointer border border-base-300 p-2 transition-all duration-200 {monthlyType ===
                   'dayOfMonth'
-                    ? 'border-primary bg-primary/10'
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
                     : ''}"
                 >
                   <div class="flex items-center gap-2">
@@ -614,7 +641,7 @@
                 <label
                   class="card cursor-pointer border border-base-300 p-2 transition-all duration-200 {monthlyType ===
                   'nthWeekday'
-                    ? 'border-primary bg-primary/10'
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
                     : ''}"
                 >
                   <div class="flex items-center gap-2">
@@ -677,15 +704,16 @@
     <!-- General Error Display -->
     {#if eventFormState.errors.general}
       <div
-        class="mx-4 flex items-center gap-2 rounded-lg border border-error bg-error/10 p-3"
+        class="mx-4 flex items-center gap-2 rounded-lg border border-[var(--color-error-500)] bg-[var(--color-error-100)] p-3"
       >
         <div class="text-xl">⚠️</div>
-        <div class="text-sm text-error">{eventFormState.errors.general}</div>
+        <div class="text-sm text-[var(--color-error-500)]">{eventFormState.errors.general}</div>
       </div>
     {/if}
 
+    <!-- Desktop Action Bar -->
     <div
-      class="flex flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 flex-shrink-0"
+      class="hidden md:flex flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 flex-shrink-0"
     >
       {#if isEventEditing}
         <button
@@ -710,7 +738,8 @@
         </button>
         <button
           type="button"
-          class="btn btn-primary"
+          class="btn border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
+          style="background-color: var(--color-primary);"
           onclick={() => eventActions.submitEventForm()}
         >
           更新
@@ -725,7 +754,8 @@
         </button>
         <button
           type="button"
-          class="btn btn-primary"
+          class="btn border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
+          style="background-color: var(--color-primary);"
           onclick={() => eventActions.submitEventForm()}
         >
           作成
