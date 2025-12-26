@@ -8,19 +8,9 @@ export interface RecurrenceRuleRFC {
   count?: number | null;
 }
 
-export interface WeeklyBitmaskRule {
-  type: "WEEKLY_BITMASK";
-  anchorLocalStartISO: string;
-  intervalWeeks: number;
-  daysBitmask: number;
-  until?: Date | null;
-  count?: number | null;
-}
-
 export type Recurrence =
   | { type: "NONE" }
-  | ({ type: "RRULE" } & RecurrenceRuleRFC)
-  | WeeklyBitmaskRule;
+  | ({ type: "RRULE" } & RecurrenceRuleRFC);
 
 export interface Event {
   id: string;
@@ -31,8 +21,8 @@ export interface Event {
   end: Date;
   description?: string;
   address?: string;
-  importance?: "low" | "medium" | "high";
-  timeLabel: "all-day" | "some-timing" | "timed"; // Event timing type
+  importance?: ImportanceLevel;
+  timeLabel?: "all-day" | "some-timing" | "timed"; // Event timing type
   tzid?: string; // IANA timezone, defaults to system timezone
   recurrence?: Recurrence;
   rdateUtc?: Date[]; // Additional occurrence dates
@@ -129,7 +119,7 @@ export interface SuggestionLog {
   at: Date;
   gapMin: number;
   eventId?: string;
-  reaction: "accepted" | "rejected" | "later";
+  reaction: ReactionType;
 }
 
 /**

@@ -71,11 +71,11 @@
   <div class="grid flex-1 grid-cols-7 overflow-y-auto">
     {#each getCalendarDays(currentMonth) as day (day.getTime())}
       <div
-        class="relative flex min-h-[72px] cursor-pointer flex-col border border-base-300 bg-base-100 p-1 transition-all duration-200 ease-out hover:bg-base-200
+        class="relative flex min-h-[72px] cursor-pointer flex-col border bg-base-100 p-1 transition-all duration-200 ease-out hover:bg-base-200
           {isToday(day) ? 'bg-[var(--color-primary-100)]/50' : ''}
           {isSelected(day, selectedDate)
-          ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-          : ''}
+          ? 'border-[var(--color-primary)] bg-base-300'
+          : 'border-base-300'}
           {!isCurrentMonth(day, currentMonth) ? 'opacity-40' : ''}"
         onclick={() => onSelectDate(day)}
         onkeydown={(e) => e.key === "Enter" && onSelectDate(day)}
