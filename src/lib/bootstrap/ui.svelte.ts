@@ -13,9 +13,6 @@ class UIState {
   /** Calendar view mode (day, week, month, list) */
   viewMode = $state<ViewMode>("day");
 
-  /** Current suggestion being displayed (for assistant feature) */
-  currentSuggestion = $state<unknown>(null);
-
   /** Global loading state */
   isLoading = $state(false);
 
@@ -24,14 +21,6 @@ class UIState {
 
   setViewMode(mode: ViewMode): void {
     this.viewMode = mode;
-  }
-
-  setCurrentSuggestion(suggestion: unknown): void {
-    this.currentSuggestion = suggestion;
-  }
-
-  clearCurrentSuggestion(): void {
-    this.currentSuggestion = null;
   }
 
   setLoading(loading: boolean): void {
@@ -48,7 +37,6 @@ class UIState {
 
   reset(): void {
     this.viewMode = "day";
-    this.currentSuggestion = null;
     this.isLoading = false;
     this.errorMessage = null;
   }

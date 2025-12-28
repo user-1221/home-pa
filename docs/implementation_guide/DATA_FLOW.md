@@ -166,20 +166,6 @@ The `bootstrap/` directory provides:
 - `acceptedSuggestions`: User-accepted suggestions (act as fixed events)
 - `scheduleActions`: Actions for schedule management
 
-### 5. Memo State (`src/lib/features/memo/state/`)
-
-#### `memoForm.svelte.ts` - Simple Memo Form
-
-- `formData`: Memo form data
-- `errors`: Validation errors
-- `isSubmitting`: Submission state
-- Methods: `updateField()`, `validate()`, `reset()`
-
-#### `memoActions.ts` - Memo CRUD
-
-- CRUD operations for simple memos
-- Persists to database via Remote Functions
-
 ---
 
 ## Remote Functions Pattern
@@ -586,9 +572,6 @@ scheduleActions.regenerate()
 | Scoring           | `features/assistant/services/suggestions/suggestion-scoring.ts`   |
 | Scheduler         | `features/assistant/services/suggestions/suggestion-scheduler.ts` |
 | LLM enrichment    | `features/assistant/services/suggestions/llm-enrichment.ts`       |
-| **Memo**          |                                                                   |
-| Memo form         | `features/memo/state/memoForm.svelte.ts`                          |
-| Memo actions      | `features/memo/state/memoActions.ts`                              |
 | **Utilities**     |                                                                   |
 | Transit app       | `features/transit/components/TransitView.svelte`                  |
 | Progress memo     | `features/progress-memo/components/ProgressMemoView.svelte`       |

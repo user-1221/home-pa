@@ -236,6 +236,25 @@
     };
   }
 
+  // Helper to convert minutes to HH:mm format (needed before computedGaps)
+  function minutesToTimeLocal(minutes: number): string {
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+  }
+
+  // Helper to get current time in minutes since midnight (needed before computedGaps)
+  function getCurrentTimeMinutes(): number {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes();
+  }
+
+  // Check if selected date is today (needed before computedGaps)
+  let isTodaySelected = $derived.by(() => {
+    const now = new Date();
+    return dateKey(dataState.selectedDate) === dateKey(now);
+  });
+
   let computedGaps = $derived.by(() => {
     const gf = new GapFinder({
       dayStart: settingsState.activeStartTime,
@@ -255,6 +274,20 @@
 
     // Combine both sources - timetable events block gaps just like calendar events
     const allEvents = [...calendarMapped, ...timetableMapped];
+
+    // If viewing today, block all time before current time
+    // This ensures suggestions are only scheduled in future slots
+    if (isTodaySelected) {
+      const currentMinutes = getCurrentTimeMinutes();
+      const currentTimeStr = minutesToTimeLocal(currentMinutes);
+      // Add a blocking event from midnight to current time
+      allEvents.push({
+        id: "__past_time_blocker__",
+        title: "Past Time",
+        start: "00:00",
+        end: currentTimeStr,
+      });
+    }
 
     return gf.findGaps(allEvents);
   });
@@ -375,10 +408,19 @@
     return task?.title ?? "Task";
   }
 
+  // Only show suggestions when viewing today
+  let filteredPendingSuggestions = $derived.by(() => {
+    if (!isTodaySelected) return [];
+    return $pendingSuggestions;
+  });
+
+  let filteredAcceptedSuggestions = $derived.by(() => {
+    if (!isTodaySelected) return [];
+    return $acceptedSuggestions;
+  });
+
   // Convert accepted suggestions to Event format for display list
   let acceptedEvents = $derived.by(() => {
-    const now = new Date(Date.now());
-    const isTodaySelected = dateKey(dataState.selectedDate) === dateKey(now);
     if (!isTodaySelected) return [];
 
     const base = startOfDay(dataState.selectedDate);
@@ -622,8 +664,8 @@
         >
           <CircularTimelineCss
             externalGaps={availableGaps}
-            pendingSuggestions={$pendingSuggestions}
-            acceptedSuggestions={$acceptedSuggestions}
+            pendingSuggestions={filteredPendingSuggestions}
+            acceptedSuggestions={filteredAcceptedSuggestions}
             {getTaskTitle}
             on:eventSelected={handleEventSelected}
             on:gapSelected={handleGapSelected}

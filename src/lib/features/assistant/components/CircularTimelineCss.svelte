@@ -99,6 +99,14 @@
     endAngle: number;
   }
 
+  // Helper to get coordinates from either mouse or touch event
+  function getEventCoords(e: MouseEvent | TouchEvent): { x: number; y: number } {
+    if ('touches' in e && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
+  }
+
   // Dispatcher
   const dispatch = createEventDispatcher<{
     eventSelected: MyEvent;
@@ -482,20 +490,31 @@
     }
   }
 
-  function startResize(id: string, duration: number, e: MouseEvent) {
+  function startResize(id: string, duration: number, e: MouseEvent | TouchEvent) {
     e.preventDefault();
     e.stopPropagation();
+    const coords = getEventCoords(e);
+    
     isDragging = true;
     dragId = id;
-    dragStartY = e.clientY;
+    dragStartY = coords.y;
     dragOrigDuration = duration;
+    
+    // Add both mouse and touch listeners
     window.addEventListener("mousemove", onDrag);
     window.addEventListener("mouseup", endDrag);
+    window.addEventListener("touchmove", onDrag, { passive: false });
+    window.addEventListener("touchend", endDrag);
+    window.addEventListener("touchcancel", endDrag);
   }
 
-  function onDrag(e: MouseEvent) {
+  function onDrag(e: MouseEvent | TouchEvent) {
     if (!isDragging || !dragId) return;
-    const delta = Math.round((dragStartY - e.clientY) / 5) * 5;
+    if ('touches' in e && e.touches.length === 0) return;
+    
+    e.preventDefault(); // Prevent scrolling during drag
+    const coords = getEventCoords(e);
+    const delta = Math.round((dragStartY - coords.y) / 5) * 5;
     dispatch("suggestionResize", {
       suggestionId: dragId,
       newDuration: Math.max(5, dragOrigDuration + delta),
@@ -507,6 +526,9 @@
     dragId = null;
     window.removeEventListener("mousemove", onDrag);
     window.removeEventListener("mouseup", endDrag);
+    window.removeEventListener("touchmove", onDrag);
+    window.removeEventListener("touchend", endDrag);
+    window.removeEventListener("touchcancel", endDrag);
   }
 
   // Drag tracking state
@@ -517,13 +539,14 @@
   function startMidpointDrag(
     suggestion: PendingSuggestion,
     gapId: string,
-    e: MouseEvent,
+    e: MouseEvent | TouchEvent,
   ) {
     e.preventDefault();
     e.stopPropagation();
+    const coords = getEventCoords(e);
 
     // Start tracking for click vs drag detection
-    startTracking(dragTracker, e.clientX, e.clientY);
+    startTracking(dragTracker, coords.x, coords.y);
     currentSuggestion = suggestion;
 
     isDraggingMidpoint = true;
@@ -535,21 +558,29 @@
       end: timeToAngle(suggestion.endTime),
     };
     dragPreviewGapId = gapId;
+    
     window.addEventListener("mousemove", onMidpointDrag);
     window.addEventListener("mouseup", endMidpointDrag);
+    window.addEventListener("touchmove", onMidpointDrag, { passive: false });
+    window.addEventListener("touchend", endMidpointDrag);
+    window.addEventListener("touchcancel", endMidpointDrag);
   }
 
-  function onMidpointDrag(e: MouseEvent) {
+  function onMidpointDrag(e: MouseEvent | TouchEvent) {
     if (!isDraggingMidpoint || !svgElement || !draggingSuggestionId) return;
+    if ('touches' in e && e.touches.length === 0) return;
+    
+    e.preventDefault(); // Prevent scrolling during drag
+    const coords = getEventCoords(e);
 
     // Update drag tracking
-    const hasMoved = updateTracking(dragTracker, e.clientX, e.clientY);
+    const hasMoved = updateTracking(dragTracker, coords.x, coords.y);
 
     // Only start visual drag if movement threshold exceeded
     if (!hasMoved) return;
 
     // Convert mouse position to SVG coordinates
-    const svgCoords = clientToSvgCoords(e.clientX, e.clientY, svgElement);
+    const svgCoords = clientToSvgCoords(coords.x, coords.y, svgElement);
 
     // Convert to angle (0 at top, clockwise)
     const angle = svgCoordsToAngle(svgCoords.x, svgCoords.y, center, center);
@@ -639,8 +670,12 @@
     dragPreviewAngles = null;
     dragPreviewGapId = null;
     currentSuggestion = null;
+    
     window.removeEventListener("mousemove", onMidpointDrag);
     window.removeEventListener("mouseup", endMidpointDrag);
+    window.removeEventListener("touchmove", onMidpointDrag);
+    window.removeEventListener("touchend", endMidpointDrag);
+    window.removeEventListener("touchcancel", endMidpointDrag);
   }
 
   // Resize observer with throttle
@@ -893,6 +928,19 @@
                 });
               }
             }}
+            ontouchstart={(e) => {
+              if (isPending) {
+                startMidpointDrag(s.data as PendingSuggestion, s.data.gapId, e);
+              } else {
+                // Accepted suggestion - just dispatch selection on click
+                e.preventDefault();
+                e.stopPropagation();
+                dispatch("suggestionSelected", {
+                  type: "accepted",
+                  data: s.data as AcceptedSuggestion,
+                });
+              }
+            }}
             onkeydown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
@@ -918,6 +966,8 @@
             stroke-width="0.3"
             class="resize-handle"
             onmousedown={(e) =>
+              startResize(s.data.suggestionId, s.data.duration, e)}
+            ontouchstart={(e) =>
               startResize(s.data.suggestionId, s.data.duration, e)}
           />
         {/if}
@@ -1156,8 +1206,21 @@
 </div>
 
 <style>
+  /* Prevent text selection and enable touch for draggable elements */
+  .suggestion-arc,
+  .resize-handle {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: none;
+  }
+
+  /* Prevent selection on the entire SVG during interactions */
   .timeline-svg {
     overflow: visible;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
   }
 
   .lane-rail,
