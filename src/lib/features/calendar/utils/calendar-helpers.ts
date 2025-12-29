@@ -247,8 +247,21 @@ export function getEventColor(event: Event): string {
 
   // Use stable identifiers only (not start time!)
   // For recurring events, use the master event ID if available
-  const eventWithMasterId = event as Event & { masterEventId?: string };
-  const stableId = eventWithMasterId.masterEventId ?? event.id ?? "";
+  // Check multiple property names used across the codebase:
+  // - masterEventId: from ExpandedOccurrence
+  // - eventId: mapped in CalendarView
+  // - originalEventId: mapped in CalendarView
+  const eventWithMasterId = event as Event & {
+    masterEventId?: string;
+    eventId?: string;
+    originalEventId?: string;
+  };
+  const stableId =
+    eventWithMasterId.masterEventId ??
+    eventWithMasterId.originalEventId ??
+    eventWithMasterId.eventId ??
+    event.id ??
+    "";
 
   const keyParts = [stableId, event.title ?? ""];
   const hash = keyParts

@@ -206,7 +206,7 @@
     return end;
   }
 
-  // Build arc path
+  // Build arc path (for stroked arcs like suggestions)
   function arcPath(
     startAngle: number,
     endAngle: number,
@@ -223,6 +223,37 @@
     const y2 = center + radius * Math.sin(endAngle - Math.PI / 2);
 
     return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`;
+  }
+
+  // Build annular trapezoid path (filled shape between two radii)
+  // Creates a wedge/sector shape for fixed events
+  function annularTrapezoidPath(
+    startAngle: number,
+    endAngle: number,
+    outerR: number,
+    innerR: number,
+  ): string {
+    if (endAngle < startAngle) endAngle += TWO_PI;
+    const delta = endAngle - startAngle;
+    const largeArc = delta > Math.PI ? 1 : 0;
+
+    // Rotate -90deg so 0 is at top
+    const adj = -Math.PI / 2;
+
+    // Outer arc points
+    const ox1 = center + outerR * Math.cos(startAngle + adj);
+    const oy1 = center + outerR * Math.sin(startAngle + adj);
+    const ox2 = center + outerR * Math.cos(endAngle + adj);
+    const oy2 = center + outerR * Math.sin(endAngle + adj);
+
+    // Inner arc points
+    const ix1 = center + innerR * Math.cos(startAngle + adj);
+    const iy1 = center + innerR * Math.sin(startAngle + adj);
+    const ix2 = center + innerR * Math.cos(endAngle + adj);
+    const iy2 = center + innerR * Math.sin(endAngle + adj);
+
+    // Path: outer arc clockwise, line to inner, inner arc counter-clockwise, line back
+    return `M ${ox1} ${oy1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${ox2} ${oy2} L ${ix2} ${iy2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${ix1} ${iy1} Z`;
   }
 
   // Normalize events for date with lane packing
@@ -367,11 +398,27 @@
     },
   );
 
-  // Ring radii - gap arcs on outermost, then timetable, then events, then suggestions
-  const gapRingRadius = outerRadius - 1; // Outermost ring for gaps
-  const timetableRingRadius = outerRadius - 5; // Timetable lane (new)
-  const eventBaseRadius = outerRadius - 10; // Events next layer in (adjusted)
-  const suggestionRingRadius = outerRadius - 16; // Suggestions inner layer (adjusted)
+  // Ring radii - NEW LAYOUT:
+  // 1. Outermost: Suggestions (draggable arcs)
+  // 2. Middle: Fixed events (annular trapezoids, same color per lane)
+  // 3. Inner: Timetable events (dedicated lane, no labels)
+  const suggestionRingRadius = outerRadius - 1; // Outermost ring for suggestions
+  const eventBaseRadius = outerRadius - 8; // Events next layer (annular trapezoids)
+  const eventInnerRadius = outerRadius - 20; // Inner edge of event trapezoids
+  const timetableRingRadius = outerRadius - 28; // Timetable lane (innermost dedicated lane, smaller radius)
+
+  // Lane colors for fixed events (same color per lane for visual clarity)
+  const laneColors: readonly string[] = [
+    "var(--color-primary-600)",
+    "var(--color-primary-400)",
+    "var(--color-primary-800)",
+    "var(--color-success-500)",
+    "var(--color-warning-500)",
+  ];
+
+  function getLaneColor(lane: number): string {
+    return laneColors[lane % laneColors.length] ?? "var(--color-primary)";
+  }
 
   // Current time
   let currentTime = $state(new Date());
@@ -379,7 +426,6 @@
 
   // Hover state with fixed positioning
   let hoveredEvent = $state<MyEvent | null>(null);
-  let hoveredGap = $state<NormalizedGap | null>(null);
   let mousePos = $state({ x: 0, y: 0 });
 
   function updateMouse(e: MouseEvent) {
@@ -394,19 +440,11 @@
 
   function hoverEvent(ev: MyEvent, e: MouseEvent) {
     hoveredEvent = ev;
-    hoveredGap = null;
-    updateMouse(e);
-  }
-
-  function hoverGap(gap: NormalizedGap, e: MouseEvent) {
-    hoveredGap = gap;
-    hoveredEvent = null;
     updateMouse(e);
   }
 
   function clearHover() {
     hoveredEvent = null;
-    hoveredGap = null;
   }
 
   // Suggestion card state
@@ -641,7 +679,7 @@
         newGapId,
       });
 
-      // Select the moved suggestion with updated position
+      // Select the moved suggestion with updated position (not preview, actual suggestion)
       const updatedSuggestion: PendingSuggestion = {
         ...currentSuggestion,
         startTime: newStartTime,
@@ -746,7 +784,7 @@
       </filter>
     </defs>
 
-    <!-- Background rings -->
+    <!-- Background rings (new layout: suggestion outer, events middle, timetable inner) -->
     <circle
       cx={center}
       cy={center}
@@ -756,28 +794,41 @@
       stroke-opacity="0.4"
       stroke-width="0.3"
     />
+    <!-- Suggestion ring guide (outermost) -->
     <circle
       cx={center}
       cy={center}
-      r={timetableRingRadius}
+      r={suggestionRingRadius}
       fill="none"
       stroke="var(--color-border-default)"
       stroke-opacity="0.2"
       stroke-width="0.15"
     />
+    <!-- Event zone outer boundary -->
     <circle
       cx={center}
       cy={center}
       r={eventBaseRadius}
       fill="none"
       stroke="var(--color-border-default)"
-      stroke-opacity="0.25"
-      stroke-width="0.2"
+      stroke-opacity="0.2"
+      stroke-width="0.15"
     />
+    <!-- Event zone inner boundary -->
     <circle
       cx={center}
       cy={center}
-      r={suggestionRingRadius}
+      r={eventInnerRadius}
+      fill="none"
+      stroke="var(--color-border-default)"
+      stroke-opacity="0.2"
+      stroke-width="0.15"
+    />
+    <!-- Timetable ring guide (innermost dedicated lane) -->
+    <circle
+      cx={center}
+      cy={center}
+      r={timetableRingRadius}
       fill="none"
       stroke="var(--color-border-default)"
       stroke-opacity="0.25"
@@ -826,7 +877,7 @@
       </text>
     {/each}
 
-    <!-- Timetable arcs (dedicated lane) -->
+    <!-- Timetable arcs (dedicated innermost lane, no labels) -->
     {#each normalizedTimetableEvents as tt (tt.event.id)}
       {@const isBlocking = tt.event.workAllowed === "作業不可"}
       <path
@@ -841,26 +892,6 @@
         class="timetable-arc"
         filter="url(#softGlow)"
       />
-      <!-- Title label for larger arcs -->
-      {#if tt.endAngle - tt.startAngle > 0.3}
-        {@const midAngle = (tt.startAngle + tt.endAngle) / 2 - Math.PI / 2}
-        {@const labelRadius = timetableRingRadius + 2}
-        {@const labelX = center + labelRadius * Math.cos(midAngle)}
-        {@const labelY = center + labelRadius * Math.sin(midAngle)}
-        <text
-          x={labelX}
-          y={labelY}
-          font-size="2.5"
-          fill={isBlocking
-            ? "var(--color-error-500)"
-            : "var(--color-success-500)"}
-          text-anchor="middle"
-          dominant-baseline="middle"
-          class="pointer-events-none"
-        >
-          {tt.event.title.slice(0, 8)}
-        </text>
-      {/if}
     {/each}
 
     <!-- Suggestion arcs -->
@@ -974,54 +1005,27 @@
       {/if}
     {/each}
 
-    <!-- Event lane rails (background guides) -->
-    {#each Array.from({ length: maxEventLanes }) as _, i (i)}
-      {@const laneRadius = eventBaseRadius - i * (laneWidth + laneGap)}
-      {@const railOpacity = Math.max(0.06, 0.18 - i * 0.03)}
-      <circle
-        cx={center}
-        cy={center}
-        r={laneRadius}
-        fill="none"
-        stroke="var(--color-border-default)"
-        stroke-width="0.45"
-        stroke-opacity={railOpacity}
-        class="lane-rail"
-        pointer-events="none"
-      />
-    {/each}
-
-    <!-- Event arcs with lane packing -->
+    <!-- Event arcs as annular trapezoids (same color per lane, with lane packing) -->
     {#each normalizedEvents as ev (ev.ref.id)}
-      {@const radius = eventBaseRadius - ev.lane * (laneWidth + laneGap)}
       {@const isAllDay = ev.ref.timeLabel === "all-day"}
-      {@const baseColor = getEventColor(ev.ref)}
-      {@const laneFade = Math.max(0.55, 0.92 - ev.lane * 0.08)}
-      <!-- Halo underlay (non-interactive) -->
-      <path
-        d={arcPath(ev.startAngle, ev.endAngle, radius)}
-        fill="none"
-        stroke={baseColor}
-        stroke-width={isAllDay ? "4" : "6.5"}
-        stroke-linecap="round"
-        stroke-opacity={isAllDay ? 0.08 : 0.14}
-        class="event-arc-halo"
-        filter="url(#glow)"
-        pointer-events="none"
-      />
-      <!-- Core (interactive) - KEEP ALL EXISTING HANDLERS EXACTLY -->
+      {@const laneColor = getLaneColor(ev.lane)}
+      {@const laneFade = Math.max(0.6, 0.9 - ev.lane * 0.08)}
+      <!-- Calculate radii based on lane - each lane is a ring between eventBaseRadius and eventInnerRadius -->
+      {@const totalEventDepth = eventBaseRadius - eventInnerRadius}
+      {@const laneHeight = totalEventDepth / Math.max(maxEventLanes, 1)}
+      {@const eventOuterR = eventBaseRadius - ev.lane * laneHeight}
+      {@const eventInnerRCalc = eventOuterR - laneHeight + 0.5}
+      <!-- Annular trapezoid (filled wedge shape) -->
       <path
         role="button"
         tabindex="0"
-        d={arcPath(ev.startAngle, ev.endAngle, radius)}
-        fill="none"
-        stroke={baseColor}
-        stroke-width={isAllDay ? "2" : "3.2"}
-        stroke-linecap="round"
-        stroke-opacity={isAllDay ? 0.5 : laneFade}
+        d={annularTrapezoidPath(ev.startAngle, ev.endAngle, eventOuterR, eventInnerRCalc)}
+        fill={laneColor}
+        fill-opacity={isAllDay ? 0.35 : laneFade * 0.7}
+        stroke="none"
         class="event-arc"
         class:all-day={isAllDay}
-        filter="url(#glow)"
+        filter="url(#softGlow)"
         onmouseenter={(e) => hoverEvent(ev.ref, e)}
         onmousemove={updateMouse}
         onmouseleave={clearHover}
@@ -1035,42 +1039,7 @@
       />
     {/each}
 
-    <!-- Gap arcs (outermost, rendered last to appear on top) -->
-    {#each normalizedGaps as gap (gap.start + gap.end)}
-      <!-- Underlay -->
-      <path
-        d={arcPath(gap.startAngle, gap.endAngle, gapRingRadius)}
-        fill="none"
-        stroke="var(--color-border-default)"
-        stroke-width="4.5"
-        stroke-linecap="round"
-        stroke-opacity="0.10"
-        class="gap-arc-underlay"
-        pointer-events="none"
-      />
-      <!-- Active (KEEP handlers exactly) -->
-      <path
-        role="button"
-        tabindex="0"
-        d={arcPath(gap.startAngle, gap.endAngle, gapRingRadius)}
-        fill="none"
-        stroke="color-mix(in srgb, var(--color-warning-500) 85%, var(--color-primary-400))"
-        stroke-width="3"
-        stroke-linecap="round"
-        class="gap-arc"
-        filter="url(#softGlow)"
-        onmouseenter={(e) => hoverGap(gap, e)}
-        onmousemove={updateMouse}
-        onmouseleave={clearHover}
-        onclick={() => dispatch("gapSelected", gap)}
-        onkeydown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            dispatch("gapSelected", gap);
-          }
-        }}
-      />
-    {/each}
+    <!-- Gap arcs removed - gaps are no longer visible on the timeline -->
 
     <!-- Current time indicator -->
     {#if true}
@@ -1155,20 +1124,7 @@
     </div>
   {/if}
 
-  {#if hoveredGap}
-    <div
-      class="pointer-events-none fixed z-[1000] max-w-[220px] animate-[fadeIn_0.15s_ease] rounded-lg border border-primary/40 bg-base-100/98 p-3 shadow-lg backdrop-blur-md"
-      style="left: {mousePos.x}px; top: {mousePos.y}px;"
-    >
-      <div class="mb-1 text-sm font-medium">Free Time</div>
-      <div class="text-xs text-[var(--color-text-secondary)]">
-        {hoveredGap.start} - {hoveredGap.end}
-      </div>
-      <div class="mt-0.5 text-xs text-success">
-        {hoveredGap.duration} min available
-      </div>
-    </div>
-  {/if}
+  <!-- Gap tooltip removed - gaps are no longer visible -->
 
   {#if showLog}
     <div
@@ -1223,11 +1179,6 @@
     touch-action: none;
   }
 
-  .lane-rail,
-  .event-arc-halo,
-  .gap-arc-underlay {
-    pointer-events: none;
-  }
 
   .event-arc {
     transition: stroke-opacity 120ms ease, stroke-width 120ms ease;
