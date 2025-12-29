@@ -449,7 +449,8 @@
     selectedEvent = event.detail;
     // Clear lower priority selection
     selectedGap = null;
-    // Don't clear suggestion - it has higher priority
+    // Clear suggestion when user explicitly clicks on an event
+    selectedSuggestion = null;
   }
 
   function handleGapSelected(

@@ -8,10 +8,10 @@
     <h2 class="m-0 text-2xl text-base-content">提案ログ</h2>
   </div>
 
-  <div class="px-4 py-12 text-center text-base-content/50">
+    <div class="px-4 py-12 text-center text-base-content/50">
     <p class="m-0 mb-2">この機能は廃止されました</p>
-    <p class="m-0 text-sm italic">
+      <p class="m-0 text-sm italic">
       新しいスケジューラーシステムをご利用ください
-    </p>
-  </div>
+      </p>
+    </div>
 </div>
