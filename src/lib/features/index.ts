@@ -8,8 +8,6 @@
 // Calendar feature
 export * from "./calendar/components/index.ts";
 
-// Memo feature
-export * from "./memo/components/index.ts";
 
 // Tasks feature
 export * from "./tasks/components/index.ts";

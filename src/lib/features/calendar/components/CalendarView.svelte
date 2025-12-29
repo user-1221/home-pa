@@ -14,7 +14,8 @@
   import CalendarDebugInfo from "./CalendarDebugInfo.svelte";
   import TimelinePopup from "./TimelinePopup.svelte";
   import TimetablePopup from "./TimetablePopup.svelte";
-  import { startOfDay, endOfDay } from "$lib/utils/date-utils.ts";
+  import { startOfDay } from "$lib/utils/date-utils.ts";
+  import { getEventsForTimeline as getEventsForTimelineHelper } from "../utils/calendar-helpers.ts";
 
   // Local reactive variables for calendar state
   let currentMonth = $state(new Date());
@@ -198,25 +199,9 @@
   // Get the row assignment map for current events (including recurring occurrences)
   let eventRowMap = $derived(assignEventRows(allDisplayEvents));
 
-  // Helper function to get events for timeline (includes timed and all-day events)
+  // Use helper that properly truncates multi-day events at day boundaries
   function getEventsForTimeline(events: Event[], targetDate: Date): Event[] {
-    const targetDateStart = startOfDay(targetDate);
-    const targetDateEnd = endOfDay(targetDate);
-    const targetDateStartTime = targetDateStart.getTime();
-    const targetDateEndTime = targetDateEnd.getTime();
-
-    return events.filter((event) => {
-      const eventStartTime = event.start.getTime();
-      const eventEndTime = event.end.getTime();
-
-      // Include events where target date falls between start and end (inclusive)
-      // And only timed/all-day events (exclude some-timing)
-      return (
-        eventStartTime <= targetDateEndTime &&
-        eventEndTime >= targetDateStartTime &&
-        (event.timeLabel === "timed" || event.timeLabel === "all-day")
-      );
-    });
+    return getEventsForTimelineHelper(events, targetDate);
   }
 
   function parseRecurrenceForEdit(_event: Event) {

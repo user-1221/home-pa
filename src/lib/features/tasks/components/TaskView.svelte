@@ -2,22 +2,56 @@
   import TaskCard from "./TaskCard.svelte";
   import TaskForm from "./TaskForm.svelte";
   import { tasks, taskActions } from "$lib/features/tasks/state/taskActions.ts";
+  import type { Memo, MemoType } from "$lib/types.ts";
 
   // Filter options
   type FilterType = "all" | "active" | "completed";
   let filter = $state<FilterType>("active");
 
-  // Filtered tasks
+  // Task type priority order: 期限付き (Deadline) → ルーティン (Routine) → バックログ (Backlog)
+  const TYPE_ORDER: Record<MemoType, number> = {
+    "期限付き": 0,
+    "ルーティン": 1,
+    "バックログ": 2,
+  };
+
+  // Calculate progress percentage for a task
+  function getProgress(task: Memo): number {
+    const spent = task.status.timeSpentMinutes ?? 0;
+    const total = task.totalDurationExpected ?? 60;
+    return total > 0 ? spent / total : 0;
+  }
+
+  // Sort tasks by type, then by progress (descending - more progress = higher priority)
+  function sortTasks(taskList: Memo[]): Memo[] {
+    return [...taskList].sort((a, b) => {
+      // First sort by type priority
+      const typeA = TYPE_ORDER[a.type] ?? 2;
+      const typeB = TYPE_ORDER[b.type] ?? 2;
+      if (typeA !== typeB) return typeA - typeB;
+
+      // Then sort by progress (more progress = closer to completion = higher)
+      const progressA = getProgress(a);
+      const progressB = getProgress(b);
+      return progressB - progressA; // Descending order
+    });
+  }
+
+  // Filtered and sorted tasks
   let filteredTasks = $derived(() => {
     const allTasks = $tasks;
+    let result: Memo[];
     switch (filter) {
       case "active":
-        return allTasks.filter((t) => t.status.completionState !== "completed");
+        result = allTasks.filter((t) => t.status.completionState !== "completed");
+        break;
       case "completed":
-        return allTasks.filter((t) => t.status.completionState === "completed");
+        result = allTasks.filter((t) => t.status.completionState === "completed");
+        break;
       default:
-        return allTasks;
+        result = allTasks;
     }
+    return sortTasks(result);
   });
 
   // Stats

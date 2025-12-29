@@ -64,8 +64,8 @@ export const MANDATORY_THRESHOLD = 1.0;
 
 /** Duration bounds */
 const DEFAULT_SESSION_MINUTES = 30;
-const MIN_SESSION_MINUTES = 15;
-const MAX_SESSION_MINUTES = 120;
+const MIN_SESSION_MINUTES = 10;
+const MAX_SESSION_MINUTES = 240;
 
 // ============================================================================
 // NEED CALCULATION - DEADLINE

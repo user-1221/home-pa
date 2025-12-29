@@ -114,13 +114,6 @@ export interface Memo {
   importance?: ImportanceLevel; // LLM-suggested if not provided
 }
 
-export interface SuggestionLog {
-  id: string;
-  at: Date;
-  gapMin: number;
-  eventId?: string;
-  reaction: ReactionType;
-}
 
 /**
  * Suggestion output from scoring system

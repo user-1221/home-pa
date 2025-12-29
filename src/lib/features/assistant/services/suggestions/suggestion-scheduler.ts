@@ -72,7 +72,19 @@ const DEFAULT_PERMUTATION_LIMIT = 8;
 const TOLERANCE = 1e-6;
 
 /** Minimum session duration in minutes - suggestions can shrink down to this */
-const MIN_SESSION_MINUTES = 15;
+const MIN_SESSION_MINUTES = 10;
+
+/** Duration per dot reference point (10 min each, with 5 min on each side) */
+export const MINUTES_PER_DOT = 10;
+
+/** Minimum minutes on one side for edge dots */
+export const DOT_EDGE_MINUTES = 5;
+
+/** Snap increment for dragging (5 min dial-like motion) */
+export const DRAG_SNAP_MINUTES = 5;
+
+/** Minimum dots required to contain a suggestion in a gap during drag */
+export const MIN_DOTS_FOR_DRAG = 5;
 
 /**
  * Configuration for duration extension when extra gap time is available
@@ -94,12 +106,45 @@ export interface DurationExtensionConfig {
 
 export const DEFAULT_EXTENSION_CONFIG: DurationExtensionConfig = {
   enabled: true,
-  minExtensionMinutes: 15,
+  minExtensionMinutes: 10,
   maxExtensionFactor: 2.0,
-  extensionStepMinutes: 15,
+  extensionStepMinutes: 10,
   allowShrinking: true,
   minDurationMinutes: MIN_SESSION_MINUTES,
 };
+
+// ============================================================================
+// DOT CALCULATION UTILITIES
+// ============================================================================
+
+/**
+ * Calculate minimum duration required to display N dots
+ *
+ * Used for drag constraints - 5 dots = 45 min minimum.
+ *
+ * Examples:
+ * - 5 dots → 45 min minimum (for drag constraint)
+ * - 3 dots → 25 min
+ * - 1 dot → 5 min
+ */
+export function calculateMinDurationForDots(dotCount: number): number {
+  if (dotCount <= 1) {
+    return DOT_EDGE_MINUTES; // 5 min
+  }
+  // First dot: 5 min, then (N-1) intervals of 10 min each
+  // Total: 5 + 10*(N-1) = 10*N - 5
+  return dotCount * MINUTES_PER_DOT - DOT_EDGE_MINUTES;
+}
+
+/**
+ * Snap a time value to the nearest DRAG_SNAP_MINUTES increment
+ *
+ * @param minutes - Time in minutes
+ * @returns Snapped time in minutes
+ */
+export function snapToIncrement(minutes: number): number {
+  return Math.round(minutes / DRAG_SNAP_MINUTES) * DRAG_SNAP_MINUTES;
+}
 
 // ============================================================================
 // UTILITY FUNCTIONS

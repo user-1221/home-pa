@@ -10,9 +10,16 @@
  * - Cross-gap snapping: When dragged past gap boundary, snap to next valid gap
  * - Duration extension: Symmetric-first, then one-sided
  * - Overlap detection: Find suggestions that overlap with a time range
+ * - Dot-based containment: Min 5 dots required to drag into a gap
+ * - 5-minute snap: Dial-like motion with 5-min increments
  */
 
 import type { Gap } from "$lib/types.ts";
+import {
+  MIN_DOTS_FOR_DRAG,
+  calculateMinDurationForDots,
+  snapToIncrement,
+} from "./suggestions/suggestion-scheduler.ts";
 
 // ============================================================================
 // Overlap Detection
@@ -74,18 +81,6 @@ export function findOverlappingSuggestions(
 // ============================================================================
 // Types
 // ============================================================================
-
-/**
- * Constraints for dragging within a single gap
- */
-export interface DragConstraints {
-  /** Minimum midpoint position (minutes from midnight) */
-  minMidpoint: number;
-  /** Maximum midpoint position (minutes from midnight) */
-  maxMidpoint: number;
-  /** The gap these constraints apply to */
-  currentGap: Gap;
-}
 
 /**
  * Result of snapping to a gap
@@ -150,179 +145,327 @@ export function minutesToTime(minutes: number): string {
 }
 
 /**
- * Calculate midpoint of a time range in minutes
- */
-export function calculateMidpoint(startTime: string, endTime: string): number {
-  const start = timeToMinutes(startTime);
-  const end = timeToMinutes(endTime);
-  return Math.floor((start + end) / 2);
-}
-
-// ============================================================================
-// Constraint Calculation
-// ============================================================================
-
-/**
- * Calculate the valid midpoint range for a suggestion within a gap
- *
- * For a suggestion with duration D in a gap [G_start, G_end]:
- * - Min midpoint = G_start + D/2 (so start doesn't go before gap)
- * - Max midpoint = G_end - D/2 (so end doesn't go past gap)
- *
- * @param gap - The gap to constrain within
- * @param duration - Duration of the suggestion in minutes
- * @returns Constraints for the midpoint
- */
-export function calculateMidpointBounds(
-  gap: Gap,
-  duration: number,
-): DragConstraints {
-  const gapStart = timeToMinutes(gap.start);
-  const gapEnd = timeToMinutes(gap.end);
-  const halfDuration = Math.ceil(duration / 2);
-
-  return {
-    minMidpoint: Math.max(gapStart + halfDuration, gapStart),
-    maxMidpoint: Math.min(gapEnd - halfDuration, gapEnd),
-    currentGap: gap,
-  };
-}
-
-/**
- * Clamp a midpoint within the constraints
- */
-export function clampMidpoint(
-  midpoint: number,
-  constraints: DragConstraints,
-): number {
-  return Math.max(
-    constraints.minMidpoint,
-    Math.min(constraints.maxMidpoint, midpoint),
-  );
-}
-
-/**
- * Check if a suggestion with given duration can fit in a gap
+ * Check if a suggestion with given duration can fully fit in a gap
+ * (Used for automatic scheduling)
  */
 export function canFitInGap(gap: Gap, duration: number): boolean {
   return gap.duration >= duration;
 }
 
 // ============================================================================
-// Gap Snapping
+// Gap Snapping - Cursor-Based with Shrinking
 // ============================================================================
 
 /**
- * Find the best gap for a given midpoint position
- *
- * When the user drags past the current gap boundary, this finds the
- * next valid gap and snaps to its center.
- *
- * @param midpointMinutes - Target midpoint in minutes from midnight
- * @param duration - Duration of the suggestion
- * @param gaps - Available gaps sorted by start time
- * @param currentGapId - ID of the gap the suggestion is currently in
- * @returns Snap result with new position and target gap
+ * Minimum duration for dragging (5 dots = 45 min)
+ */
+const MIN_DRAG_DURATION = calculateMinDurationForDots(MIN_DOTS_FOR_DRAG);
+
+/**
+ * Position arc in a gap with SHRINKING at edges.
+ * 
+ * Behavior:
+ * 1. Center arc on cursor
+ * 2. If arc extends past gap edge, SHRINK from that side
+ * 3. Minimum shrink is 45 min
+ * 4. Return null if can't fit 45 min at this cursor position
+ */
+function positionArcWithShrink(
+  cursor: number,
+  originalDuration: number,
+  gapStart: number,
+  gapEnd: number,
+): { start: number; end: number } | null {
+  const gapDuration = gapEnd - gapStart;
+  
+  // Gap too small for minimum
+  if (gapDuration < MIN_DRAG_DURATION) {
+    return null;
+  }
+  
+  // Cap duration at gap size
+  const maxDuration = Math.min(originalDuration, gapDuration);
+  const halfDuration = maxDuration / 2;
+  
+  // Calculate ideal arc centered on cursor
+  let start = cursor - halfDuration;
+  let end = cursor + halfDuration;
+  
+  // SHRINK at edges (not slide!)
+  // If start is before gap, pin start to gap start (shrinks from left)
+  if (start < gapStart) {
+    start = gapStart;
+    // end stays where cursor put it, creating a shorter arc
+  }
+  
+  // If end is after gap, pin end to gap end (shrinks from right)
+  if (end > gapEnd) {
+    end = gapEnd;
+    // start stays where cursor put it, creating a shorter arc
+  }
+  
+  // Snap to 5-min increments
+  start = snapToIncrement(Math.max(start, gapStart));
+  end = snapToIncrement(Math.min(end, gapEnd));
+  
+  // Check final duration
+  const finalDuration = end - start;
+  if (finalDuration < MIN_DRAG_DURATION) {
+    return null; // Too shrunk, need to jump to another gap
+  }
+  
+  return { start, end };
+}
+
+/**
+ * Find the gap the cursor is in, or the appropriate next/previous gap.
+ * 
+ * Directional jump logic for better UX:
+ * - If cursor is past the END of a gap → return NEXT gap
+ * - If cursor is before the START of a gap → return PREVIOUS gap
+ * - This makes dragging feel natural and predictable
+ */
+function findGapForCursorDirectional(
+  cursor: number,
+  gaps: Gap[],
+  currentGapId?: string,
+): { gap: Gap; gapStart: number; gapEnd: number } | null {
+  if (gaps.length === 0) return null;
+  
+  // Sort by start time
+  const sorted = [...gaps].sort(
+    (a, b) => timeToMinutes(a.start) - timeToMinutes(b.start),
+  );
+  
+  // Filter to gaps that can hold minimum duration
+  const valid = sorted.filter((g) => g.duration >= MIN_DRAG_DURATION);
+  if (valid.length === 0) return null;
+  
+  // Check if cursor is INSIDE any gap
+  for (const gap of valid) {
+    const gapStart = timeToMinutes(gap.start);
+    const gapEnd = timeToMinutes(gap.end);
+    
+    if (cursor >= gapStart && cursor <= gapEnd) {
+      return { gap, gapStart, gapEnd };
+    }
+  }
+  
+  // Cursor is OUTSIDE all gaps - find directional target
+  // Find where cursor is relative to gaps
+  
+  // Find current gap index if we have a currentGapId
+  let currentIdx = -1;
+  if (currentGapId) {
+    currentIdx = valid.findIndex((g) => g.gapId === currentGapId);
+  }
+  
+  // If we have a current gap, use directional logic
+  if (currentIdx >= 0) {
+    const currentGap = valid[currentIdx];
+    const currentStart = timeToMinutes(currentGap.start);
+    const currentEnd = timeToMinutes(currentGap.end);
+    
+    if (cursor > currentEnd) {
+      // Cursor moved past end → go to NEXT gap
+      const nextIdx = currentIdx + 1;
+      if (nextIdx < valid.length) {
+        const nextGap = valid[nextIdx];
+        return {
+          gap: nextGap,
+          gapStart: timeToMinutes(nextGap.start),
+          gapEnd: timeToMinutes(nextGap.end),
+        };
+      }
+      // No next gap, stay in current
+      return { gap: currentGap, gapStart: currentStart, gapEnd: currentEnd };
+    } else if (cursor < currentStart) {
+      // Cursor moved before start → go to PREVIOUS gap
+      const prevIdx = currentIdx - 1;
+      if (prevIdx >= 0) {
+        const prevGap = valid[prevIdx];
+        return {
+          gap: prevGap,
+          gapStart: timeToMinutes(prevGap.start),
+          gapEnd: timeToMinutes(prevGap.end),
+        };
+      }
+      // No previous gap, stay in current
+      return { gap: currentGap, gapStart: currentStart, gapEnd: currentEnd };
+    }
+  }
+  
+  // No current gap context - find gap that cursor is closest to entering
+  for (let i = 0; i < valid.length; i++) {
+    const gap = valid[i];
+    const gapStart = timeToMinutes(gap.start);
+    const gapEnd = timeToMinutes(gap.end);
+    
+    // Check if cursor is before this gap
+    if (cursor < gapStart) {
+      // Return this gap (first gap after cursor)
+      return { gap, gapStart, gapEnd };
+    }
+    
+    // Check if cursor is between this gap and next
+    if (cursor > gapEnd) {
+      const nextGap = valid[i + 1];
+      if (nextGap) {
+        const nextStart = timeToMinutes(nextGap.start);
+        if (cursor < nextStart) {
+          // Cursor is between gap[i] and gap[i+1]
+          // Return whichever is closer
+          const distToCurrent = cursor - gapEnd;
+          const distToNext = nextStart - cursor;
+          if (distToNext < distToCurrent) {
+            return {
+              gap: nextGap,
+              gapStart: nextStart,
+              gapEnd: timeToMinutes(nextGap.end),
+            };
+          } else {
+            return { gap, gapStart, gapEnd };
+          }
+        }
+      } else {
+        // Last gap and cursor is after it
+        return { gap, gapStart, gapEnd };
+      }
+    }
+  }
+  
+  // Fallback to first valid gap
+  const first = valid[0];
+  return {
+    gap: first,
+    gapStart: timeToMinutes(first.start),
+    gapEnd: timeToMinutes(first.end),
+  };
+}
+
+/**
+ * Snap cursor to gap and position arc with shrinking behavior.
+ * 
+ * Key behaviors:
+ * 1. 5-minute snap increments (dial-like motion)
+ * 2. Arc SHRINKS at gap edges (not slides)
+ * 3. Minimum 45 min - when arc would be smaller, jump to next gap
+ * 4. Directional jumping - cross end → next gap, cross start → prev gap
+ * 5. When jumping to new gap, KEEP the shrunk duration (don't reset to original)
  */
 export function snapToGap(
-  midpointMinutes: number,
+  cursorMinutes: number,
   duration: number,
   gaps: Gap[],
   currentGapId?: string,
 ): SnapResult | null {
   if (gaps.length === 0) return null;
 
-  // Sort gaps by start time
-  const sortedGaps = [...gaps].sort(
-    (a, b) => timeToMinutes(a.start) - timeToMinutes(b.start),
-  );
+  // Snap cursor to 5-minute increment
+  const cursor = snapToIncrement(cursorMinutes);
 
-  // Filter to gaps that can fit the duration
-  const validGaps = sortedGaps.filter((g) => canFitInGap(g, duration));
-  if (validGaps.length === 0) return null;
-
-  // Find the gap that contains the midpoint, or the closest one
-  let targetGap: Gap | null = null;
-  let snapped = false;
-
-  for (const gap of validGaps) {
-    const gapStart = timeToMinutes(gap.start);
-    const gapEnd = timeToMinutes(gap.end);
-
-    // Check if midpoint is within this gap's valid range
-    const constraints = calculateMidpointBounds(gap, duration);
-    if (
-      midpointMinutes >= constraints.minMidpoint &&
-      midpointMinutes <= constraints.maxMidpoint
-    ) {
-      targetGap = gap;
-      snapped = gap.gapId !== currentGapId;
-      break;
-    }
-
-    // Check if midpoint is before this gap
-    if (midpointMinutes < gapStart) {
-      // Snap to the start of this gap
-      targetGap = gap;
-      snapped = true;
-      break;
-    }
-
-    // If midpoint is past this gap, continue to next
-    if (midpointMinutes > gapEnd) {
-      // Keep this as candidate in case it's the last valid gap
-      targetGap = gap;
-      snapped = gap.gapId !== currentGapId;
+  // Find the gap for this cursor (with directional logic)
+  const gapInfo = findGapForCursorDirectional(cursor, gaps, currentGapId);
+  if (!gapInfo) return null;
+  
+  const { gap, gapStart, gapEnd } = gapInfo;
+  
+  // Try to position arc with shrinking in the current gap
+  let position = positionArcWithShrink(cursor, duration, gapStart, gapEnd);
+  
+  // If can't fit (too shrunk), we jumped to a new gap
+  // Keep the MINIMUM duration, don't reset to original
+  if (!position) {
+    // Use minimum duration when jumping to new gap
+    const jumpDuration = Math.min(MIN_DRAG_DURATION, gap.duration);
+    
+    if (cursor <= gapStart) {
+      // Entering from before - position at start of gap
+      const start = snapToIncrement(gapStart);
+      const end = snapToIncrement(gapStart + jumpDuration);
+      position = { start, end };
+    } else {
+      // Entering from after - position at end of gap
+      const end = snapToIncrement(gapEnd);
+      const start = snapToIncrement(gapEnd - jumpDuration);
+      position = { start, end };
     }
   }
-
-  if (!targetGap) {
-    // Default to last valid gap
-    targetGap = validGaps[validGaps.length - 1];
-    snapped = targetGap.gapId !== currentGapId;
-  }
-
-  // Calculate position within the target gap
-  const constraints = calculateMidpointBounds(targetGap, duration);
-  const clampedMidpoint = clampMidpoint(midpointMinutes, constraints);
-  const halfDuration = Math.ceil(duration / 2);
 
   return {
-    newStartTime: minutesToTime(clampedMidpoint - halfDuration),
-    newEndTime: minutesToTime(clampedMidpoint + (duration - halfDuration)),
-    targetGap,
-    snapped,
+    newStartTime: minutesToTime(position.start),
+    newEndTime: minutesToTime(position.end),
+    targetGap: gap,
+    snapped: gap.gapId !== currentGapId,
   };
 }
 
+// ============================================================================
+// Duration Extension Utilities
+// ============================================================================
+
 /**
- * Find the next gap in a given direction
- *
- * @param currentGapId - Current gap ID
- * @param gaps - Available gaps
- * @param direction - 'forward' or 'backward'
- * @param duration - Duration needed
- * @returns Next valid gap or null
+ * Calculate the maximum duration a suggestion can extend to.
+ * 
+ * Constraints:
+ * - Gap end is the hard limit
+ * - Start time is fixed (extend from end only)
+ * - Other pending suggestions are NOT considered blockers
+ * 
+ * @param startTime - Fixed start time (HH:mm)
+ * @param gapEnd - End time of the gap (HH:mm)
+ * @returns Maximum duration in minutes
  */
-export function findNextGap(
-  currentGapId: string,
-  gaps: Gap[],
-  direction: "forward" | "backward",
-  duration: number,
-): Gap | null {
-  const sortedGaps = [...gaps].sort(
-    (a, b) => timeToMinutes(a.start) - timeToMinutes(b.start),
-  );
+export function calculateMaxDuration(
+  startTime: string,
+  gapEnd: string,
+): number {
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = timeToMinutes(gapEnd);
+  return Math.max(0, endMinutes - startMinutes);
+}
 
-  const currentIndex = sortedGaps.findIndex((g) => g.gapId === currentGapId);
-  if (currentIndex === -1) return null;
+/**
+ * Extend or shrink duration in 10-min increments.
+ * 
+ * @param currentDuration - Current duration in minutes
+ * @param direction - 'extend' (+10) or 'shrink' (-10)
+ * @param maxDuration - Maximum allowed duration
+ * @param minDuration - Minimum allowed duration (default: MIN_DRAG_DURATION)
+ * @returns New duration in minutes
+ */
+export function adjustDuration(
+  currentDuration: number,
+  direction: 'extend' | 'shrink',
+  maxDuration: number,
+  minDuration: number = MIN_DRAG_DURATION,
+): number {
+  const DURATION_INCREMENT = 10;
+  
+  if (direction === 'extend') {
+    const newDuration = currentDuration + DURATION_INCREMENT;
+    return Math.min(newDuration, maxDuration);
+  } else {
+    const newDuration = currentDuration - DURATION_INCREMENT;
+    return Math.max(newDuration, minDuration);
+  }
+}
 
-  const searchGaps =
-    direction === "forward"
-      ? sortedGaps.slice(currentIndex + 1)
-      : sortedGaps.slice(0, currentIndex).reverse();
-
-  return searchGaps.find((g) => canFitInGap(g, duration)) ?? null;
+/**
+ * Calculate new end time after duration change.
+ * Start time stays fixed, only end time moves.
+ * 
+ * @param startTime - Fixed start time (HH:mm)
+ * @param newDuration - New duration in minutes
+ * @returns New end time (HH:mm)
+ */
+export function calculateNewEndTime(
+  startTime: string,
+  newDuration: number,
+): string {
+  const startMinutes = timeToMinutes(startTime);
+  const endMinutes = startMinutes + newDuration;
+  return minutesToTime(endMinutes);
 }
 
 // ============================================================================
@@ -468,13 +611,6 @@ export function angleToMinutes(angle: number): number {
   const normalizedAngle = ((angle % TWO_PI) + TWO_PI) % TWO_PI;
   // Convert to minutes (0 radians = 00:00, 2π = 24:00)
   return Math.round((normalizedAngle / TWO_PI) * MINUTES_PER_DAY);
-}
-
-/**
- * Convert minutes since midnight to angle (radians, 0 at top)
- */
-export function minutesToAngle(minutes: number): number {
-  return (minutes / MINUTES_PER_DAY) * TWO_PI;
 }
 
 /**

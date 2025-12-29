@@ -1,188 +1,111 @@
-# State Architecture
+# Bootstrap Architecture
 
-This directory contains the centralized state management for the Personal Assistant application using Svelte 5 reactive state as the single source of truth.
+This directory contains the centralized state management and initialization for the Personal Assistant application using Svelte 5 reactive state.
 
 ## 🏗️ Architecture Overview
 
-The state architecture is organized into three main categories:
+The bootstrap layer provides global state and initialization:
 
 ```
-src/lib/state/
+src/lib/bootstrap/
 ├── README.md                 # This file - architecture documentation
-├── ui.ts                     # UI state (views, modes, panels)
-├── forms/                    # Form state management
-│   ├── eventForm.ts         # Event creation/editing form
-│   └── memoForm.ts          # Memo creation/editing form
-├── actions/                  # Business logic and operations
-│   ├── eventActions.ts      # Event CRUD operations
-│   ├── memoActions.ts       # Memo CRUD operations
-│   ├── uiActions.ts         # UI navigation and state changes
-│   └── suggestionActions.ts # Suggestion system operations
-├── data.ts                   # Core data (events, memos, etc.)
-├── gaps.ts                   # Gap-finding state
-└── toast.ts                  # Toast notifications state
+├── bootstrap.ts              # App initialization
+├── ui.svelte.ts              # UI state (views, modes, loading)
+├── uiActions.ts              # UI business logic
+├── data.svelte.ts            # Core data (selected date)
+├── toast.svelte.ts           # Toast notifications state
+├── settings.svelte.ts        # App settings state
+├── timezone.ts               # Timezone management
+├── devtools.ts               # Developer tools
+├── index.svelte.ts           # Main barrel export
+└── compat.svelte.ts          # Compatibility layer for gradual migration
 ```
 
 ## 📁 File Responsibilities
 
-### **UI State (`ui.ts`)**
+### **Initialization (`bootstrap.ts`)**
+
+- **Purpose**: Central initialization for the application
+- **Usage**: Called once in the root layout
+
+### **UI State (`ui.svelte.ts`)**
 
 - **Purpose**: Manages UI state that affects the overall application layout
-- **Contains**: Current view, view mode, panel states, navigation state
-- **Usage**: Components subscribe to these stores to react to UI changes
-- **Example**: `currentView`, `viewMode`, `isMemoOpen`
+- **Contains**: View mode, loading state, error messages
+- **Example**: `viewMode`, `isLoading`, `errorMessage`
 
-### **Form State (`forms/`)**
+### **Data State (`data.svelte.ts`)**
 
-- **Purpose**: Manages form data and validation state
-- **Contains**: Form fields, validation errors, editing states, event timing types
-- **Usage**: Form components bind directly to these stores
-- **Example**: `eventForm` (supports all-day, some-timing, timed events), `memoForm`
+- **Purpose**: Core application data (selected date)
+- **Contains**: Selected date for calendar/assistant views
+- **Example**: `selectedDate`
 
-### **Business Logic (`actions/`)**
+### **Toast State (`toast.svelte.ts`)**
 
-- **Purpose**: Contains all business logic and operations
-- **Contains**: CRUD operations, validation, data transformations
-- **Usage**: Components call these functions to perform actions
-- **Example**: `createEvent()`, `updateMemo()`, `navigateDate()`
+- **Purpose**: Toast notification management
+- **Contains**: Active toasts, show/dismiss functions
+- **Usage**: `toastState.success("Message")`
 
-### **Core Data (`data.ts`)**
+### **Compatibility Layer (`compat.svelte.ts`)**
 
-- **Purpose**: Core application data stores
-- **Contains**: Events (with flexible timing), memos, suggestion logs, selected date
-- **Usage**: All components access these for data display
-- **Example**: `events` (all-day, some-timing, timed), `memos`, `selectedDate`
+- **Purpose**: Provides backward-compatible action wrappers during migration
+- **Contains**: Action wrappers that bind methods to state instances
+- **Usage**: For gradual migration to direct state class usage
 
 ## 🔄 Data Flow
 
 ```
-User Interaction → Action Function → Store Update → Component Reactivity
+User Interaction → Action Function → State Update → Component Reactivity
 ```
 
-1. **User interacts** with UI (clicks button, types in form)
-2. **Component calls** action function (e.g., `eventActions.create()`)
-3. **Action function** validates data and updates stores
-4. **Stores update** automatically trigger component re-renders
-5. **UI reflects** the new state
+1. **User interacts** with UI (clicks button, navigates)
+2. **Component calls** state method (e.g., `dataState.setSelectedDate()`)
+3. **State updates** automatically trigger component re-renders
+4. **UI reflects** the new state
 
 ## 🎯 Key Principles
 
-### **1. Single Source of Truth**
+### **1. Svelte 5 Reactive Classes**
 
-- All data lives in stores
+- State is managed using `$state` runes in classes
+- Classes are instantiated once as singletons
+- Direct property access (no `$` prefix needed in templates)
+
+### **2. Single Source of Truth**
+
+- All global data lives in state classes
 - No duplicate state between components
-- Stores are the authoritative data source
+- State classes are the authoritative data source
 
-### **2. Separation of Concerns**
+### **3. Feature-Based Organization**
 
-- **UI State**: What the user sees (views, panels, modes)
-- **Form State**: What the user is editing (form fields, validation)
-- **Business Logic**: What the app does (CRUD, validation, transformations)
-- **Core Data**: What the app stores (events, memos, etc.)
-
-### **3. Reactive Updates**
-
-- Components automatically update when stores change
-- No manual syncing or state management
-- Changes propagate automatically through the app
-
-### **4. Action-Based Operations**
-
-- All operations go through action functions
-- Actions handle validation, business logic, and store updates
-- Components just call actions - they don't manage state directly
+- Feature-specific state lives in `features/{feature}/state/`
+- Bootstrap only contains truly global state
+- Components import directly from state files
 
 ## 📖 Usage Examples
 
-### **Accessing UI State**
+### **Accessing State**
 
 ```typescript
-import { currentView, viewMode } from "$lib/state/ui.ts";
+import { dataState } from "$lib/bootstrap/index.svelte.ts";
 
-// In component
-$currentView; // reactive value
-viewActions.setView("personal-assistant"); // action call
+// In component template
+{dataState.selectedDate}
+
+// In component script
+dataState.setSelectedDate(new Date());
 ```
 
-### **Form Management**
+### **Toast Notifications**
 
 ```typescript
-import { eventForm } from "$lib/state/forms/eventForm.ts";
-import { eventActions } from "$lib/state/actions/eventActions.ts";
+import { toastState } from "$lib/bootstrap/index.svelte.ts";
 
-// In component
-$eventForm.title; // reactive form field
-eventActions.create(); // submit form
-```
-
-### **Data Operations**
-
-```typescript
-import { events } from "$lib/state/data.ts";
-import { eventActions } from "$lib/state/actions/eventActions.ts";
-
-// In component
-$events; // reactive events array
-eventActions.delete(eventId); // delete event
-```
-
-## 🚀 Benefits
-
-- **Simpler Components**: Components just subscribe to stores and call actions
-- **Automatic Updates**: UI updates automatically when data changes
-- **Better Testing**: Actions are pure functions, easy to test
-- **Clear Separation**: UI, forms, and business logic are separate
-- **No Sync Issues**: Single source of truth eliminates sync problems
-- **Better Performance**: Direct store subscriptions are efficient
-
-## 🔧 Development Guidelines
-
-### **Adding New State**
-
-1. Determine the category (UI, form, or core data)
-2. Add to appropriate store file
-3. Create action functions if needed
-4. Update components to use new state
-
-### **Adding New Actions**
-
-1. Add to appropriate actions file
-2. Handle validation and business logic
-3. Update stores with results
-4. Components call the action function
-
-### **Component Integration**
-
-1. Import needed stores and actions
-2. Subscribe to stores with `$storeName`
-3. Call actions in event handlers
-4. No manual state management needed
-
-## 🐛 Debugging
-
-### **Store DevTools**
-
-Enable store debugging in development:
-
-```typescript
-// In component
-import { events } from "$lib/state/data.ts";
-console.log("Events:", $events); // Log current state
-```
-
-### **Action Debugging**
-
-Add logging to action functions:
-
-```typescript
-export function createEvent(data) {
-  console.log("Creating event:", data);
-  // ... validation and store updates
-}
+toastState.success("Event created!");
+toastState.error("Failed to save");
 ```
 
 ## 📚 Related Documentation
 
 - [DATA_FLOW.md](../../docs/implementation_guide/DATA_FLOW.md) - Detailed data flow documentation
-- [check_calendar.md](../../docs/implementation_guide/check_calendar.md) - Calendar system documentation
-- [recurrence/README.md](../services/recurrence/README.md) - Recurrence system documentation
