@@ -224,6 +224,10 @@ export function isFirstDayOfEvent(event: Event, targetDate: Date): boolean {
 
 /**
  * Get event color based on importance
+ *
+ * Uses only event.id and event.title for consistent colors across:
+ * - Recurring event occurrences (same master event = same color)
+ * - Multi-day events (same event across different days = same color)
  */
 export function getEventColor(event: Event): string {
   const palette: readonly string[] = [
@@ -241,11 +245,12 @@ export function getEventColor(event: Event): string {
     "color-mix(in srgb, var(--color-primary) 65%, var(--color-surface-100))",
   ];
 
-  const keyParts = [
-    event.id ?? "",
-    event.title ?? "",
-    event.start ? event.start.toISOString() : "",
-  ];
+  // Use stable identifiers only (not start time!)
+  // For recurring events, use the master event ID if available
+  const eventWithMasterId = event as Event & { masterEventId?: string };
+  const stableId = eventWithMasterId.masterEventId ?? event.id ?? "";
+
+  const keyParts = [stableId, event.title ?? ""];
   const hash = keyParts
     .join("|")
     .split("")

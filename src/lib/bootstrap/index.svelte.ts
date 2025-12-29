@@ -128,15 +128,8 @@ export const clearAllData = () => {
 // Feature State Re-exports
 // ============================================================================
 
-// Gap stores
-export {
-  dayBoundaries,
-  events as gapEvents,
-  gapFinder,
-  gaps,
-  gapStats,
-  dayBoundaryActions,
-} from "../features/assistant/state/gaps.svelte.ts";
+// Unified Gap State - single source of truth for gaps
+export { unifiedGapState } from "../features/assistant/state/unified-gaps.svelte.ts";
 
 // Schedule store
 export {

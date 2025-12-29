@@ -68,9 +68,10 @@
     if (event.timeLabel === "all-day") {
       return 24 * 16.67;
     }
-    const startMinutes = event.start.getHours() * 60 + event.start.getMinutes();
-    const endMinutes = event.end.getHours() * 60 + event.end.getMinutes();
-    const durationMinutes = Math.max(endMinutes - startMinutes, 30);
+    // Use milliseconds-based duration to handle truncated events correctly
+    // (Events may have been truncated at day boundaries by getEventsForDate)
+    const durationMs = event.end.getTime() - event.start.getTime();
+    const durationMinutes = Math.max(durationMs / (1000 * 60), 30);
     return (durationMinutes / 60) * 16.67;
   }
 

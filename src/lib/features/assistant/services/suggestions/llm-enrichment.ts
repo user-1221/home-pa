@@ -175,7 +175,7 @@ ${deadlineInfo}
 Please estimate:
 1. Genre (category): one of [勉強, 運動, 家事, 仕事, 趣味, その他]
 2. Importance: "low", "medium", or "high"
-3. Session duration: recommended minutes per session (15-120)
+3. Session duration: recommended minutes per session (10-120, in 10-min increments)
 4. Total duration: estimated total minutes to complete the task
 
 Respond with ONLY valid JSON in this exact format, no other text:
@@ -223,7 +223,7 @@ export function parseResponse(responseText: string): EnrichmentResult | null {
 
     const sessionDuration =
       typeof parsed.sessionDuration === "number"
-        ? Math.min(120, Math.max(15, parsed.sessionDuration))
+        ? Math.min(120, Math.max(10, parsed.sessionDuration))
         : 30;
 
     const totalDurationExpected =

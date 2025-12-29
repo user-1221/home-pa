@@ -5,7 +5,6 @@
   import {
     calendarState,
     dataState,
-    settingsState,
   } from "$lib/bootstrap/index.svelte.ts";
   import {
     scheduleActions,
@@ -14,19 +13,13 @@
     tasks,
   } from "$lib/bootstrap/compat.svelte.ts";
   import type { Event, Gap } from "$lib/types.ts";
-  import { GapFinder } from "$lib/features/assistant/services/gap-finder.ts";
   import { get } from "svelte/store";
   import {
     startOfDay,
     endOfDay,
     parseTimeOnDate,
   } from "$lib/utils/date-utils.ts";
-  import {
-    loadTimetableData,
-    getTimetableEventsForDate,
-    getBlockingTimetableEvents,
-    type TimetableEvent,
-  } from "$lib/features/calendar/services/timetable-events.ts";
+  import { unifiedGapState } from "$lib/features/assistant/state/unified-gaps.svelte.ts";
 
   // Task list (synced from store via subscription)
   let taskList = $state(get(tasks));
@@ -39,33 +32,21 @@
     return unsubscribe;
   });
 
-  // Timetable blocking events state
-  let timetableBlockingEvents = $state<TimetableEvent[]>([]);
-  let lastTimetableLoadKey: string | null = null;
-
-  // Load timetable blocking events when date changes
+  // Mark that we're on the assistant tab and load timetable events
   $effect(() => {
-    const dateKey = dataState.selectedDate.toISOString().slice(0, 10);
-    if (dateKey !== lastTimetableLoadKey) {
-      lastTimetableLoadKey = dateKey;
-      loadTimetableForGaps();
-    }
+    unifiedGapState.setOnAssistantTab(true);
+    unifiedGapState.loadTimetableEvents();
+
+    return () => {
+      unifiedGapState.setOnAssistantTab(false);
+    };
   });
 
-  async function loadTimetableForGaps() {
-    try {
-      const { config, cells } = await loadTimetableData();
-      const allEvents = getTimetableEventsForDate(
-        dataState.selectedDate,
-        config,
-        cells,
-      );
-      timetableBlockingEvents = getBlockingTimetableEvents(allEvents);
-    } catch (err) {
-      console.error("[PersonalAssistantView] Failed to load timetable:", err);
-      timetableBlockingEvents = [];
-    }
-  }
+  // Load timetable events when date changes
+  $effect(() => {
+    const _date = dataState.selectedDate; // Track dependency
+    unifiedGapState.loadTimetableEvents();
+  });
 
   // Selected items for details display - track all separately
   let selectedSuggestion = $state<
@@ -73,6 +54,7 @@
         type: "pending-suggestion";
         data: import("$lib/features/assistant/state/schedule.ts").PendingSuggestion;
         title: string;
+        gapEnd: string; // For duration extension limits
       }
     | {
         type: "accepted-suggestion";
@@ -106,10 +88,6 @@
       };
     return null;
   });
-
-  function dateKey(date: Date): string {
-    return startOfDay(date).toISOString().slice(0, 10);
-  }
 
   function sortEventsByStart(events: Event[]): Event[] {
     return [...events].sort(
@@ -152,36 +130,6 @@
     );
   }
 
-  function toGapEventForDay(e: Event, day: Date) {
-    const dayStart = "00:00";
-    const dayEnd = "23:59";
-
-    if (e.timeLabel === "all-day") {
-      return { id: e.id, title: e.title, start: dayStart, end: dayEnd };
-    }
-
-    const targetDay = startOfDay(day);
-    const startDay = startOfDay(e.start);
-    const endDay = startOfDay(e.end);
-
-    const startsToday = startDay.getTime() === targetDay.getTime();
-    const endsToday = endDay.getTime() === targetDay.getTime();
-
-    const startTime = startsToday
-      ? new Date(e.start).toTimeString().slice(0, 5)
-      : dayStart;
-    const endTime = endsToday
-      ? new Date(e.end).toTimeString().slice(0, 5)
-      : dayEnd;
-
-    return {
-      id: e.id,
-      title: e.title,
-      start: startTime,
-      end: endTime,
-    };
-  }
-
   // Reactively compute events for selected day
   let selectedDayEvents = $derived.by(() => {
     const events = calendarState.events;
@@ -212,85 +160,20 @@
     return sortEventsByStart(todaysEvents);
   });
 
-  // Reactively compute gaps based on selected day events
-  // Convert timetable event to gap-finder event format
-  function timetableEventToGapEvent(
-    ttEvent: TimetableEvent,
-  ): import("$lib/features/assistant/services/gap-finder.ts").Event {
-    const startTime = ttEvent.start.toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-    const endTime = ttEvent.end.toLocaleTimeString("en-GB", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+  // ============================================================================
+  // UNIFIED GAP STATE - All gap computation now handled by unifiedGapState
+  // This provides:
+  // - Reactive current time (updates every minute)
+  // - Automatic past time blocking
+  // - Automatic enrichment with location labels
+  // - Consistent gap computation across initial generation and repopulation
+  // ============================================================================
 
-    return {
-      id: ttEvent.id,
-      title: `[時間割] ${ttEvent.title}`,
-      start: startTime,
-      end: endTime,
-    };
-  }
+  // Check if selected date is today
+  let isTodaySelected = $derived(unifiedGapState.isTodaySelected);
 
-  // Helper to convert minutes to HH:mm format (needed before computedGaps)
-  function minutesToTimeLocal(minutes: number): string {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-  }
-
-  // Helper to get current time in minutes since midnight (needed before computedGaps)
-  function getCurrentTimeMinutes(): number {
-    const now = new Date();
-    return now.getHours() * 60 + now.getMinutes();
-  }
-
-  // Check if selected date is today (needed before computedGaps)
-  let isTodaySelected = $derived.by(() => {
-    const now = new Date();
-    return dateKey(dataState.selectedDate) === dateKey(now);
-  });
-
-  let computedGaps = $derived.by(() => {
-    const gf = new GapFinder({
-      dayStart: settingsState.activeStartTime,
-      dayEnd: settingsState.activeEndTime,
-    });
-    const currentDate = startOfDay(dataState.selectedDate);
-
-    // Convert calendar events to gap-finder format
-    const calendarMapped = selectedDayEvents.map((e) =>
-      toGapEventForDay(e, currentDate),
-    );
-
-    // Convert timetable blocking events to gap-finder format
-    const timetableMapped = timetableBlockingEvents.map(
-      timetableEventToGapEvent,
-    );
-
-    // Combine both sources - timetable events block gaps just like calendar events
-    const allEvents = [...calendarMapped, ...timetableMapped];
-
-    // If viewing today, block all time before current time
-    // This ensures suggestions are only scheduled in future slots
-    if (isTodaySelected) {
-      const currentMinutes = getCurrentTimeMinutes();
-      const currentTimeStr = minutesToTimeLocal(currentMinutes);
-      // Add a blocking event from midnight to current time
-      allEvents.push({
-        id: "__past_time_blocker__",
-        title: "Past Time",
-        start: "00:00",
-        end: currentTimeStr,
-      });
-    }
-
-    return gf.findGaps(allEvents);
-  });
+  // Enriched gaps from unified state (includes location labels)
+  let enrichedGaps = $derived(unifiedGapState.enrichedGaps);
 
   // Helper to convert time string to minutes
   function timeToMinutes(time: string): number {
@@ -309,12 +192,12 @@
   // This ensures pending suggestions can't overlap with accepted ones
   let availableGaps = $derived.by((): Gap[] => {
     const accepted = $acceptedSuggestions;
-    if (accepted.length === 0) return computedGaps;
+    if (accepted.length === 0) return enrichedGaps;
 
     const result: Gap[] = [];
     let gapCounter = 0;
 
-    for (const gap of computedGaps) {
+    for (const gap of enrichedGaps) {
       const gapStart = timeToMinutes(gap.start);
       const gapEnd = timeToMinutes(gap.end);
 
@@ -379,26 +262,35 @@
     return result;
   });
 
+  // ============================================================================
+  // SCHEDULE REGENERATION
+  // Uses unified gap state for consistent gap computation
+  // ============================================================================
+
   // Reactively compute schedule signature for auto-generation
+  // Includes enriched gaps to ensure regeneration when gaps change
   let scheduleSignature = $derived.by(() => {
-    const now = new Date();
-    const todayKey = dateKey(now);
-    const currentDate = startOfDay(dataState.selectedDate);
-
     // Only generate schedule for today
-    if (dateKey(currentDate) !== todayKey) return null;
+    if (!isTodaySelected) return null;
 
-    return `${dateKey(currentDate)}|t${taskList.length}|g${computedGaps.length}`;
+    // Include gap details in signature to detect changes from:
+    // - Active time settings changes
+    // - Current time passing (past time blocker updates)
+    // - Calendar/timetable event changes
+    const gapSig = enrichedGaps.map((g) => `${g.start}-${g.end}`).join("|");
+    return `t${taskList.length}|g${gapSig}`;
   });
 
   // Track last schedule signature to avoid re-triggering
   let lastScheduleSignature: string | null = null;
 
   // Auto-generate schedule when signature changes
+  // Always passes enriched gaps to ensure consistent computation
   $effect(() => {
     if (scheduleSignature && scheduleSignature !== lastScheduleSignature) {
       lastScheduleSignature = scheduleSignature;
-      scheduleActions.regenerate(taskList, { gaps: computedGaps });
+      // Pass enriched gaps from unified state for consistent pipeline
+      scheduleActions.regenerate(taskList, { gaps: enrichedGaps });
     }
   });
 
@@ -486,7 +378,7 @@
       newEndTime,
       newGapId,
       taskList,
-      computedGaps, // Pass the correctly computed gaps with user's active time settings
+      enrichedGaps, // Pass enriched gaps from unified state
     );
   }
 
@@ -498,7 +390,7 @@
       suggestionId,
       newDuration,
       taskList,
-      computedGaps, // Pass gaps for constraint calculation
+      enrichedGaps, // Pass enriched gaps for constraint calculation
     );
   }
 
@@ -513,10 +405,16 @@
   ) {
     const { type, data } = event.detail;
     if (type === "pending") {
+      const pendingData = data as import("$lib/features/assistant/state/schedule.ts").PendingSuggestion;
+      // Find the gap this suggestion is in to get gapEnd
+      const gap = availableGaps?.find(g => g.gapId === pendingData.gapId);
+      const gapEnd = gap?.end ?? "23:59"; // Fallback to end of day
+      
       selectedSuggestion = {
         type: "pending-suggestion",
-        data: data as import("$lib/features/assistant/state/schedule.ts").PendingSuggestion,
+        data: pendingData,
         title: getTaskTitle(data.memoId),
+        gapEnd,
       };
     } else {
       selectedSuggestion = {
@@ -630,6 +528,28 @@
     selectedSuggestion = null;
   }
 
+  function handleInfoPanelDurationChange(
+    event: CustomEvent<{ suggestionId: string; newDuration: number; newEndTime: string }>,
+  ) {
+    const { suggestionId, newDuration, newEndTime } = event.detail;
+    
+    // Update the pending suggestion in the schedule
+    scheduleActions.updatePendingDuration(suggestionId, newDuration, newEndTime);
+    
+    // Update the selected suggestion display
+    if (selectedSuggestion?.type === "pending-suggestion" && 
+        selectedSuggestion.data.suggestionId === suggestionId) {
+      selectedSuggestion = {
+        ...selectedSuggestion,
+        data: {
+          ...selectedSuggestion.data,
+          duration: newDuration,
+          endTime: newEndTime,
+        },
+      };
+    }
+  }
+
   // Component-level event handling is wired directly on the child via on: handlers below
 </script>
 
@@ -656,6 +576,7 @@
             on:complete={handleInfoPanelComplete}
             on:missed={handleInfoPanelMissed}
             on:delete={handleInfoPanelDelete}
+            on:durationChange={handleInfoPanelDurationChange}
           />
         </div>
 

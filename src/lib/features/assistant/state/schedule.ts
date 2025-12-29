@@ -25,7 +25,7 @@ import type {
   PipelineSummary,
 } from "../services/suggestions/index.ts";
 import { createEngine } from "../services/suggestions/index.ts";
-import { enrichedGaps } from "./gaps.svelte.ts";
+import { unifiedGapState } from "./unified-gaps.svelte.ts";
 import {
   calculateExtension,
   getBlockersFromAccepted,
@@ -399,8 +399,9 @@ export const scheduleActions = {
         (memo) => !excludedMemoIds.has(memo.id),
       );
 
-      // Get gaps and subtract accepted + moved suggestions
-      const rawGaps = options.gaps ?? get(enrichedGaps);
+      // Get gaps from unified state (always fresh, enriched, with past time blocked)
+      // This ensures consistent gap computation across initial generation and repopulation
+      const rawGaps = options.gaps ?? unifiedGapState.enrichedGaps;
       const acceptedAndMoved: AcceptedSuggestion[] = [
         ...accepted,
         // Treat moved suggestions as accepted for gap subtraction
@@ -438,6 +439,9 @@ export const scheduleActions = {
       scheduleResult.set(schedule);
       lastPipelineSummary.set(summary);
       lastScheduleTime.set(new Date());
+
+      // Mark regeneration complete in unified gap state
+      unifiedGapState.markRegenerated();
 
       // Log summary for debugging
       console.log("[Schedule] Generated:", {
@@ -728,7 +732,7 @@ export const scheduleActions = {
     }
 
     // Get the gap this suggestion belongs to
-    const rawGaps = gaps ?? get(enrichedGaps);
+    const rawGaps = gaps ?? unifiedGapState.enrichedGaps;
     const suggestionGap = rawGaps.find((g) => g.gapId === suggestion.gapId);
 
     // Calculate current midpoint
@@ -789,6 +793,68 @@ export const scheduleActions = {
     // Regenerate to reflow other suggestions
     await scheduleActions.regenerate(memos);
     return { success: true, maxAllowed: extensionResult.maxAllowedDuration };
+  },
+
+  /**
+   * Update the duration of a pending suggestion
+   * Start time is fixed, only end time changes.
+   * Duration changes in 10-min increments.
+   *
+   * @param suggestionId - ID of the pending suggestion
+   * @param newDuration - New duration in minutes
+   * @param newEndTime - New end time in HH:mm format
+   */
+  updatePendingDuration(
+    suggestionId: string,
+    newDuration: number,
+    newEndTime: string,
+  ): void {
+    const result = get(scheduleResult);
+    if (!result) {
+      console.warn("[Schedule] Cannot update pending: no schedule result");
+      return;
+    }
+
+    // Check if in movedSuggestions first
+    const currentMoved = get(movedSuggestions);
+    const movedIdx = currentMoved.findIndex(m => m.suggestionId === suggestionId);
+    
+    if (movedIdx !== -1) {
+      // Update in movedSuggestions
+      movedSuggestions.update((list) => {
+        const updated = [...list];
+        updated[movedIdx] = {
+          ...updated[movedIdx],
+          duration: newDuration,
+          endTime: newEndTime,
+        };
+        return updated;
+      });
+      console.log("[Schedule] Updated moved suggestion duration:", suggestionId, newDuration);
+      return;
+    }
+
+    // Update in scheduled blocks
+    const idx = result.scheduled.findIndex(b => b.suggestionId === suggestionId);
+    if (idx === -1) {
+      console.warn("[Schedule] Cannot update pending: suggestion not found", suggestionId);
+      return;
+    }
+
+    // Create updated schedule result
+    const updatedScheduled = [...result.scheduled];
+    updatedScheduled[idx] = {
+      ...updatedScheduled[idx],
+      duration: newDuration,
+      endTime: newEndTime,
+    };
+
+    scheduleResult.set({
+      ...result,
+      scheduled: updatedScheduled,
+    });
+
+    console.log("[Schedule] Updated pending suggestion duration:", suggestionId, newDuration);
   },
 
   /**

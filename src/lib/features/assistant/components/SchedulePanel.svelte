@@ -17,7 +17,7 @@
     scheduleActions,
   } from "$lib/features/assistant/state/schedule.ts";
   import { tasks } from "$lib/features/tasks/state/taskActions.ts";
-  import { enrichedGaps } from "$lib/features/assistant/state/gaps.svelte.ts";
+  import { unifiedGapState } from "$lib/features/assistant/state/unified-gaps.svelte.ts";
   import { get } from "svelte/store";
 
   // Get memo title from memoId
@@ -42,11 +42,11 @@
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
   }
 
-  // Regenerate schedule
+  // Regenerate schedule using unified gap state
   async function handleRegenerate() {
     const currentTasks = get(tasks);
-    const currentGaps = get(enrichedGaps);
-    await scheduleActions.regenerate(currentTasks, { gaps: currentGaps });
+    // Use enriched gaps from unified state (always fresh, properly enriched)
+    await scheduleActions.regenerate(currentTasks, { gaps: unifiedGapState.enrichedGaps });
   }
 </script>
 

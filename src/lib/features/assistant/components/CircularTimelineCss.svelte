@@ -585,12 +585,12 @@
     // Convert to angle (0 at top, clockwise)
     const angle = svgCoordsToAngle(svgCoords.x, svgCoords.y, center, center);
 
-    // Convert angle to minutes
-    const targetMidpointMinutes = angleToMinutes(angle);
+    // Convert angle to cursor position in minutes
+    const cursorMinutes = angleToMinutes(angle);
 
-    // Snap to valid position within gaps
+    // Position arc based on cursor
     const snapResult = snapToGap(
-      targetMidpointMinutes,
+      cursorMinutes,
       draggingSuggestionDuration,
       gapsWithIds,
       draggingSuggestionGapId ?? undefined,

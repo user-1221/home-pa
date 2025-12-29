@@ -5,6 +5,12 @@
     AcceptedSuggestion,
   } from "$lib/features/assistant/state/schedule.ts";
   import { createEventDispatcher } from "svelte";
+  import {
+    calculateMaxDuration,
+    adjustDuration,
+    calculateNewEndTime,
+  } from "../services/suggestion-drag.ts";
+  import { calculateMinDurationForDots, MIN_DOTS_FOR_DRAG } from "../services/suggestions/suggestion-scheduler.ts";
 
   interface Props {
     selectedItem:
@@ -20,6 +26,7 @@
           type: "pending-suggestion";
           data: PendingSuggestion;
           title: string;
+          gapEnd: string; // Gap end time for max duration calculation
         }
       | {
           type: "accepted-suggestion";
@@ -44,7 +51,67 @@
     complete: { suggestionId: string; memoId: string; duration: number };
     missed: { suggestionId: string };
     delete: { suggestionId: string };
+    durationChange: { suggestionId: string; newDuration: number; newEndTime: string };
   }>();
+
+  // Minimum duration for suggestions (5 dots = 45 min)
+  const MIN_DURATION = calculateMinDurationForDots(MIN_DOTS_FOR_DRAG);
+
+  // Calculate max and current duration for pending suggestions
+  let maxDuration = $derived.by(() => {
+    if (selectedItem?.type === "pending-suggestion") {
+      return calculateMaxDuration(selectedItem.data.startTime, selectedItem.gapEnd);
+    }
+    return 0;
+  });
+
+  let canExtend = $derived.by(() => {
+    if (selectedItem?.type === "pending-suggestion") {
+      return selectedItem.data.duration < maxDuration;
+    }
+    return false;
+  });
+
+  let canShrink = $derived.by(() => {
+    if (selectedItem?.type === "pending-suggestion") {
+      return selectedItem.data.duration > MIN_DURATION;
+    }
+    return false;
+  });
+
+  function handleExtend() {
+    if (selectedItem?.type === "pending-suggestion" && canExtend) {
+      const newDuration = adjustDuration(
+        selectedItem.data.duration,
+        'extend',
+        maxDuration,
+        MIN_DURATION,
+      );
+      const newEndTime = calculateNewEndTime(selectedItem.data.startTime, newDuration);
+      dispatch("durationChange", {
+        suggestionId: selectedItem.data.suggestionId,
+        newDuration,
+        newEndTime,
+      });
+    }
+  }
+
+  function handleShrink() {
+    if (selectedItem?.type === "pending-suggestion" && canShrink) {
+      const newDuration = adjustDuration(
+        selectedItem.data.duration,
+        'shrink',
+        maxDuration,
+        MIN_DURATION,
+      );
+      const newEndTime = calculateNewEndTime(selectedItem.data.startTime, newDuration);
+      dispatch("durationChange", {
+        suggestionId: selectedItem.data.suggestionId,
+        newDuration,
+        newEndTime,
+      });
+    }
+  }
 
   function formatDuration(minutes: number): string {
     const hours = Math.floor(minutes / 60);
@@ -137,13 +204,34 @@
             </button>
           </div>
         </div>
-        <!-- Time range in separate row -->
-        <p class="text-sm text-[var(--color-text-secondary)]">
-          {selectedItem.data.startTime} - {selectedItem.data.endTime}
-          <span class="ml-2 text-[var(--color-text-muted)]">
-            ({formatDuration(selectedItem.data.duration)})
-          </span>
-        </p>
+        <!-- Time range with duration adjustment -->
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-sm text-[var(--color-text-secondary)]">
+            {selectedItem.data.startTime} - {selectedItem.data.endTime}
+          </p>
+          <!-- Duration adjustment buttons -->
+          <div class="flex items-center gap-1">
+            <button
+              class="btn btn-square btn-xs btn-ghost"
+              onclick={handleShrink}
+              disabled={!canShrink}
+              title="10分短く (最小: {formatDuration(MIN_DURATION)})"
+            >
+              −
+            </button>
+            <span class="min-w-[4rem] text-center text-sm font-medium">
+              {formatDuration(selectedItem.data.duration)}
+            </span>
+            <button
+              class="btn btn-square btn-xs btn-ghost"
+              onclick={handleExtend}
+              disabled={!canExtend}
+              title="10分長く (最大: {formatDuration(maxDuration)})"
+            >
+              +
+            </button>
+          </div>
+        </div>
       {:else if selectedItem.type === "event"}
         <div class="mb-1 flex items-center gap-2">
           <span
