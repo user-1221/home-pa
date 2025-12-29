@@ -13,10 +13,13 @@
   import {
     snapToGap,
     minutesToTime,
-    clientToSvgCoords,
     svgCoordsToAngle,
     angleToMinutes,
   } from "../services/suggestion-drag.ts";
+  import {
+    clientToSvgCoords,
+    getPointerCoords,
+  } from "$lib/utils/pointer-drag.ts";
   import {
     createDragTracker,
     startTracking,
@@ -99,13 +102,8 @@
     endAngle: number;
   }
 
-  // Helper to get coordinates from either mouse or touch event
-  function getEventCoords(e: MouseEvent | TouchEvent): { x: number; y: number } {
-    if ('touches' in e && e.touches.length > 0) {
-      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    }
-    return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY };
-  }
+  // Track active pointer ID for capture
+  let activePointerId = $state<number | null>(null);
 
   // Dispatcher
   const dispatch = createEventDispatcher<{
@@ -528,30 +526,13 @@
     }
   }
 
-  function startResize(id: string, duration: number, e: MouseEvent | TouchEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    const coords = getEventCoords(e);
-    
-    isDragging = true;
-    dragId = id;
-    dragStartY = coords.y;
-    dragOrigDuration = duration;
-    
-    // Add both mouse and touch listeners
-    window.addEventListener("mousemove", onDrag);
-    window.addEventListener("mouseup", endDrag);
-    window.addEventListener("touchmove", onDrag, { passive: false });
-    window.addEventListener("touchend", endDrag);
-    window.addEventListener("touchcancel", endDrag);
-  }
-
-  function onDrag(e: MouseEvent | TouchEvent) {
+  // Resize drag handlers using window event listeners
+  function onWindowResizeMove(e: PointerEvent) {
     if (!isDragging || !dragId) return;
-    if ('touches' in e && e.touches.length === 0) return;
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
     
-    e.preventDefault(); // Prevent scrolling during drag
-    const coords = getEventCoords(e);
+    e.preventDefault();
+    const coords = getPointerCoords(e);
     const delta = Math.round((dragStartY - coords.y) / 5) * 5;
     dispatch("suggestionResize", {
       suggestionId: dragId,
@@ -559,57 +540,54 @@
     });
   }
 
-  function endDrag() {
+  function onWindowResizeUp(e: PointerEvent) {
+    if (!isDragging) return;
+    if (activePointerId !== null && e.pointerId !== activePointerId) return;
+    
+    cleanupResizeDrag();
+  }
+
+  function cleanupResizeDrag() {
     isDragging = false;
     dragId = null;
-    window.removeEventListener("mousemove", onDrag);
-    window.removeEventListener("mouseup", endDrag);
-    window.removeEventListener("touchmove", onDrag);
-    window.removeEventListener("touchend", endDrag);
-    window.removeEventListener("touchcancel", endDrag);
+    activePointerId = null;
+    
+    window.removeEventListener("pointermove", onWindowResizeMove);
+    window.removeEventListener("pointerup", onWindowResizeUp);
+    window.removeEventListener("pointercancel", onWindowResizeUp);
+  }
+
+  function startResize(id: string, duration: number, e: PointerEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    activePointerId = e.pointerId;
+    const coords = getPointerCoords(e);
+    isDragging = true;
+    dragId = id;
+    dragStartY = coords.y;
+    dragOrigDuration = duration;
+    
+    // Add window listeners for reliable tracking
+    window.addEventListener("pointermove", onWindowResizeMove);
+    window.addEventListener("pointerup", onWindowResizeUp);
+    window.addEventListener("pointercancel", onWindowResizeUp);
   }
 
   // Drag tracking state
   let dragTracker = $state<DragState>(createDragTracker());
   let currentSuggestion = $state<PendingSuggestion | null>(null);
 
-  // Midpoint drag handlers
-  function startMidpointDrag(
-    suggestion: PendingSuggestion,
-    gapId: string,
-    e: MouseEvent | TouchEvent,
-  ) {
-    e.preventDefault();
-    e.stopPropagation();
-    const coords = getEventCoords(e);
+  // Track pointer ID for suggestion dragging
+  let suggestionPointerId = $state<number | null>(null);
 
-    // Start tracking for click vs drag detection
-    startTracking(dragTracker, coords.x, coords.y);
-    currentSuggestion = suggestion;
-
-    isDraggingMidpoint = true;
-    draggingSuggestionId = suggestion.suggestionId;
-    draggingSuggestionDuration = suggestion.duration;
-    draggingSuggestionGapId = gapId;
-    dragPreviewAngles = {
-      start: timeToAngle(suggestion.startTime),
-      end: timeToAngle(suggestion.endTime),
-    };
-    dragPreviewGapId = gapId;
-    
-    window.addEventListener("mousemove", onMidpointDrag);
-    window.addEventListener("mouseup", endMidpointDrag);
-    window.addEventListener("touchmove", onMidpointDrag, { passive: false });
-    window.addEventListener("touchend", endMidpointDrag);
-    window.addEventListener("touchcancel", endMidpointDrag);
-  }
-
-  function onMidpointDrag(e: MouseEvent | TouchEvent) {
+  // Suggestion drag handlers using Pointer Events with window listeners
+  function onWindowPointerMove(e: PointerEvent) {
     if (!isDraggingMidpoint || !svgElement || !draggingSuggestionId) return;
-    if ('touches' in e && e.touches.length === 0) return;
+    if (suggestionPointerId !== null && e.pointerId !== suggestionPointerId) return;
     
-    e.preventDefault(); // Prevent scrolling during drag
-    const coords = getEventCoords(e);
+    e.preventDefault();
+    const coords = getPointerCoords(e);
 
     // Update drag tracking
     const hasMoved = updateTracking(dragTracker, coords.x, coords.y);
@@ -617,7 +595,7 @@
     // Only start visual drag if movement threshold exceeded
     if (!hasMoved) return;
 
-    // Convert mouse position to SVG coordinates
+    // Convert pointer position to SVG coordinates
     const svgCoords = clientToSvgCoords(coords.x, coords.y, svgElement);
 
     // Convert to angle (0 at top, clockwise)
@@ -655,7 +633,10 @@
     }
   }
 
-  function endMidpointDrag() {
+  function onWindowPointerUp(e: PointerEvent) {
+    if (!isDraggingMidpoint) return;
+    if (suggestionPointerId !== null && e.pointerId !== suggestionPointerId) return;
+    
     const interactionType = endTracking(dragTracker);
 
     if (
@@ -700,7 +681,11 @@
       });
     }
 
-    // Reset state
+    // Reset state and remove listeners
+    cleanupSuggestionDrag();
+  }
+
+  function cleanupSuggestionDrag() {
     isDraggingMidpoint = false;
     draggingSuggestionId = null;
     draggingSuggestionDuration = 0;
@@ -708,12 +693,42 @@
     dragPreviewAngles = null;
     dragPreviewGapId = null;
     currentSuggestion = null;
+    suggestionPointerId = null;
     
-    window.removeEventListener("mousemove", onMidpointDrag);
-    window.removeEventListener("mouseup", endMidpointDrag);
-    window.removeEventListener("touchmove", onMidpointDrag);
-    window.removeEventListener("touchend", endMidpointDrag);
-    window.removeEventListener("touchcancel", endMidpointDrag);
+    window.removeEventListener("pointermove", onWindowPointerMove);
+    window.removeEventListener("pointerup", onWindowPointerUp);
+    window.removeEventListener("pointercancel", onWindowPointerUp);
+  }
+
+  function startSuggestionDrag(
+    suggestion: PendingSuggestion,
+    gapId: string,
+    e: PointerEvent,
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    suggestionPointerId = e.pointerId;
+    const coords = getPointerCoords(e);
+
+    // Start tracking for click vs drag detection
+    startTracking(dragTracker, coords.x, coords.y);
+    currentSuggestion = suggestion;
+
+    isDraggingMidpoint = true;
+    draggingSuggestionId = suggestion.suggestionId;
+    draggingSuggestionDuration = suggestion.duration;
+    draggingSuggestionGapId = gapId;
+    dragPreviewAngles = {
+      start: timeToAngle(suggestion.startTime),
+      end: timeToAngle(suggestion.endTime),
+    };
+    dragPreviewGapId = gapId;
+    
+    // Add window listeners for reliable tracking
+    window.addEventListener("pointermove", onWindowPointerMove);
+    window.addEventListener("pointerup", onWindowPointerUp);
+    window.addEventListener("pointercancel", onWindowPointerUp);
   }
 
   // Resize observer with throttle
@@ -744,6 +759,9 @@
       ro.disconnect();
       if (resizeTimeout) clearTimeout(resizeTimeout);
       clearInterval(interval);
+      // Cleanup any active drag listeners
+      cleanupSuggestionDrag();
+      cleanupResizeDrag();
     };
   });
 
@@ -946,22 +964,9 @@
             class:pending={isPending}
             class:accepted={!isPending}
             filter="url(#glow)"
-            onmousedown={(e) => {
+            onpointerdown={(e) => {
               if (isPending) {
-                startMidpointDrag(s.data as PendingSuggestion, s.data.gapId, e);
-              } else {
-                // Accepted suggestion - just dispatch selection on click
-                e.preventDefault();
-                e.stopPropagation();
-                dispatch("suggestionSelected", {
-                  type: "accepted",
-                  data: s.data as AcceptedSuggestion,
-                });
-              }
-            }}
-            ontouchstart={(e) => {
-              if (isPending) {
-                startMidpointDrag(s.data as PendingSuggestion, s.data.gapId, e);
+                startSuggestionDrag(s.data as PendingSuggestion, s.data.gapId, e);
               } else {
                 // Accepted suggestion - just dispatch selection on click
                 e.preventDefault();
@@ -996,9 +1001,7 @@
             stroke-opacity="0.9"
             stroke-width="0.3"
             class="resize-handle"
-            onmousedown={(e) =>
-              startResize(s.data.suggestionId, s.data.duration, e)}
-            ontouchstart={(e) =>
+            onpointerdown={(e) =>
               startResize(s.data.suggestionId, s.data.duration, e)}
           />
         {/if}

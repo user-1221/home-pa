@@ -634,22 +634,4 @@ export function svgCoordsToAngle(
   return angle;
 }
 
-/**
- * Convert client coordinates to SVG coordinates
- */
-export function clientToSvgCoords(
-  clientX: number,
-  clientY: number,
-  svgElement: SVGSVGElement,
-): { x: number; y: number } {
-  const rect = svgElement.getBoundingClientRect();
-  const viewBox = svgElement.viewBox.baseVal;
-
-  const scaleX = viewBox.width / rect.width;
-  const scaleY = viewBox.height / rect.height;
-
-  return {
-    x: (clientX - rect.left) * scaleX + viewBox.x,
-    y: (clientY - rect.top) * scaleY + viewBox.y,
-  };
-}
+// clientToSvgCoords moved to $lib/utils/pointer-drag.ts
