@@ -4,6 +4,7 @@
     taskActions,
     enrichingTaskIds,
   } from "$lib/features/tasks/state/taskActions.ts";
+  import { createDragHandler } from "$lib/utils/pointer-drag.ts";
 
   interface Props {
     task: Memo;
@@ -13,6 +14,47 @@
 
   // Check if this task is being enriched
   let isEnriching = $derived($enrichingTaskIds.has(task.id));
+
+  // Swipe state
+  let translateX = $state(0);
+  let isSwiping = $state(false);
+  const SWIPE_THRESHOLD = 80; // px to reveal actions
+  const MAX_SWIPE = 120; // Max px to swipe
+
+  // Create drag handler for swipe
+  const swipeHandler = createDragHandler<{ startX: number }>({
+    onStart: (coords) => {
+      isSwiping = true;
+      return { startX: translateX };
+    },
+    onMove: (coords, delta, context) => {
+      // Only allow left swipe (dx < 0) to reveal actions
+      const newX = context.startX + delta.dx;
+      translateX = Math.max(-MAX_SWIPE, Math.min(0, newX));
+    },
+    onEnd: (coords, wasDrag) => {
+      isSwiping = false;
+      
+      if (!wasDrag) {
+        // Click - reset swipe if swiped, otherwise do nothing
+        if (translateX !== 0) {
+          translateX = 0;
+        }
+        return;
+      }
+
+      // Snap to open or closed based on threshold
+      if (translateX < -SWIPE_THRESHOLD) {
+        translateX = -MAX_SWIPE; // Snap to fully open
+      } else {
+        translateX = 0; // Snap to closed
+      }
+    },
+  }, {
+    threshold: 3, // Lower threshold for swipe detection
+    preventDefault: true,
+    stopPropagation: true,
+  });
 
   // Computed values
   let typeLabel = $derived(
@@ -86,6 +128,7 @@
 
   // Handlers
   function handleEdit() {
+    translateX = 0; // Close swipe
     taskActions.edit(task);
   }
 
@@ -96,147 +139,192 @@
   }
 
   function handleComplete() {
+    translateX = 0; // Close swipe
     taskActions.markComplete(task.id);
   }
 </script>
 
 <div
-  class="card relative mb-3 border-l-4 bg-base-100 shadow-sm transition-all duration-200 card-sm hover:-translate-y-0.5 hover:shadow-md {task.type ===
-  '期限付き'
-    ? 'border-l-warning'
-    : task.type === 'ルーティン'
-      ? 'border-l-primary'
-      : 'border-l-base-300'}"
-  class:opacity-60={task.status.completionState === "completed"}
-  class:bg-base-200={task.status.completionState === "completed"}
+  class="relative overflow-hidden"
+  style="touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;"
 >
-  {#if isEnriching}
-    <div
-      class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-xl bg-base-content/70 backdrop-blur-sm"
+  <!-- Action buttons behind (revealed on swipe) -->
+  <div
+    class="absolute right-0 top-0 bottom-0 flex items-center gap-2 pr-2"
+    style="width: {MAX_SWIPE}px;"
+  >
+    {#if task.status.completionState !== "completed"}
+      <button
+        class="btn btn-square btn-success btn-sm"
+        onclick={handleComplete}
+        title="完了"
+      >
+        ✓
+      </button>
+    {/if}
+    <button
+      class="btn btn-square btn-primary btn-sm"
+      onclick={handleEdit}
+      title="編集"
     >
-      <span class="loading loading-md loading-spinner text-primary"></span>
-      <span class="text-xs font-medium tracking-wide text-base-100"
-        >AI analyzing...</span
-      >
-    </div>
-  {/if}
+      ✏️
+    </button>
+    <button
+      class="btn btn-square btn-error btn-sm"
+      onclick={handleDelete}
+      title="削除"
+    >
+      🗑️
+    </button>
+  </div>
 
-  <div class="card-body gap-2 p-4">
-    <!-- Title row -->
-    <div class="flex items-center justify-between gap-2">
-      <h3
-        class="card-title flex-1 text-base"
-        class:line-through={task.status.completionState === "completed"}
+  <!-- Main card content (swipeable) -->
+  <div
+    class="card relative border-l-4 bg-base-100 shadow-sm transition-all duration-200 card-sm {task.type ===
+    '期限付き'
+      ? 'border-l-warning'
+      : task.type === 'ルーティン'
+        ? 'border-l-primary'
+        : 'border-l-base-300'}"
+    class:opacity-60={task.status.completionState === "completed"}
+    class:bg-base-200={task.status.completionState === "completed"}
+    class:shadow-md={translateX < 0}
+    style="transform: translateX({translateX}px); transition: {isSwiping ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'};"
+    onpointerdown={swipeHandler.start}
+    onpointermove={swipeHandler.move}
+    onpointerup={swipeHandler.end}
+    onpointercancel={swipeHandler.end}
+    onlostpointercapture={swipeHandler.end}
+  >
+    {#if isEnriching}
+      <div
+        class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-xl bg-base-content/70 backdrop-blur-sm"
       >
-        {task.title}
-      </h3>
-      <div class="flex flex-wrap items-center gap-1.5">
-        <span
-          class="badge badge-outline badge-sm text-[0.7rem] tracking-wider uppercase"
-          >{typeLabel}</span
+        <span class="loading loading-md loading-spinner text-primary"></span>
+        <span class="text-xs font-medium tracking-wide text-base-100"
+          >AI analyzing...</span
         >
-        {#if genreLabel()}
-          <span
-            class="badge bg-[var(--color-surface-100)] badge-sm text-[var(--color-text-primary)]"
-            >{genreLabel()}</span
-          >
-        {/if}
-        {#if sessionDurationLabel()}
-          <span
-            class="badge bg-[var(--color-primary-100)] badge-sm text-[var(--color-primary-800)]"
-            >{sessionDurationLabel()}</span
-          >
-        {/if}
       </div>
-    </div>
+    {/if}
 
-    <!-- Meta info -->
-    <div class="flex items-center justify-between gap-1.5 text-sm">
-      <div class="flex flex-wrap items-center gap-1.5">
-        {#if task.type === "期限付き" && task.deadline}
-          <div
-            class="flex items-center gap-1"
-            class:text-error={isUrgent()}
-            class:font-medium={isUrgent()}
+    <div class="card-body gap-2 p-4">
+      <!-- Title row -->
+      <div class="flex items-center justify-between gap-2">
+        <h3
+          class="card-title flex-1 text-base"
+          class:line-through={task.status.completionState === "completed"}
+        >
+          {task.title}
+        </h3>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <span
+            class="badge badge-outline badge-sm text-[0.7rem] tracking-wider uppercase"
+            >{typeLabel}</span
           >
-            <span>{deadlineText()}</span>
-          </div>
-        {/if}
-
-        {#if task.type === "ルーティン" && routineProgress()}
-          {@const prog = routineProgress()}
-          <div class="flex items-center gap-1 text-[var(--color-text-secondary)]">
+          {#if genreLabel()}
             <span
-              >{prog?.done}/{prog?.goal} this {task.recurrenceGoal?.period}</span
+              class="badge bg-[var(--color-surface-100)] badge-sm text-[var(--color-text-primary)]"
+              >{genreLabel()}</span
             >
-          </div>
-        {/if}
+          {/if}
+          {#if sessionDurationLabel()}
+            <span
+              class="badge bg-[var(--color-primary-100)] badge-sm text-[var(--color-primary-800)]"
+              >{sessionDurationLabel()}</span
+            >
+          {/if}
+        </div>
       </div>
 
-      <div class="flex items-center gap-1 text-[var(--color-text-secondary)]">
-        <span>{locationLabel}</span>
-      </div>
-    </div>
+      <!-- Meta info -->
+      <div class="flex items-center justify-between gap-1.5 text-sm">
+        <div class="flex flex-wrap items-center gap-1.5">
+          {#if task.type === "期限付き" && task.deadline}
+            <div
+              class="flex items-center gap-1"
+              class:text-error={isUrgent()}
+              class:font-medium={isUrgent()}
+            >
+              <span>{deadlineText()}</span>
+            </div>
+          {/if}
 
-    <!-- Progress bar, Time text and Action buttons -->
-    <div class="flex items-center gap-2">
-      {#if task.type === "ルーティン" && routineProgress()}
-        {@const prog = routineProgress()}
-        <progress
-          class="progress flex-1 progress-primary"
-          value={prog?.percent}
-          max="100"
-        ></progress>
-      {:else}
-        {@const prog = timeProgress()}
-        <progress
-          class="progress flex-1 progress-primary"
-          value={prog.percent}
-          max="100"
-        ></progress>
-      {/if}
+          {#if task.type === "ルーティン" && routineProgress()}
+            {@const prog = routineProgress()}
+            <div class="flex items-center gap-1 text-[var(--color-text-secondary)]">
+              <span
+                >{prog?.done}/{prog?.goal} this {task.recurrenceGoal?.period}</span
+              >
+            </div>
+          {/if}
+        </div>
+
+        <div class="flex items-center gap-1 text-[var(--color-text-secondary)]">
+          <span>{locationLabel}</span>
+        </div>
+      </div>
+
+      <!-- Progress bar, Time text and Desktop Action buttons -->
       <div class="flex items-center gap-2">
         {#if task.type === "ルーティン" && routineProgress()}
           {@const prog = routineProgress()}
-          <span
-            class="text-xs text-[var(--color-text-secondary)]"
-          >
-            {prog?.done}/{prog?.goal}
-          </span>
+          <progress
+            class="progress flex-1 progress-primary"
+            value={prog?.percent}
+            max="100"
+          ></progress>
         {:else}
           {@const prog = timeProgress()}
-          <span
-            class="text-xs text-[var(--color-text-secondary)]"
-          >
-            {prog.spent}/{prog.total} min
-          </span>
+          <progress
+            class="progress flex-1 progress-primary"
+            value={prog.percent}
+            max="100"
+          ></progress>
         {/if}
-        <div
-          class="card-actions justify-end opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100"
-        >
-          {#if task.status.completionState !== "completed"}
-            <button
-              class="btn btn-square btn-outline btn-xs btn-success"
-              onclick={handleComplete}
-              title="Mark complete"
+        <div class="flex items-center gap-2">
+          {#if task.type === "ルーティン" && routineProgress()}
+            {@const prog = routineProgress()}
+            <span
+              class="text-xs text-[var(--color-text-secondary)]"
             >
-              ✓
-            </button>
+              {prog?.done}/{prog?.goal}
+            </span>
+          {:else}
+            {@const prog = timeProgress()}
+            <span
+              class="text-xs text-[var(--color-text-secondary)]"
+            >
+              {prog.spent}/{prog.total} min
+            </span>
           {/if}
-          <button
-            class="btn btn-square btn-outline btn-xs btn-primary"
-            onclick={handleEdit}
-            title="Edit"
+          <!-- Desktop-only action buttons (hidden on mobile, always visible on desktop) -->
+          <div
+            class="card-actions justify-end hidden md:flex"
           >
-            ✏️
-          </button>
-          <button
-            class="btn btn-square btn-outline btn-xs btn-error"
-            onclick={handleDelete}
-            title="Delete"
-          >
-            🗑️
-          </button>
+            {#if task.status.completionState !== "completed"}
+              <button
+                class="btn btn-square btn-outline btn-xs btn-success"
+                onclick={handleComplete}
+                title="Mark complete"
+              >
+                ✓
+              </button>
+            {/if}
+            <button
+              class="btn btn-square btn-outline btn-xs btn-primary"
+              onclick={handleEdit}
+              title="Edit"
+            >
+              ✏️
+            </button>
+            <button
+              class="btn btn-square btn-outline btn-xs btn-error"
+              onclick={handleDelete}
+              title="Delete"
+            >
+              🗑️
+            </button>
+          </div>
         </div>
       </div>
     </div>

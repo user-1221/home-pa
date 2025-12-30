@@ -148,23 +148,47 @@ The `bootstrap/` directory provides:
 
 ### 4. Assistant State (`src/lib/features/assistant/state/`)
 
-#### `gaps.svelte.ts` - Gap Detection
+#### `unified-gaps.svelte.ts` - Unified Gap State (Svelte 5 Reactive)
 
-- `events`: Events used for gap calculation
-- `dayBoundaries`: Day start/end times
-- `gaps`: Computed gaps (free time slots)
-- `enrichedGaps`: Gaps with location labels
-- `gapStats`: Statistics about gaps
+- **Single source of truth** for gap computation and enrichment
+- Uses Svelte 5 runes (`$state`, `$derived`) for reactivity
+- **Reactive current time**: Updates every minute to trigger gap recalculation
+- **Automatic gap computation**: When dependencies change (selectedDate, events, activeTime, currentTime)
+- **Automatic enrichment**: Gaps enriched with location labels
+- **Past time blocking**: Blocks past time when viewing today
+- **Regeneration tracking**: Tracks when gaps change to trigger schedule regeneration
 
-#### `schedule.ts` - Schedule State
+**Key Properties:**
+- `allEvents`: Combines calendar events, occurrences, and timetable blocking events
+- `computedGaps`: Primary gap computation with past time blocking and effective active time
+- `enrichedGaps`: Final gap state with location labels (used for schedule generation)
+- `needsRegeneration`: Whether regeneration is needed (gaps changed since last regeneration)
+- `shouldRegenerateNow`: Whether regeneration should happen now (on assistant tab AND needs regeneration)
+- `currentTime`: Reactive current time in minutes
+- `isTodaySelected`: Whether selected date is today
 
-- `scheduleResult`: Result from suggestion engine
-- `isScheduleLoading`: Loading state
-- `scheduleError`: Error message
-- `scheduledBlocks`: Scheduled task blocks
-- `pendingSuggestions`: Suggestions awaiting user action
-- `acceptedSuggestions`: User-accepted suggestions (act as fixed events)
-- `scheduleActions`: Actions for schedule management
+**Effective Active Time Calculation:**
+1. Starts with user-configured active time (from settings)
+2. Extends boundaries backward/forward for regular events (not midnight-crossing, not all-day)
+3. Midnight-crossing events from previous day are excluded if they end before effective start
+4. All-day events block entire day but don't extend boundaries
+
+**Timetable Integration:**
+- Loads timetable events for selected date
+- Filters by exception date ranges (holidays, vacations)
+- Only blocking events (作業不可) are included in gap calculation
+
+#### `schedule.ts` - Schedule State (Writable Stores)
+
+- `scheduleResult`: Result from suggestion engine (writable store)
+- `isScheduleLoading`: Loading state (writable store)
+- `scheduleError`: Error message (writable store)
+- `scheduledBlocks`: Derived from scheduleResult
+- `pendingSuggestions`: Suggestions awaiting user action (derived)
+- `acceptedSuggestions`: User-accepted suggestions that act as fixed events (writable store)
+- `movedSuggestions`: Manually moved/dragged suggestions (writable store)
+- `rejectedMemoIds`: Set of memo IDs permanently excluded (writable store)
+- `scheduleActions`: Actions for schedule management (regenerate, accept, skip, move, resize, delete, complete, missed)
 
 ---
 
@@ -262,44 +286,60 @@ UI Components
 
 ---
 
-## Recurrence System (Sliding Window)
+## Recurrence System (iCal.js-based)
 
 ### Architecture
 
-- **Master Events**: Stored in database with RRULE
-- **Occurrences**: Expanded on-demand for 7-month window
-- **Window Management**: Auto-shifts when user navigates beyond current window
+- **Master Events**: Stored in database with RRULE (RFC-5545 iCalendar standard)
+- **Occurrences**: Expanded on-demand using ical.js library
+- **Window Management**: Expanded for date range when `fetchEvents()` is called
+- **Storage**: Events stored with `icalData` field containing full VEVENT component
 
 ### Flow
 
 ```
 User creates recurring event
     ↓
-Event stored with RRULE in database
+Event stored with RRULE in database (with icalData)
     ↓
-calendarState.fetchEvents(window)
+calendarState.fetchEvents(windowStart, windowEnd)
     ↓
-calendarState.expandRecurringEvents(window)
+Events fetched from database
     ↓
-ical-service.expandRecurrences() (uses ical.js)
+calendarState.expandRecurringEvents(events, windowStart, windowEnd)
     ↓
-occurrences[] populated for 7-month window
+For each recurring event:
+    - Use stored icalData or construct VEVENT from event data
+    - Call ical-service.expandRecurrences(icalData, windowStart, windowEnd)
+    - Uses ical.js ICAL.Event.iterator() to generate occurrences
+    ↓
+occurrences[] populated with ExpandedOccurrence[]
     ↓
 UI displays occurrences
 ```
 
-### Window Calculation
+### Implementation Details
 
-- **7-month window**: 3 months before + current + 3 months after
-- Window shifts when user navigates beyond current range
-- Old window data automatically cleaned up
+- **Library**: Uses `ical.js` (ICAL library) for RFC-5545 compliance
+- **Service**: `src/lib/features/calendar/services/ical-service.ts`
+- **Function**: `expandRecurrences(icalData, windowStart, windowEnd, maxOccurrences)`
+- **Safety Limit**: 1000 occurrences per event (prevents infinite loops)
+- **Duration Preservation**: Each occurrence maintains original event duration
 
 ### Forever Events
 
 - Events with no `UNTIL` or `COUNT` in RRULE
-- Marked with `isForever: true`
-- Handled without infinite generation
-- Visual indicator: ∞ symbol
+- Detected by checking if RRULE string contains "UNTIL=" or "COUNT="
+- Marked with `isForever: true` in ExpandedOccurrence
+- Handled by limiting expansion to window (no infinite generation)
+- Visual indicator: ∞ symbol in UI
+
+### Window Calculation
+
+- **Window**: Determined by `fetchEvents(windowStart, windowEnd)` call
+- **Calendar View**: Typically 7-month window (3 before + current + 3 after)
+- **Auto-loading**: Calendar events loaded on app startup in `+layout.svelte`
+- **Occurrences**: Regenerated when window changes or events update
 
 ---
 
@@ -439,25 +479,100 @@ Update tasks store (caller responsibility)
 ## Gap Detection Flow
 
 ```
-Calendar events loaded
+App Startup / Date Change / Event Update
     ↓
-gaps.svelte.ts: events updated
+unifiedGapState.allEvents (reactive)
+    - Combines calendarState.events
+    - Combines calendarState.occurrences
+    - Combines timetableBlockingEvents (loaded on demand)
     ↓
-$derived gaps = calculateGaps(events, dayBoundaries)
+unifiedGapState.computedGaps (reactive)
+    - Calculates effective active time (extends for regular events)
+    - Filters midnight-crossing events (exclude if end ≤ effective start)
+    - Includes all-day events (block entire day)
+    - Adds past time blocker (if viewing today)
+    - Uses GapFinder.findGaps() algorithm
     ↓
-enrichGapsWithLocation(gaps, events)
+unifiedGapState.enrichedGaps (reactive)
+    - Calls enrichGapsWithLocation(gaps, events)
+    - Adds location labels based on surrounding events
     ↓
-enrichedGaps (with location labels)
-    ↓
-Used by suggestion scheduler
+Used by suggestion scheduler (scheduleActions.regenerate())
 ```
 
-### Gap Calculation
+### Gap Calculation Details
 
-- Finds free time slots between events
-- Respects day boundaries
-- Filters out gaps too small for tasks
-- Enriches with location labels based on surrounding events
+**Effective Active Time:**
+1. Starts with user settings (`activeStartTime`, `activeEndTime`)
+2. Extends backward/forward for regular events (not midnight-crossing, not all-day)
+3. Midnight-crossing events from previous day:
+   - Excluded if `event.end ≤ effectiveStart`
+   - Included (adjusted) if `event.end > effectiveStart` (blocks from effectiveStart to event.end)
+4. All-day events: Block entire day but don't extend boundaries
+
+**Event Types Handled:**
+- **Regular timed events**: Extend boundaries, block time
+- **All-day events**: Block entire day (00:00-23:59), don't extend boundaries
+- **Midnight-crossing events**: From previous day, conditionally included
+- **Timetable events**: Only blocking events (作業不可) included, respects exception ranges
+
+**Past Time Blocking:**
+- When viewing today (`isTodaySelected`), adds blocker from `effectiveStart` to `currentTime`
+- Updates every minute (reactive current time)
+
+**Timetable Integration:**
+- Loads timetable events for selected date via `loadTimetableEvents()`
+- Checks exception date ranges (holidays, vacations) - returns empty if date in exception
+- Only includes events where `workAllowed === "作業不可"` (blocking events)
+
+---
+
+## Timetable System Flow
+
+### Overview
+
+The timetable system allows users to configure weekly class schedules that block time on the timeline. Timetable events are integrated into gap calculation.
+
+### Data Model
+
+- **TimetableConfig**: Time settings (day start, lunch times, break duration, cell duration) and exception date ranges
+- **TimetableCell**: Individual class slots (day of week, slot index, title, attendance, workAllowed)
+- **Exception Ranges**: Date ranges where timetable is ignored (holidays, vacations)
+
+### Flow
+
+```
+User configures timetable in TimetablePopup
+    ↓
+Timetable cells saved to database
+    ↓
+User selects date in assistant view
+    ↓
+unifiedGapState.loadTimetableEvents()
+    ↓
+loadTimetableData() - Fetches config and cells
+    ↓
+getTimetableEventsForDate(date, config, cells)
+    - Checks if date is in exception range (returns empty if so)
+    - Filters cells for selected day and weekday
+    - Only includes cells where attendance="出席する"
+    ↓
+getBlockingTimetableEvents(events)
+    - Filters to only events where workAllowed="作業不可"
+    ↓
+timetableBlockingEvents updated (reactive $state)
+    ↓
+Included in unifiedGapState.allEvents
+    ↓
+Used in gap calculation
+```
+
+### Exception Date Ranges
+
+- Stored in `TimetableConfig.exceptionRanges` (JSON array)
+- Format: `[{ start: "YYYY-MM-DD", end: "YYYY-MM-DD" }, ...]`
+- When a date falls within an exception range, no timetable events are generated for that date
+- UI: Manage in TimetablePopup under "休講期間（時間割を適用しない期間）"
 
 ---
 
@@ -529,18 +644,26 @@ Remote Functions access via getRequestEvent()
 ## Store Dependencies
 
 ```
+App Startup (+layout.svelte)
+    ↓
+calendarActions.fetchEvents() - Load events on startup
+    ↓
 dataState (bootstrap)
     ↓ selectedDate
 calendarState (calendar)
-    ↓ events, occurrences
-gaps.svelte.ts (assistant)
-    ↓ gaps, enrichedGaps
+    ↓ events, occurrences (reactive $state)
+unifiedGapState (assistant)
+    ↓ allEvents (combines calendar + timetable)
+    ↓ computedGaps (with effective active time, past blocking)
+    ↓ enrichedGaps (with location labels)
+    ↓ needsRegeneration flag
 schedule.ts (assistant)
-    ↓ scheduleResult
+    ↓ scheduleResult (writable store)
+    ↓ pendingSuggestions, acceptedSuggestions
     ↓
-tasks (tasks)
+tasks (tasks) - writable store
                                                ↓
-scheduleActions.regenerate()
+scheduleActions.regenerate() - Uses unifiedGapState.enrichedGaps
 ```
 
 ---
@@ -566,8 +689,11 @@ scheduleActions.regenerate()
 | Task form         | `features/tasks/state/taskForm.ts`                                |
 | Remote functions  | `features/tasks/state/memo.functions.remote.ts`                   |
 | **Assistant**     |                                                                   |
-| Gaps              | `features/assistant/state/gaps.svelte.ts`                         |
+| Unified gaps      | `features/assistant/state/unified-gaps.svelte.ts`                 |
 | Schedule          | `features/assistant/state/schedule.ts`                            |
+| Gap finder        | `features/assistant/services/gap-finder.ts`                       |
+| Gap enrichment    | `features/assistant/services/suggestions/gap-enrichment.ts`       |
+| Timetable events  | `features/calendar/services/timetable-events.ts`                  |
 | Suggestion engine | `features/assistant/services/suggestions/suggestion-engine.ts`    |
 | Scoring           | `features/assistant/services/suggestions/suggestion-scoring.ts`   |
 | Scheduler         | `features/assistant/services/suggestions/suggestion-scheduler.ts` |
@@ -634,9 +760,9 @@ Calendar UI reactively updates
 ### 1. State Management
 
 - **Migrate remaining writable stores to Svelte 5 runes**
-  - `schedule.ts` still uses `writable` stores
-  - `taskActions.ts` still uses `writable` stores
-  - Consider migrating to reactive classes for consistency
+  - `schedule.ts` still uses `writable` stores (consider migrating to reactive class)
+  - `taskActions.ts` still uses `writable` stores (consider migrating to reactive class)
+  - Consider migrating to reactive classes for consistency with `unifiedGapState` and `calendarState`
 
 - **Consolidate state access patterns**
   - Some features use direct state class access

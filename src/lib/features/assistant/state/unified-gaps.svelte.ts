@@ -126,12 +126,20 @@ async function loadTimetableForDate(date: Date): Promise<void> {
 // ============================================================================
 
 /**
+ * Gap event with additional metadata for filtering
+ */
+interface GapEventWithMeta extends Event {
+  isAllDay?: boolean;
+  isMidnightCrossing?: boolean;
+}
+
+/**
  * Convert calendar event to gap-finder event format
  */
 function calendarEventToGapEvent(
   event: CalendarEvent | { start: Date; end: Date; id: string; title: string; timeLabel?: string },
   targetDate: Date,
-): Event | null {
+): GapEventWithMeta | null {
   const eventStart = new Date(event.start);
   const eventEnd = new Date(event.end);
 
@@ -142,7 +150,7 @@ function calendarEventToGapEvent(
   if (eventStart.getTime() > targetDayEnd.getTime()) return null;
   if (eventEnd.getTime() < targetDayStart.getTime()) return null;
 
-  // Handle all-day events
+  // Handle all-day events - these should block the entire day
   if (event.timeLabel === "all-day") {
     return {
       id: event.id,
@@ -150,6 +158,7 @@ function calendarEventToGapEvent(
       start: "00:00",
       end: "23:59",
       crossesMidnight: false,
+      isAllDay: true,
     };
   }
 
@@ -169,25 +178,31 @@ function calendarEventToGapEvent(
     ? event.end.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
     : "23:59";
 
+  // Detect midnight-crossing events (started on previous day and ends on target date)
+  const isMidnightCrossing = !startsOnTarget && startTime === "00:00";
+
   return {
     id: event.id,
     title: event.title,
     start: startTime,
     end: endTime,
     crossesMidnight: startTime > endTime,
+    isMidnightCrossing,
   };
 }
 
 /**
  * Convert timetable event to gap-finder event format
  */
-function timetableEventToGapEvent(ttEvent: TimetableEvent): Event {
+function timetableEventToGapEvent(ttEvent: TimetableEvent): GapEventWithMeta {
   return {
     id: ttEvent.id,
     title: `[時間割] ${ttEvent.title}`,
     start: ttEvent.start.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }),
     end: ttEvent.end.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }),
     crossesMidnight: false,
+    isAllDay: false,
+    isMidnightCrossing: false,
   };
 }
 
@@ -307,24 +322,20 @@ class UnifiedGapState {
     const activeStart = settingsState.activeStartTime;
     const activeEnd = settingsState.activeEndTime;
     
-    // Find earliest and latest event times (excluding midnight-crossing events)
+    // First pass: Find effective start time from non-midnight-crossing events
+    // Midnight-crossing events should NOT extend the start time backward
     let effectiveStart = activeStart;
     let effectiveEnd = activeEnd;
     
-    // Also filter out midnight-crossing events from the events list
-    const eventsWithoutMidnightCrossing: Event[] = [];
-    
     for (const event of this.allEvents) {
-      // Skip midnight-crossing events entirely (start at 00:00 from previous day)
-      // These should not extend the effective time boundaries at all
-      if (event.start === "00:00") {
+      const eventWithMeta = event as GapEventWithMeta;
+      
+      // Skip midnight-crossing events and all-day events for boundary extension
+      if (eventWithMeta.isMidnightCrossing || eventWithMeta.isAllDay) {
         continue;
       }
       
-      // Add to filtered events list
-      eventsWithoutMidnightCrossing.push(event);
-      
-      // For regular events, extend boundaries if they fall outside active time
+      // Extend boundaries for regular events
       if (event.start < effectiveStart) {
         effectiveStart = event.start;
       }
@@ -334,13 +345,45 @@ class UnifiedGapState {
       }
     }
     
+    // Second pass: Filter events and adjust midnight-crossing events
+    const filteredEvents: Event[] = [];
+    
+    for (const event of this.allEvents) {
+      const eventWithMeta = event as GapEventWithMeta;
+      
+      // All-day events block the entire day
+      if (eventWithMeta.isAllDay) {
+        filteredEvents.push(event);
+        continue;
+      }
+      
+      // Midnight-crossing events (started on previous day):
+      // - If they end before or at effective start time, exclude completely
+      // - If they end after effective start time, include only the portion within active time
+      if (eventWithMeta.isMidnightCrossing) {
+        if (event.end <= effectiveStart) {
+          // Ends before active time starts, exclude
+          continue;
+        }
+        // Include but adjust start to effective start (the portion before active time doesn't matter)
+        filteredEvents.push({
+          ...event,
+          start: effectiveStart,
+        });
+        continue;
+      }
+      
+      // Regular events - include as-is
+      filteredEvents.push(event);
+    }
+    
     const gf = new GapFinder({
       dayStart: effectiveStart,
       dayEnd: effectiveEnd,
     });
 
-    // Use filtered events (without midnight-crossing) for gap finding
-    const eventsWithPastBlocker = [...eventsWithoutMidnightCrossing];
+    // Use filtered events for gap finding
+    const eventsWithPastBlocker = [...filteredEvents];
 
     // Block past time when viewing today
     // Only block from effective start time to current time

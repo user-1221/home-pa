@@ -8,12 +8,18 @@ import { prisma } from "$lib/server/prisma";
 
 // ============= Schemas =============
 
+const ExceptionRangeSchema = v.object({
+  start: v.string(), // YYYY-MM-DD
+  end: v.string(), // YYYY-MM-DD
+});
+
 const TimetableConfigInputSchema = v.object({
   dayStartTime: v.string(),
   lunchStartTime: v.string(),
   lunchEndTime: v.string(),
   breakDuration: v.number(),
   cellDuration: v.number(),
+  exceptionRanges: v.optional(v.array(ExceptionRangeSchema)),
 });
 
 const TimetableCellInputSchema = v.object({
@@ -53,10 +59,19 @@ export const fetchTimetableConfig = query(
         lunchEndTime: "13:00",
         breakDuration: 10,
         cellDuration: 50,
+        exceptionRanges: [] as Array<{ start: string; end: string }>,
       };
     }
 
-    return config;
+    // Parse exceptionRanges from JSON
+    const exceptionRanges = config.exceptionRanges
+      ? (config.exceptionRanges as Array<{ start: string; end: string }>)
+      : [];
+
+    return {
+      ...config,
+      exceptionRanges,
+    };
   },
 );
 

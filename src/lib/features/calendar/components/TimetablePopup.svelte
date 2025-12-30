@@ -11,6 +11,7 @@
     computeSlotTimes,
     formatMinutesToTime,
     type TimetableConfigData,
+    type TimetableExceptionRange,
   } from "../utils/timetable-utils";
 
   interface Props {
@@ -30,7 +31,11 @@
     lunchEndTime: "13:00",
     breakDuration: 10,
     cellDuration: 50,
+    exceptionRanges: [],
   });
+
+  // Exception ranges state (local for editing)
+  let exceptionRanges = $state<TimetableExceptionRange[]>([]);
 
   // Cells state - Map<dayOfWeek, Map<slotIndex, cell>>
   interface CellData {
@@ -76,7 +81,9 @@
           lunchEndTime: configResult.lunchEndTime,
           breakDuration: configResult.breakDuration,
           cellDuration: configResult.cellDuration,
+          exceptionRanges: configResult.exceptionRanges ?? [],
         };
+        exceptionRanges = configResult.exceptionRanges ?? [];
       }
 
       // Build cells map using SvelteMap for reactivity
@@ -104,10 +111,44 @@
 
   async function handleConfigChange() {
     try {
-      await upsertTimetableConfig(config);
+      await upsertTimetableConfig({
+        ...config,
+        exceptionRanges: exceptionRanges,
+      });
     } catch (error) {
       console.error("Failed to save config:", error);
     }
+  }
+
+  function addExceptionRange() {
+    const today = new Date();
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+    
+    const formatDate = (d: Date) => {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
+    exceptionRanges = [
+      ...exceptionRanges,
+      { start: formatDate(today), end: formatDate(nextWeek) },
+    ];
+    handleConfigChange();
+  }
+
+  function removeExceptionRange(index: number) {
+    exceptionRanges = exceptionRanges.filter((_, i) => i !== index);
+    handleConfigChange();
+  }
+
+  function updateExceptionRange(index: number, field: "start" | "end", value: string) {
+    exceptionRanges = exceptionRanges.map((range, i) =>
+      i === index ? { ...range, [field]: value } : range
+    );
+    handleConfigChange();
   }
 
   function getSlotStartTime(slotIndex: number): string {
@@ -348,6 +389,54 @@
               {/each}
             </tbody>
           </table>
+        </div>
+
+        <!-- Exception Ranges -->
+        <div class="border-t border-base-300 p-4">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-sm font-medium">休講期間（時間割を適用しない期間）</h4>
+            <button
+              type="button"
+              class="btn btn-xs btn-ghost"
+              onclick={addExceptionRange}
+            >
+              + 追加
+            </button>
+          </div>
+          
+          {#if exceptionRanges.length === 0}
+            <p class="text-xs text-base-content/50 text-center py-2">
+              休講期間は設定されていません
+            </p>
+          {:else}
+            <div class="flex flex-col gap-2">
+              {#each exceptionRanges as range, index (index)}
+                <div class="flex items-center gap-2">
+                  <input
+                    type="date"
+                    class="input input-bordered input-sm flex-1"
+                    value={range.start}
+                    onchange={(e) => updateExceptionRange(index, "start", e.currentTarget.value)}
+                  />
+                  <span class="text-xs text-base-content/60">〜</span>
+                  <input
+                    type="date"
+                    class="input input-bordered input-sm flex-1"
+                    value={range.end}
+                    onchange={(e) => updateExceptionRange(index, "end", e.currentTarget.value)}
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-xs btn-ghost btn-square text-error"
+                    onclick={() => removeExceptionRange(index)}
+                    aria-label="削除"
+                  >
+                    ✕
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {/if}
         </div>
 
         <!-- Legend -->
