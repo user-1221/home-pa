@@ -7,6 +7,7 @@
   } from "$lib/features/shared/components/index.ts";
   import { initializeStores } from "$lib/bootstrap/bootstrap.ts";
   import { loadTasks } from "$lib/features/tasks/state/taskActions.ts";
+  import { calendarActions } from "$lib/bootstrap/compat.svelte.ts";
   import { authClient } from "$lib/auth-client";
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
@@ -27,15 +28,23 @@
     );
   }
 
-  // Load tasks once when authenticated
-  let tasksLoaded = false;
+  // Load initial data once when authenticated
+  let dataLoaded = false;
   $effect(() => {
     const isLoading = $session.isPending;
     const isAuthenticated = !!$session.data?.user;
 
-    if (!isLoading && isAuthenticated && !tasksLoaded) {
-      tasksLoaded = true;
+    if (!isLoading && isAuthenticated && !dataLoaded) {
+      dataLoaded = true;
+      
+      // Load tasks
       loadTasks();
+      
+      // Load calendar events for current window (3 months before/after)
+      const now = new Date();
+      const windowStart = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+      const windowEnd = new Date(now.getFullYear(), now.getMonth() + 4, 0);
+      calendarActions.fetchEvents(windowStart, windowEnd, true);
     }
   });
 

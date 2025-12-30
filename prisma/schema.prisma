@@ -170,6 +170,10 @@ model TimetableConfig {
   breakDuration   Int      @default(10)          // Minutes between classes
   cellDuration    Int      @default(50)          // Minutes per class
   
+  // Exception date ranges (stored as JSON array of {start: string, end: string})
+  // Dates in YYYY-MM-DD format
+  exceptionRanges Json?    @default("[]")
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

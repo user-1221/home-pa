@@ -3,12 +3,21 @@
  * Shared between client and server
  */
 
+/**
+ * Date range for timetable exceptions (e.g., holidays, vacations)
+ */
+export interface TimetableExceptionRange {
+  start: string; // YYYY-MM-DD
+  end: string; // YYYY-MM-DD
+}
+
 export interface TimetableConfigData {
   dayStartTime: string; // "HH:mm"
   lunchStartTime: string;
   lunchEndTime: string;
   breakDuration: number; // minutes
   cellDuration: number; // minutes
+  exceptionRanges?: TimetableExceptionRange[]; // Date ranges where timetable is ignored
 }
 
 /**
@@ -93,4 +102,39 @@ export function getWeekdayIndex(date: Date): number {
   const jsDay = date.getDay();
   // Convert: Sun=0 -> -1 (not used), Mon=1 -> 0, Tue=2 -> 1, etc.
   return jsDay === 0 ? 6 : jsDay - 1;
+}
+
+/**
+ * Check if a date falls within any exception range
+ * @param date - The date to check
+ * @param exceptionRanges - Array of exception date ranges
+ * @returns true if the date is within an exception range
+ */
+export function isDateInExceptionRange(
+  date: Date,
+  exceptionRanges: TimetableExceptionRange[] | undefined,
+): boolean {
+  if (!exceptionRanges || exceptionRanges.length === 0) {
+    return false;
+  }
+
+  const dateStr = formatDateToYMD(date);
+
+  for (const range of exceptionRanges) {
+    if (dateStr >= range.start && dateStr <= range.end) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Format a Date to YYYY-MM-DD string
+ */
+export function formatDateToYMD(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }

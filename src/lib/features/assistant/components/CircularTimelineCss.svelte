@@ -397,10 +397,11 @@
   );
 
   // Ring radii - NEW LAYOUT:
-  // 1. Outermost: Suggestions (draggable arcs)
+  // 1. Outermost: Suggestions (annular trapezoids for better touch targets)
   // 2. Middle: Fixed events (annular trapezoids, same color per lane)
   // 3. Inner: Timetable events (dedicated lane, no labels)
-  const suggestionRingRadius = outerRadius - 1; // Outermost ring for suggestions
+  const suggestionOuterRadius = outerRadius - 1; // Outer edge of suggestion trapezoids
+  const suggestionInnerRadius = outerRadius - 5; // Inner edge of suggestion trapezoids (thin for visibility)
   const eventBaseRadius = outerRadius - 8; // Events next layer (annular trapezoids)
   const eventInnerRadius = outerRadius - 20; // Inner edge of event trapezoids
   const timetableRingRadius = outerRadius - 28; // Timetable lane (innermost dedicated lane, smaller radius)
@@ -812,11 +813,20 @@
       stroke-opacity="0.4"
       stroke-width="0.3"
     />
-    <!-- Suggestion ring guide (outermost) -->
+    <!-- Suggestion ring guides (outermost) -->
     <circle
       cx={center}
       cy={center}
-      r={suggestionRingRadius}
+      r={suggestionOuterRadius}
+      fill="none"
+      stroke="var(--color-border-default)"
+      stroke-opacity="0.2"
+      stroke-width="0.15"
+    />
+    <circle
+      cx={center}
+      cy={center}
+      r={suggestionInnerRadius}
       fill="none"
       stroke="var(--color-border-default)"
       stroke-opacity="0.2"
@@ -912,58 +922,62 @@
       />
     {/each}
 
-    <!-- Suggestion arcs -->
+    <!-- Suggestion arcs as annular trapezoids (for better touch targets) -->
     {#each normalizedSuggestions as s (s.data.suggestionId)}
       {@const isPending = !s.isAccepted}
       {@const isBeingDragged =
         isDraggingMidpoint && draggingSuggestionId === s.data.suggestionId}
       {@const shouldHide = isDraggingMidpoint && isPending && !isBeingDragged}
-      {@const handlePos = getHandlePos(s.endAngle, suggestionRingRadius)}
+      {@const handlePos = getHandlePos(s.endAngle, suggestionOuterRadius)}
 
       {#if !shouldHide}
         {#if isBeingDragged && dragPreviewAngles}
-          <!-- Drag preview arc (shown during drag) -->
+          <!-- Drag preview trapezoid (shown during drag) -->
           <path
-            d={arcPath(
+            d={annularTrapezoidPath(
               dragPreviewAngles.start,
               dragPreviewAngles.end,
-              suggestionRingRadius,
+              suggestionOuterRadius,
+              suggestionInnerRadius,
             )}
-            fill="none"
-            stroke="var(--color-primary)"
-            stroke-width="3.5"
-            stroke-linecap="round"
-            stroke-dasharray="none"
+            fill="var(--color-warning-500)"
+            fill-opacity="0.9"
+            stroke="none"
             class="suggestion-arc dragging"
             filter="url(#glow)"
-            opacity="0.9"
           />
           <!-- Original position ghost -->
           <path
-            d={arcPath(s.startAngle, s.endAngle, suggestionRingRadius)}
-            fill="none"
-            stroke="var(--color-primary-800)"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-dasharray="4 2"
-            opacity="0.3"
+            d={annularTrapezoidPath(
+              s.startAngle,
+              s.endAngle,
+              suggestionOuterRadius,
+              suggestionInnerRadius,
+            )}
+            fill="var(--color-warning-500)"
+            fill-opacity="0.25"
+            stroke="none"
           />
         {:else}
+          <!-- Annular trapezoid for better touch target -->
           <path
             role="button"
             tabindex="0"
-            d={arcPath(s.startAngle, s.endAngle, suggestionRingRadius)}
-            fill="none"
-            stroke={isPending
-              ? "var(--color-primary-800)"
+            d={annularTrapezoidPath(
+              s.startAngle,
+              s.endAngle,
+              suggestionOuterRadius,
+              suggestionInnerRadius,
+            )}
+            fill={isPending
+              ? "var(--color-warning-500)"
               : "var(--color-success-500)"}
-            stroke-width={isPending ? "2.5" : "3"}
-            stroke-linecap="round"
-            stroke-dasharray={isPending ? "2 1" : "none"}
+            fill-opacity={isPending ? 0.75 : 0.8}
+            stroke="none"
             class="suggestion-arc"
             class:pending={isPending}
             class:accepted={!isPending}
-            filter="url(#glow)"
+            filter="url(#softGlow)"
             onpointerdown={(e) => {
               if (isPending) {
                 startSuggestionDrag(s.data as PendingSuggestion, s.data.gapId, e);
@@ -988,6 +1002,19 @@
               }
             }}
           />
+          {#if isPending}
+            <!-- Visual indicator for pending (dashed outline on inner edge) -->
+            <path
+              d={arcPath(s.startAngle, s.endAngle, suggestionInnerRadius)}
+              fill="none"
+              stroke="var(--color-warning-500)"
+              stroke-width="0.5"
+              stroke-linecap="round"
+              stroke-dasharray="1 1"
+              opacity="0.8"
+              class="pointer-events-none"
+            />
+          {/if}
         {/if}
         {#if !isPending}
           <circle

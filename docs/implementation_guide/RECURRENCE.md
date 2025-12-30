@@ -1,8 +1,8 @@
-# Recurrence Manager
+# Recurrence System
 
-## ✅ Status: ENABLED and Working with Sliding Window
+## ✅ Status: ENABLED and Working with iCal.js
 
-The frontend-only recurrence manager is **successfully integrated** using a sliding window approach with lazy-loading strategy. Recurring events work smoothly without blocking or SSR issues, and now efficiently handle forever recurring events with a 7-month sliding window.
+The recurrence system is **successfully integrated** using **ical.js** (ICAL library) for RFC-5545 compliant recurrence rule expansion. Recurring events work smoothly with automatic occurrence generation when events are fetched.
 
 ## Quick Reference
 
@@ -10,96 +10,96 @@ The frontend-only recurrence manager is **successfully integrated** using a slid
 
 ```
 src/lib/
-  ├── services/recurrence/
-  │   ├── manager.ts              - Core recurrence engine (610 lines)
-  │   ├── manager.test.ts         - Test suite (25 tests, all passing)
-  │   └── README.md               - Detailed API documentation
-  ├── stores/
-  │   ├── recurrence.store.ts     - Sliding window store integration
-  │   ├── forms/
-  │   │   └── eventForm.ts        - Event form with recurrence support
-  │   └── actions/
-  │       └── eventActions.ts     - Event CRUD with recurrence handling
-  ├── components/
-  │   └── CalendarView.svelte     - Calendar with sliding window UI
+  ├── features/calendar/
+  │   ├── services/
+  │   │   ├── ical-service.ts     - iCal parsing, generation, recurrence expansion
+  │   │   └── event-converter.ts   - Database ↔ App event conversion
+  │   ├── state/
+  │   │   ├── calendar.svelte.ts  - Calendar state with expandRecurringEvents()
+  │   │   └── eventActions.ts     - Event CRUD with recurrence handling
+  │   └── components/
+  │       └── CalendarView.svelte - Calendar UI with occurrence display
   └── types.ts                    - Event types with recurrence fields
 ```
 
 ### How to Use
 
 ```typescript
-import { eventOperations } from "$lib/state/data";
+import { calendarActions } from "$lib/bootstrap/index.svelte.ts";
 
 // Create a weekly recurring event
-eventOperations.create({
+calendarActions.createEvent({
   title: "Weekly Standup",
   start: new Date("2025-10-06T09:00:00"),
   end: new Date("2025-10-06T09:30:00"),
-  tzid: "America/New_York",
   recurrence: {
     type: "RRULE",
     rrule: "FREQ=WEEKLY;BYDAY=MO,WE,FR;INTERVAL=1",
   },
 });
 
-// Occurrences automatically appear in the calendar!
+// Fetch events - occurrences automatically expanded
+calendarActions.fetchEvents(windowStart, windowEnd, true);
+// occurrences[] populated in calendarState
 ```
 
 ## Architecture
 
-### Lazy-Loading Strategy ✅
+### iCal.js-based Expansion ✅
 
-The integration uses **dynamic imports** and **manual triggers** to avoid SSR/blocking issues:
+The integration uses **ical.js** (ICAL library) for RFC-5545 compliant recurrence expansion:
 
 ```typescript
-// stores/recurrence.store.ts
-export async function loadOccurrences(events, windowStart, windowEnd) {
-  // Dynamic import - only loads when needed
-  const mgr = await import("../services/recurrence/manager.js");
-  // Generate occurrences asynchronously
-  // Update store when complete
+// features/calendar/services/ical-service.ts
+export function expandRecurrences(
+  icalData: string,      // VEVENT component string
+  windowStart: Date,
+  windowEnd: Date,
+  maxOccurrences = 1000
+): ExpandedOccurrence[] {
+  // Uses ICAL.Event.iterator() to generate occurrences
+  // Returns array of { startDate, endDate, recurrenceId }
 }
 ```
 
 ### Flow
 
 ```
-User Opens Calendar
+App Startup / Calendar View Mount
     ↓
-onMount() triggers loadOccurrences()
+calendarActions.fetchEvents(windowStart, windowEnd, expandRecurring=true)
     ↓
-Dynamic import (rrule + luxon loaded)
+Events fetched from database (with icalData field)
     ↓
-Generate occurrences for 7-month sliding window
+calendarState.expandRecurringEvents(events, windowStart, windowEnd)
     ↓
-Mark forever recurring events (∞ indicator)
+For each recurring event:
+    - Use stored icalData or construct VEVENT
+    - Call ical-service.expandRecurrences(icalData, windowStart, windowEnd)
+    - Uses ICAL.Event.iterator() to generate occurrences
     ↓
-Display in calendar (non-blocking)
+occurrences[] populated in calendarState (reactive $state)
     ↓
-Auto-shift window on navigation
+Mark forever recurring events (isForever: true, ∞ indicator)
+    ↓
+Display in calendar UI
 ```
 
 ## Key Features
 
 ### ✅ Implemented
 
-- **RFC-5545 RRULE Support**: Full standard recurrence rule support
-- **Weekly Bitmask Optimization**: O(weeks) fast-path for simple weekly patterns
-- **Timezone Awareness**: IANA timezone handling with Luxon
-- **DST Handling**:
-  - Non-existent times (spring forward) are skipped
-  - Ambiguous times (fall back) use the earlier instant
-- **RDATE/EXDATE**: Add or exclude specific occurrence dates
-- **Occurrence Overrides**: Cancel, move, or modify single occurrences (manager API ready)
-- **Performance Protection**: 20,000 occurrence limit per query
-- **Bundle Optimization**: ~119KB lazy-loaded only when needed
-- **SSR-Safe**: No hydration issues
-- **Loading States**: Spinner and error messages in UI
-- **🆕 Sliding Window**: 7-month window (3 before + current + 3 after) for efficient memory usage
-- **🆕 Forever Events**: Special handling and visual indicators (∞) for events with no end date
-- **🆕 Recurrence Groups**: Connected events across time windows with shared IDs
-- **🆕 Debug Panel**: Real-time monitoring of window state and forever events
-- **🆕 Integrated Forms**: Recurrence settings built into event creation/editing
+- **RFC-5545 RRULE Support**: Full standard recurrence rule support via ical.js
+- **iCal.js Integration**: Uses ICAL library for RFC-5545 compliance
+- **Automatic Expansion**: Occurrences generated when `fetchEvents()` is called with `expandRecurring=true`
+- **Window-based Expansion**: Only generates occurrences within specified date window
+- **Performance Protection**: 1000 occurrence limit per event (prevents infinite loops)
+- **Duration Preservation**: Each occurrence maintains original event duration
+- **Forever Events**: Detected and marked with `isForever: true` (no UNTIL or COUNT in RRULE)
+- **Visual Indicators**: ∞ symbol for forever recurring events in UI
+- **Reactive State**: Occurrences stored in `calendarState.occurrences` (Svelte 5 $state)
+- **Integrated Forms**: Recurrence settings built into event creation/editing
+- **Database Storage**: Events stored with `icalData` field containing full VEVENT component
 
 ## Recurrence Types
 
@@ -116,8 +116,7 @@ recurrence: {
 ```typescript
 recurrence: {
   type: "RRULE",
-  rrule: "FREQ=WEEKLY;BYDAY=MO,TU;INTERVAL=1",
-  count: 20  // optional
+  rrule: "FREQ=WEEKLY;BYDAY=MO,TU;INTERVAL=1"
 }
 ```
 
@@ -127,35 +126,16 @@ recurrence: {
 - Weekly (Mon/Wed/Fri): `"FREQ=WEEKLY;BYDAY=MO,WE,FR"`
 - Monthly (3rd Tuesday): `"FREQ=MONTHLY;BYDAY=TU;BYSETPOS=3"`
 - Monthly (last Friday): `"FREQ=MONTHLY;BYDAY=FR;BYSETPOS=-1"`
-
-### 3. Weekly Bitmask (Optimized)
-
-```typescript
-recurrence: {
-  type: "WEEKLY_BITMASK",
-  anchorLocalStartISO: "2025-10-06T09:00:00",
-  intervalWeeks: 1,
-  daysBitmask: (1 << 1) | (1 << 3) | (1 << 5), // Mon, Wed, Fri
-  count: 50
-}
-```
-
-**Bitmask Values:**
-
-- Sunday: `1 << 0` = 1
-- Monday: `1 << 1` = 2
-- Tuesday: `1 << 2` = 4
-- Wednesday: `1 << 3` = 8
-- Thursday: `1 << 4` = 16
-- Friday: `1 << 5` = 32
-- Saturday: `1 << 6` = 64
+- With COUNT: `"FREQ=WEEKLY;BYDAY=MO;COUNT=20"`
+- With UNTIL: `"FREQ=WEEKLY;BYDAY=MO;UNTIL=20251231T235959Z"`
+- Forever (no COUNT/UNTIL): `"FREQ=DAILY"` → marked as `isForever: true`
 
 ## Usage Examples
 
 ### Weekly Meeting
 
 ```typescript
-eventOperations.create({
+calendarActions.createEvent({
   title: "Team Sync",
   start: new Date("2025-10-06T10:00:00"),
   end: new Date("2025-10-06T11:00:00"),
@@ -169,7 +149,7 @@ eventOperations.create({
 ### Monthly Review (3rd Tuesday)
 
 ```typescript
-eventOperations.create({
+calendarActions.createEvent({
   title: "Monthly Review",
   start: new Date("2025-10-21T14:00:00"),
   end: new Date("2025-10-21T16:00:00"),
@@ -180,66 +160,52 @@ eventOperations.create({
 });
 ```
 
-### Bi-weekly Meeting
+### Forever Recurring Event
 
 ```typescript
-eventOperations.create({
-  title: "Sprint Planning",
+calendarActions.createEvent({
+  title: "Daily Standup",
   start: new Date("2025-10-06T09:00:00"),
-  end: new Date("2025-10-06T10:00:00"),
+  end: new Date("2025-10-06T09:30:00"),
   recurrence: {
-    type: "WEEKLY_BITMASK",
-    anchorLocalStartISO: "2025-10-06T09:00:00",
-    intervalWeeks: 2,
-    daysBitmask: 1 << 1, // Monday only
-    count: 12,
+    type: "RRULE",
+    rrule: "FREQ=DAILY", // No COUNT or UNTIL = forever
   },
 });
+// Automatically marked as isForever: true
 ```
 
 ## Performance
 
 ### Bundle Size
 
-- **Main bundle**: No extra weight (same as before)
-- **Lazy loaded**: ~119KB (rrule 47KB + luxon 72KB)
-- **When**: Only when calendar view has recurring events
-- **Impact**: Minimal - loads in ~100-300ms on first use
+- **ical.js**: Included in main bundle (~50KB)
+- **No lazy loading**: Library always available
+- **Impact**: Minimal - standard iCalendar library
 
 ### Computation Speed
 
-- **First load**: ~100-300ms for 7-month sliding window
-- **Cached loads**: ~50-100ms (manager singleton reused)
-- **Window**: 7 months (3 before + current + 3 after)
-- **Auto-reload**: Debounced 200ms on month navigation
-- **Window shifting**: Automatic when user navigates beyond current window
+- **Expansion**: ~10-50ms per recurring event (depends on window size)
+- **Window**: Determined by `fetchEvents(windowStart, windowEnd)` call
+- **Typical window**: 7 months (3 before + current + 3 after) for calendar view
+- **Safety limit**: 1000 occurrences per event (prevents infinite loops)
+- **Regeneration**: Occurs when `fetchEvents()` is called or events update
 
 ### Memory
 
-- Singleton manager instance (reused)
-- Occurrences regenerated on demand for current window only
-- No persistent cache (intentionally simple)
-- **Memory efficient**: Only loads 7 months instead of years of data
-- **Forever events**: Special handling prevents infinite generation
+- Occurrences stored in `calendarState.occurrences` (reactive $state)
+- Regenerated on demand when window changes
+- No persistent cache (regenerated from stored icalData)
+- **Memory efficient**: Only generates occurrences for current window
+- **Forever events**: Limited by window size, marked with `isForever: true`
 
 ## Testing
 
-Run the test suite:
+The recurrence system uses **ical.js** which is a well-tested RFC-5545 compliant library. The integration is tested through:
 
-```bash
-bun test
-```
-
-**Coverage (25 tests, all passing):**
-
-- ✅ Basic recurrence patterns (daily, weekly, monthly)
-- ✅ DST transitions (skip non-existent, use earlier for ambiguous)
-- ✅ RDATE/EXDATE edge cases
-- ✅ Occurrence overrides (cancel, move, modify)
-- ✅ Monthly BYSETPOS rules (3rd Tuesday, last Friday)
-- ✅ Huge series protection (20K limit)
-- ✅ Timezone conversions
-- ✅ Edge cases and deduplication
+- **Manual testing**: Calendar view with various recurrence patterns
+- **Edge cases**: Forever events, large windows, DST transitions
+- **Safety limits**: 1000 occurrence limit prevents infinite loops
 
 ## Current Limitations
 
@@ -267,82 +233,76 @@ bun test
 
 **Check:**
 
-1. Event has `recurrence` field with type "RRULE" or "WEEKLY_BITMASK"
-2. Event start date is within calendar window
-3. No console errors in browser DevTools
-4. Loading spinner appears and completes
+1. Event has `recurrence` field with type "RRULE"
+2. Event start date is within fetch window
+3. `fetchEvents()` called with `expandRecurring=true`
+4. No console errors in browser DevTools
 
 **Fix:**
 
 ```typescript
 // Verify event structure
-console.log(event.recurrence); // Should be defined
-console.log(event.tzid); // Should be set
+console.log(event.recurrence); // Should be { type: "RRULE", rrule: "..." }
+console.log(event.icalData); // Should contain VEVENT string
+console.log(calendarState.occurrences); // Check if occurrences were generated
 ```
 
-### Issue: Loading spinner stuck
+### Issue: Occurrences not generating
 
-**Cause**: Recurrence generation taking too long or failed
+**Cause**: ical.js expansion failed or window doesn't include event dates
 
 **Fix:**
 
-- Check browser console for errors
-- Reduce count or add until date to recurrence rule
-- Check that rrule syntax is valid
+- Check browser console for errors from `ical-service.ts`
+- Verify `windowStart` and `windowEnd` include event dates
+- Check that RRULE syntax is valid RFC-5545 format
+- Verify `icalData` field exists on event (or can be constructed)
 
-### Issue: DST weirdness
+### Issue: Too many occurrences
 
-**Behavior**: Events at 2:30 AM disappear on DST forward days
+**Behavior**: Expansion stops at 1000 occurrences
 
-**Expected**: This is correct! Non-existent times are intentionally skipped
+**Expected**: Safety limit prevents infinite loops
 
 **Solution**:
 
-- Use a different time (3:00 AM or later)
-- Or accept that spring forward days skip
+- Add `UNTIL` or `COUNT` to RRULE to limit occurrences
+- Reduce window size in `fetchEvents()` call
 
 ## Technical Details
 
-### Timezone Policy
+### iCal.js Integration
 
-- Events stored with `tzid` (IANA timezone, e.g., "America/New_York")
-- Recurrence rules evaluated in event's local timezone
-- Final occurrences converted to UTC for display
-- UI receives both UTC time and local ISO string
+- **Library**: Uses `ical.js` (ICAL) for RFC-5545 compliance
+- **Method**: `ICAL.Event.iterator()` generates occurrences
+- **Input**: VEVENT component string (stored in `event.icalData` or constructed)
+- **Output**: Array of `{ startDate, endDate, recurrenceId }`
+- **Service**: `src/lib/features/calendar/services/ical-service.ts`
 
-### DST Handling
+### Event Storage
 
-**Spring Forward (Non-existent times):**
-
-- Time like 2:30 AM doesn't exist (clocks jump 2:00→3:00)
-- **Policy**: Skip the occurrence
-- Example: Daily 2:30 AM event on March 9, 2025 → No occurrence
-
-**Fall Back (Ambiguous times):**
-
-- Time like 1:30 AM occurs twice (clocks fall 2:00→1:00)
-- **Policy**: Use earlier instant (before DST transition)
-- Example: Daily 1:30 AM event on Nov 2, 2025 → First 1:30 AM
+- Events stored in database with `recurrence` field (RRULE string)
+- `icalData` field stores full VEVENT component for accurate expansion
+- If `icalData` missing, VEVENT constructed from event data + RRULE
 
 ### Occurrence Window
 
-- **Default**: 7 months (3 before + current + 3 after)
-- **Updates**: On month navigation or event changes
-- **Debounce**: 200ms to prevent excessive reloads
-- **Auto-shift**: Window automatically shifts when user navigates beyond current range
-- **Forever events**: Special handling with visual indicators (∞)
+- **Window**: Determined by `fetchEvents(windowStart, windowEnd)` call
+- **Typical**: 7 months (3 before + current + 3 after) for calendar view
+- **Updates**: When `fetchEvents()` is called or events change
+- **Forever events**: Limited by window, marked with `isForever: true` and ∞ indicator
 
-## Sliding Window System
+## Window-Based Expansion
 
 ### Overview
 
-The sliding window system efficiently manages recurring events by loading only a 7-month range at a time, preventing memory bloat while maintaining full functionality.
+The system efficiently manages recurring events by expanding only within a specified date window, preventing memory bloat while maintaining full functionality.
 
 ### Window Configuration
 
-- **Size**: 7 months (3 before + current + 3 after)
-- **Auto-shift**: Automatically shifts when user navigates beyond current window
-- **Memory efficient**: Only loads necessary data instead of years of events
+- **Size**: Determined by `fetchEvents(windowStart, windowEnd)` call
+- **Typical**: 7 months (3 before + current + 3 after) for calendar view
+- **Memory efficient**: Only generates occurrences for current window
 
 ### Forever Recurring Events
 
@@ -355,37 +315,48 @@ Events with no end date are specially handled:
   recurrence: {
     type: "RRULE",
     rrule: "FREQ=DAILY" // No COUNT or UNTIL = forever
-  },
+  }
+}
+
+// In ExpandedOccurrence:
+{
+  id: "...",
+  masterEventId: "...",
+  title: "Daily Standup",
+  start: Date,
+  end: Date,
   isForever: true, // Automatically detected
-  recurrenceGroupId: "group-123" // Links across windows
+  // ...
 }
 ```
 
 ### Visual Indicators
 
-- **∞ symbol**: Forever recurring events
-- **↻ symbol**: Auto-generated duplicate events
-- **Debug panel**: Real-time window monitoring
+- **∞ symbol**: Forever recurring events in UI
+- **Occurrences**: Displayed in calendar grid and timeline
 
 ### Window Management
 
 ```typescript
-// Automatic window calculation
-const windowStart = new Date(selectedDate);
+// Window calculation (example from CalendarView)
+const windowStart = new Date(currentMonth);
 windowStart.setMonth(windowStart.getMonth() - 3);
 windowStart.setDate(1);
 
-const windowEnd = new Date(selectedDate);
-windowEnd.setMonth(windowEnd.getMonth() + 3);
+const windowEnd = new Date(currentMonth);
+windowEnd.setMonth(windowEnd.getMonth() + 4);
 windowEnd.setDate(0); // Last day of month
+
+calendarActions.fetchEvents(windowStart, windowEnd, true);
+// Occurrences automatically expanded and stored in calendarState.occurrences
 ```
 
 ### Benefits
 
-1. **Memory efficiency**: Only 7 months loaded at once
-2. **Performance**: Faster loading and rendering
-3. **Scalability**: Handles forever events without infinite generation
-4. **User experience**: Smooth navigation with automatic window shifting
+1. **Memory efficiency**: Only generates occurrences for current window
+2. **Performance**: Fast expansion using ical.js
+3. **Scalability**: Handles forever events without infinite generation (limited by window)
+4. **User experience**: Smooth navigation, occurrences regenerated when needed
 
 ## Future Enhancements
 
@@ -413,64 +384,90 @@ windowEnd.setDate(0); // Last day of month
 
 ## API Reference
 
-See `src/lib/services/recurrence/README.md` for complete API documentation.
-
-### Quick API Overview
+### Calendar State Methods
 
 ```typescript
-// From stores/recurrence.store.ts
-export async function loadOccurrences(
+// From calendar.svelte.ts
+calendarState.expandRecurringEvents(
   events: Event[],
   windowStart: Date,
+  windowEnd: Date
+): ExpandedOccurrence[]
+
+// Usage
+const occurrences = calendarState.expandRecurringEvents(
+  calendarState.events,
+  windowStart,
+  windowEnd
+);
+```
+
+### iCal Service Functions
+
+```typescript
+// From ical-service.ts
+export function expandRecurrences(
+  icalData: string,        // VEVENT component string
+  windowStart: Date,
   windowEnd: Date,
-): Promise<void>;
+  maxOccurrences = 1000
+): ExpandedOccurrence[]
 
-export function clearOccurrences(): void;
+// Usage
+const occurrences = expandRecurrences(
+  event.icalData,
+  windowStart,
+  windowEnd
+);
+```
 
-export function getOccurrencesForDate(
-  occurrences: RecurrenceOccurrence[],
-  date: Date,
-): RecurrenceOccurrence[];
+### Calendar Actions
 
-// Store
-export const recurrenceStore: Writable<RecurrenceState>;
+```typescript
+// From bootstrap/index.svelte.ts
+calendarActions.fetchEvents(
+  windowStart: Date,
+  windowEnd: Date,
+  expandRecurring = true
+): Promise<void>
+
+// Automatically expands occurrences if expandRecurring=true
+// Results stored in calendarState.occurrences
 ```
 
 ## Implementation History
 
-### v1 - Initial Attempt (Failed)
+### Current Implementation (iCal.js-based) ✅
 
-- Used async derived stores
-- Auto-loaded on import
-- **Result**: Blocked entire app, SSR hydration failed
+- **Library**: ical.js (ICAL) for RFC-5545 compliance
+- **Integration**: Direct expansion in `calendarState.expandRecurringEvents()`
+- **Storage**: Events stored with `icalData` field containing VEVENT component
+- **Expansion**: Automatic when `fetchEvents()` called with `expandRecurring=true`
+- **Result**: Smooth, RFC-5545 compliant, production-ready
 
-### v2 - Current (Success) ✅
+### Key Features
 
-- Lazy-loading with dynamic imports
-- Manual trigger in component
-- **Result**: Smooth, non-blocking, production-ready
-
-### Key Differences
-
-| Aspect  | v1 (Failed)    | v2 (Success)               |
-| ------- | -------------- | -------------------------- |
-| Loading | Auto on import | Manual in component        |
-| Bundle  | Always loaded  | Lazy loaded                |
-| Async   | Derived store  | Writable + async function  |
-| SSR     | Blocked        | Safe                       |
-| UX      | Frozen app     | Smooth with loading states |
+| Aspect  | Implementation                    |
+| ------- | --------------------------------- |
+| Library | ical.js (ICAL)                    |
+| Standard | RFC-5545 iCalendar                |
+| Expansion | Automatic on fetchEvents()        |
+| Storage | icalData field in database         |
+| State   | Reactive $state in calendarState  |
+| SSR     | Safe (no blocking)                |
+| UX      | Smooth, automatic occurrence display |
 
 ## References
 
 - **RFC-5545 (iCalendar)**: https://tools.ietf.org/html/rfc5545
-- **rrule.js**: https://github.com/jakubroztocil/rrule
-- **Luxon**: https://moment.github.io/luxon/
+- **ical.js**: https://github.com/mozilla-comm/ical.js
+- **ICAL Library**: https://mozilla-comm.github.io/ical.js/
 - **SvelteKit SSR**: https://kit.svelte.dev/docs/page-options#ssr
 
 ## Support
 
-For detailed API documentation, see:
+For detailed implementation, see:
 
-- `src/lib/services/recurrence/README.md` - Complete API guide
-- `src/lib/services/recurrence/manager.ts` - Source code with inline docs
-- `src/lib/services/recurrence/manager.test.ts` - Test examples
+- `src/lib/features/calendar/services/ical-service.ts` - iCal parsing, generation, recurrence expansion
+- `src/lib/features/calendar/state/calendar.svelte.ts` - Calendar state with `expandRecurringEvents()` method
+- `src/lib/features/calendar/services/event-converter.ts` - Database ↔ App event conversion

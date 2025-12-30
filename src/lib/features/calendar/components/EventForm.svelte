@@ -269,14 +269,28 @@
         {isEventEditing ? "予定を編集" : "新しい予定"}
       </h3>
       {#if isEventEditing}
-        <button
-          type="button"
-          class="btn btn-sm md:hidden border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
-          style="background-color: var(--color-primary);"
-          onclick={() => eventActions.submitEventForm()}
-        >
-          更新
-        </button>
+        <div class="flex gap-2 md:hidden">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline btn-error"
+            onclick={handleDelete}
+            disabled={isDeleting}
+          >
+            {#if isDeleting}
+              <span class="loading loading-sm loading-spinner"></span>
+            {:else}
+              削除
+            {/if}
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
+            style="background-color: var(--color-primary);"
+            onclick={() => eventActions.submitEventForm()}
+          >
+            更新
+          </button>
+        </div>
       {:else}
         <button
           type="button"

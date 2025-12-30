@@ -5,6 +5,7 @@ import { browser } from "$app/environment";
 import {
   computeSlotTimes,
   getWeekdayIndex,
+  isDateInExceptionRange,
   type TimetableConfigData,
 } from "../utils/timetable-utils";
 
@@ -117,12 +118,18 @@ export function invalidateTimetableCache(): void {
 /**
  * Get timetable events for a specific date
  * Returns ALL events where attendance="出席する" (includes both 作業可 and 作業不可)
+ * Returns empty if the date falls within an exception range (e.g., holidays, vacations)
  */
 export function getTimetableEventsForDate(
   targetDate: Date,
   config: TimetableConfigData,
   cells: TimetableCellData[],
 ): TimetableEvent[] {
+  // Check if this date is within an exception range
+  if (isDateInExceptionRange(targetDate, config.exceptionRanges)) {
+    return [];
+  }
+
   const dayOfWeek = getWeekdayIndex(targetDate);
 
   // Only Mon-Fri (0-4 in our mapping)
