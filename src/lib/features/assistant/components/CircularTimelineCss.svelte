@@ -225,30 +225,40 @@
 
   // Build annular trapezoid path (filled shape between two radii)
   // Creates a wedge/sector shape for fixed events
+  // paddingAngle - optional angle (in radians) to subtract from both ends for visual separation
   function annularTrapezoidPath(
     startAngle: number,
     endAngle: number,
     outerR: number,
     innerR: number,
+    paddingAngle = 0,
   ): string {
     if (endAngle < startAngle) endAngle += TWO_PI;
-    const delta = endAngle - startAngle;
+    
+    // Apply padding to create gaps between arcs
+    const paddedStartAngle = startAngle + paddingAngle;
+    const paddedEndAngle = endAngle - paddingAngle;
+    
+    // Don't render if padding makes it too small
+    if (paddedEndAngle <= paddedStartAngle) return "";
+    
+    const delta = paddedEndAngle - paddedStartAngle;
     const largeArc = delta > Math.PI ? 1 : 0;
 
     // Rotate -90deg so 0 is at top
     const adj = -Math.PI / 2;
 
     // Outer arc points
-    const ox1 = center + outerR * Math.cos(startAngle + adj);
-    const oy1 = center + outerR * Math.sin(startAngle + adj);
-    const ox2 = center + outerR * Math.cos(endAngle + adj);
-    const oy2 = center + outerR * Math.sin(endAngle + adj);
+    const ox1 = center + outerR * Math.cos(paddedStartAngle + adj);
+    const oy1 = center + outerR * Math.sin(paddedStartAngle + adj);
+    const ox2 = center + outerR * Math.cos(paddedEndAngle + adj);
+    const oy2 = center + outerR * Math.sin(paddedEndAngle + adj);
 
     // Inner arc points
-    const ix1 = center + innerR * Math.cos(startAngle + adj);
-    const iy1 = center + innerR * Math.sin(startAngle + adj);
-    const ix2 = center + innerR * Math.cos(endAngle + adj);
-    const iy2 = center + innerR * Math.sin(endAngle + adj);
+    const ix1 = center + innerR * Math.cos(paddedStartAngle + adj);
+    const iy1 = center + innerR * Math.sin(paddedStartAngle + adj);
+    const ix2 = center + innerR * Math.cos(paddedEndAngle + adj);
+    const iy2 = center + innerR * Math.sin(paddedEndAngle + adj);
 
     // Path: outer arc clockwise, line to inner, inner arc counter-clockwise, line back
     return `M ${ox1} ${oy1} A ${outerR} ${outerR} 0 ${largeArc} 1 ${ox2} ${oy2} L ${ix2} ${iy2} A ${innerR} ${innerR} 0 ${largeArc} 0 ${ix1} ${iy1} Z`;
@@ -405,7 +415,9 @@
   const eventBaseRadius = outerRadius - 8; // Events next layer (annular trapezoids)
   const eventInnerRadius = outerRadius - 20; // Inner edge of event trapezoids
   const timetableRingRadius = outerRadius - 28; // Timetable lane (innermost dedicated lane, smaller radius)
-
+  // Visual gap between suggestions (in radians)
+  // This creates a small space between consecutive suggestions to make them visually distinct
+  const suggestionGapAngle = 0.015; // ~0.86 degrees, visible but not too large
   // Lane colors for fixed events (same color per lane for visual clarity)
   const laneColors: readonly string[] = [
     "var(--color-primary-600)",
@@ -939,6 +951,7 @@
               dragPreviewAngles.end,
               suggestionOuterRadius,
               suggestionInnerRadius,
+              suggestionGapAngle,
             )}
             fill="var(--color-warning-500)"
             fill-opacity="0.9"
@@ -953,31 +966,27 @@
               s.endAngle,
               suggestionOuterRadius,
               suggestionInnerRadius,
+              suggestionGapAngle,
             )}
             fill="var(--color-warning-500)"
             fill-opacity="0.25"
             stroke="none"
           />
         {:else}
-          <!-- Annular trapezoid for better touch target -->
+          <!-- Invisible larger touch target (extends beyond visual arc) -->
           <path
             role="button"
             tabindex="0"
             d={annularTrapezoidPath(
               s.startAngle,
               s.endAngle,
-              suggestionOuterRadius,
-              suggestionInnerRadius,
+              suggestionOuterRadius + 2, // Extend outward
+              suggestionInnerRadius - 2, // Extend inward
+              suggestionGapAngle * 0.5, // Smaller gap for touch target
             )}
-            fill={isPending
-              ? "var(--color-warning-500)"
-              : "var(--color-success-500)"}
-            fill-opacity={isPending ? 0.75 : 0.8}
+            fill="transparent"
             stroke="none"
-            class="suggestion-arc"
-            class:pending={isPending}
-            class:accepted={!isPending}
-            filter="url(#softGlow)"
+            pointer-events="auto"
             onpointerdown={(e) => {
               if (isPending) {
                 startSuggestionDrag(s.data as PendingSuggestion, s.data.gapId, e);
@@ -1001,6 +1010,26 @@
                 onSuggestionClick(s.data, s.isAccepted, mouseEvent);
               }
             }}
+          />
+          <!-- Visible suggestion arc (no pointer events, clicks go through to touch target) -->
+          <path
+            d={annularTrapezoidPath(
+              s.startAngle,
+              s.endAngle,
+              suggestionOuterRadius,
+              suggestionInnerRadius,
+              suggestionGapAngle,
+            )}
+            fill={isPending
+              ? "var(--color-warning-500)"
+              : "var(--color-success-500)"}
+            fill-opacity={isPending ? 0.75 : 0.8}
+            stroke="none"
+            class="suggestion-arc"
+            class:pending={isPending}
+            class:accepted={!isPending}
+            filter="url(#softGlow)"
+            pointer-events="none"
           />
           {#if isPending}
             <!-- Visual indicator for pending (dashed outline on inner edge) -->

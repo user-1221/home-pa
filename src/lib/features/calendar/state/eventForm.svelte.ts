@@ -168,6 +168,18 @@ class EventFormState {
   }
 
   /**
+   * Update multiple form fields at once
+   */
+  updateFields(updates: Partial<EventFormData>): void {
+    for (const [key, value] of Object.entries(updates)) {
+      this.updateField(
+        key as keyof EventFormData,
+        value as EventFormData[keyof EventFormData],
+      );
+    }
+  }
+
+  /**
    * Update a form field
    */
   updateField<K extends keyof EventFormData>(

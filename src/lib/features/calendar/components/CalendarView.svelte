@@ -4,11 +4,10 @@
   import type { Event } from "$lib/types.ts";
   import {
     calendarState,
-    calendarActions,
     dataState,
     eventActions,
     type ExpandedOccurrence,
-  } from "$lib/bootstrap/compat.svelte.ts";
+  } from "$lib/bootstrap/index.svelte.ts";
   import CalendarHeader from "./CalendarHeader.svelte";
   import CalendarGrid from "./CalendarGrid.svelte";
   import CalendarDebugInfo from "./CalendarDebugInfo.svelte";
@@ -40,7 +39,7 @@
       currentMonth.getMonth() + 4,
       0,
     );
-    calendarActions.fetchEvents(windowStart, windowEnd, true);
+    calendarState.fetchEvents(windowStart, windowEnd, true);
   }
 
   // Load events on mount

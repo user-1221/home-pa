@@ -5,6 +5,7 @@
     enrichingTaskIds,
   } from "$lib/features/tasks/state/taskActions.ts";
   import { createDragHandler } from "$lib/utils/pointer-drag.ts";
+  import { browser } from "$app/environment";
 
   interface Props {
     task: Memo;
@@ -21,18 +22,37 @@
   const SWIPE_THRESHOLD = 80; // px to reveal actions
   const MAX_SWIPE = 120; // Max px to swipe
 
-  // Create drag handler for swipe
+  // Check if we're on mobile (screen width < 768px, which is Tailwind's md breakpoint)
+  let isMobile = $state(false);
+  
+  if (browser) {
+    const checkMobile = () => {
+      const wasMobile = isMobile;
+      isMobile = window.innerWidth < 768;
+      // Reset swipe position when switching to desktop
+      if (wasMobile && !isMobile) {
+        translateX = 0;
+      }
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+  }
+
+  // Create drag handler for swipe (only used on mobile)
   const swipeHandler = createDragHandler<{ startX: number }>({
     onStart: (coords) => {
+      if (!isMobile) return null; // Disable on desktop
       isSwiping = true;
       return { startX: translateX };
     },
     onMove: (coords, delta, context) => {
+      if (!isMobile || !context) return; // Disable on desktop
       // Only allow left swipe (dx < 0) to reveal actions
       const newX = context.startX + delta.dx;
       translateX = Math.max(-MAX_SWIPE, Math.min(0, newX));
     },
     onEnd: (coords, wasDrag) => {
+      if (!isMobile) return; // Disable on desktop
       isSwiping = false;
       
       if (!wasDrag) {
@@ -148,9 +168,9 @@
   class="relative overflow-hidden"
   style="touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;"
 >
-  <!-- Action buttons behind (revealed on swipe) -->
+  <!-- Action buttons behind (revealed on swipe, mobile only) -->
   <div
-    class="absolute right-0 top-0 bottom-0 flex items-center gap-2 pr-2"
+    class="absolute right-0 top-0 bottom-0 flex items-center gap-2 pr-2 md:hidden"
     style="width: {MAX_SWIPE}px;"
   >
     {#if task.status.completionState !== "completed"}
@@ -178,7 +198,7 @@
     </button>
   </div>
 
-  <!-- Main card content (swipeable) -->
+  <!-- Main card content (swipeable on mobile only) -->
   <div
     class="card relative border-l-4 bg-base-100 shadow-sm transition-all duration-200 card-sm {task.type ===
     '期限付き'
@@ -190,11 +210,11 @@
     class:bg-base-200={task.status.completionState === "completed"}
     class:shadow-md={translateX < 0}
     style="transform: translateX({translateX}px); transition: {isSwiping ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'};"
-    onpointerdown={swipeHandler.start}
-    onpointermove={swipeHandler.move}
-    onpointerup={swipeHandler.end}
-    onpointercancel={swipeHandler.end}
-    onlostpointercapture={swipeHandler.end}
+    onpointerdown={isMobile ? swipeHandler.start : undefined}
+    onpointermove={isMobile ? swipeHandler.move : undefined}
+    onpointerup={isMobile ? swipeHandler.end : undefined}
+    onpointercancel={isMobile ? swipeHandler.end : undefined}
+    onlostpointercapture={isMobile ? swipeHandler.end : undefined}
   >
     {#if isEnriching}
       <div

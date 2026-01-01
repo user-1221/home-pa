@@ -29,14 +29,6 @@ import {
   logSuggestionComplete,
 } from "./memo.functions.remote.ts";
 
-// Toast compatibility wrapper
-const toasts = {
-  show: toastState.show.bind(toastState),
-  success: toastState.success.bind(toastState),
-  error: toastState.error.bind(toastState),
-  info: toastState.info.bind(toastState),
-};
-
 // ============================================================================
 // Tasks Store (Rich Memos)
 // ============================================================================
@@ -145,7 +137,7 @@ export async function loadTasks(): Promise<void> {
     tasks.set(memos);
   } catch (err) {
     console.error("[loadTasks] Failed to load tasks:", err);
-    toasts.error("タスクの読み込みに失敗しました");
+    toastState.error("タスクの読み込みに失敗しました");
   } finally {
     isTasksLoading.set(false);
   }
@@ -396,7 +388,7 @@ export const taskActions = {
 
       // Close form and show success
       taskFormActions.closeForm();
-      toasts.show("タスクを作成しました", "success");
+      toastState.show("タスクを作成しました", "success");
 
       // Start LLM enrichment in background
       enrichTaskInBackground(savedMemo.id);
@@ -487,7 +479,7 @@ export const taskActions = {
 
       // Close form and show success
       taskFormActions.closeForm();
-      toasts.show("タスクを更新しました", "success");
+      toastState.show("タスクを更新しました", "success");
 
       return updatedMemo;
     } catch (error: unknown) {
@@ -513,11 +505,11 @@ export const taskActions = {
         return currentTasks.filter((t) => t.id !== taskId);
       });
 
-      toasts.show("タスクを削除しました", "success");
+      toastState.show("タスクを削除しました", "success");
       return true;
     } catch (err) {
       console.error("[delete] Failed:", err);
-      toasts.show("タスクの削除に失敗しました", "error");
+      toastState.show("タスクの削除に失敗しました", "error");
       return false;
     }
   },
@@ -559,11 +551,11 @@ export const taskActions = {
         return newTasks;
       });
 
-      toasts.show("タスクを完了しました", "success");
+      toastState.show("タスクを完了しました", "success");
       return updatedMemo;
     } catch (err) {
       console.error("[markComplete] Failed:", err);
-      toasts.show("タスクの更新に失敗しました", "error");
+      toastState.show("タスクの更新に失敗しました", "error");
       return null;
     }
   },
@@ -671,7 +663,7 @@ export const taskActions = {
       return result;
     } catch (err) {
       console.error("[taskActions.logProgress] Failed:", err);
-      toasts.show("進捗の記録に失敗しました", "error");
+      toastState.show("進捗の記録に失敗しました", "error");
       return null;
     }
   },

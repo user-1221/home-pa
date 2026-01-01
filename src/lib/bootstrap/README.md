@@ -11,14 +11,13 @@ src/lib/bootstrap/
 ├── README.md                 # This file - architecture documentation
 ├── bootstrap.ts              # App initialization
 ├── ui.svelte.ts              # UI state (views, modes, loading)
-├── uiActions.ts              # UI business logic
 ├── data.svelte.ts            # Core data (selected date)
 ├── toast.svelte.ts           # Toast notifications state
 ├── settings.svelte.ts        # App settings state
 ├── timezone.ts               # Timezone management
 ├── devtools.ts               # Developer tools
 ├── index.svelte.ts           # Main barrel export
-└── compat.svelte.ts          # Compatibility layer for gradual migration
+└── compat.svelte.ts          # Compatibility layer (deprecated, re-exports index)
 ```
 
 ## 📁 File Responsibilities
@@ -46,16 +45,10 @@ src/lib/bootstrap/
 - **Contains**: Active toasts, show/dismiss functions
 - **Usage**: `toastState.success("Message")`
 
-### **Compatibility Layer (`compat.svelte.ts`)**
-
-- **Purpose**: Provides backward-compatible action wrappers during migration
-- **Contains**: Action wrappers that bind methods to state instances
-- **Usage**: For gradual migration to direct state class usage
-
 ## 🔄 Data Flow
 
 ```
-User Interaction → Action Function → State Update → Component Reactivity
+User Interaction → State Method → State Update → Component Reactivity
 ```
 
 1. **User interacts** with UI (clicks button, navigates)
@@ -88,13 +81,14 @@ User Interaction → Action Function → State Update → Component Reactivity
 ### **Accessing State**
 
 ```typescript
-import { dataState } from "$lib/bootstrap/index.svelte.ts";
+import { dataState, calendarState } from "$lib/bootstrap/index.svelte.ts";
 
 // In component template
 {dataState.selectedDate}
 
 // In component script
 dataState.setSelectedDate(new Date());
+calendarState.fetchEvents(start, end);
 ```
 
 ### **Toast Notifications**
@@ -104,6 +98,15 @@ import { toastState } from "$lib/bootstrap/index.svelte.ts";
 
 toastState.success("Event created!");
 toastState.error("Failed to save");
+```
+
+### **Event Form**
+
+```typescript
+import { eventFormState } from "$lib/bootstrap/index.svelte.ts";
+
+eventFormState.updateField("title", "My Event");
+eventFormState.validate();
 ```
 
 ## 📚 Related Documentation

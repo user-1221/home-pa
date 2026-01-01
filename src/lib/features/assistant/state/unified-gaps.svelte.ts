@@ -104,11 +104,19 @@ let timetableBlockingEvents = $state<TimetableEvent[]>([]);
 let lastLoadedDateKey: string | null = null;
 
 /**
- * Load timetable events for a given date
+ * Clear the last loaded date key to force a reload
  */
-async function loadTimetableForDate(date: Date): Promise<void> {
+function clearTimetableDateCache(): void {
+  lastLoadedDateKey = null;
+}
+
+/**
+ * Load timetable events for a given date
+ * @param forceReload - If true, ignores the date cache and reloads anyway
+ */
+async function loadTimetableForDate(date: Date, forceReload = false): Promise<void> {
   const key = dateKey(date);
-  if (key === lastLoadedDateKey) return;
+  if (!forceReload && key === lastLoadedDateKey) return;
 
   lastLoadedDateKey = key;
   try {
@@ -465,9 +473,13 @@ class UnifiedGapState {
   /**
    * Load timetable events for the selected date
    * Should be called when the component mounts or date changes
+   * @param forceReload - If true, ignores the date cache and reloads anyway
    */
-  async loadTimetableEvents(): Promise<void> {
-    await loadTimetableForDate(dataState.selectedDate);
+  async loadTimetableEvents(forceReload = false): Promise<void> {
+    if (forceReload) {
+      clearTimetableDateCache();
+    }
+    await loadTimetableForDate(dataState.selectedDate, forceReload);
   }
 
   // ============================================================================

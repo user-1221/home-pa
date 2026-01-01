@@ -6,7 +6,7 @@
    * Uses ical.js-backed API endpoints
    */
 
-  import { calendarActions } from "$lib/bootstrap/compat.svelte.ts";
+  import { calendarState } from "$lib/bootstrap/index.svelte.ts";
   import { UserSettings } from "$lib/features/shared/components/index.ts";
 
   // State
@@ -20,7 +20,7 @@
   let showAdvanced = $state(false);
   let exportName = $state("Home-PA Calendar");
 
-  // API mode is always enabled when using calendarActions (API-based store)
+  // API mode is always enabled when using calendarState (API-based store)
   const isApiEnabled = $state(true);
 
   async function handleFileSelect(event: Event) {
@@ -43,7 +43,7 @@
     importResult = null;
 
     try {
-      const result = await calendarActions.importICS(file);
+      const result = await calendarState.importICS(file);
       importResult = result;
     } catch (error) {
       importResult = {
@@ -61,7 +61,7 @@
   }
 
   function handleExport() {
-    const url = calendarActions.getExportUrl(undefined, undefined, exportName);
+    const url = calendarState.getExportUrl(undefined, undefined, exportName);
     window.location.href = url;
   }
 
