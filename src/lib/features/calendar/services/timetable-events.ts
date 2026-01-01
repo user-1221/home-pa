@@ -88,6 +88,7 @@ export async function loadTimetableData(): Promise<{
       lunchEndTime: configResult.lunchEndTime,
       breakDuration: configResult.breakDuration,
       cellDuration: configResult.cellDuration,
+      exceptionRanges: configResult.exceptionRanges ?? [],
     };
 
     cachedCells = cellsResult.map((cell) => ({

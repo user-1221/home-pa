@@ -13,6 +13,8 @@
     type TimetableConfigData,
     type TimetableExceptionRange,
   } from "../utils/timetable-utils";
+  import { invalidateTimetableCache } from "../services/timetable-events";
+  import { unifiedGapState } from "$lib/features/assistant/state/unified-gaps.svelte";
 
   interface Props {
     isOpen: boolean;
@@ -115,6 +117,10 @@
         ...config,
         exceptionRanges: exceptionRanges,
       });
+      // Invalidate cache so timeline picks up the new config
+      invalidateTimetableCache();
+      // Reload timetable events for the selected date (force reload to bypass date cache)
+      await unifiedGapState.loadTimetableEvents(true);
     } catch (error) {
       console.error("Failed to save config:", error);
     }
@@ -207,6 +213,9 @@
         attendance: result.attendance as "出席する" | "出席しない",
         workAllowed: result.workAllowed as "作業可" | "作業不可",
       });
+      // Invalidate cache so timeline picks up the new cell
+      invalidateTimetableCache();
+      await unifiedGapState.loadTimetableEvents(true);
       showCellEditor = false;
       editingCell = null;
     } catch (error) {
@@ -226,6 +235,9 @@
 
       // Remove from local state
       cells.get(editingCell.dayOfWeek)?.delete(editingCell.slotIndex);
+      // Invalidate cache so timeline picks up the deletion
+      invalidateTimetableCache();
+      await unifiedGapState.loadTimetableEvents(true);
 
       showCellEditor = false;
       editingCell = null;

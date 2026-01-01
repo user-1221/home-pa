@@ -3,9 +3,8 @@
   import {
     dataState,
     eventFormState,
-    eventFormActions,
     eventActions,
-  } from "$lib/bootstrap/compat.svelte.ts";
+  } from "$lib/bootstrap/index.svelte.ts";
   import {
     utcToLocalDateString,
     utcToLocalTimeString,
@@ -111,28 +110,28 @@
   // Sync to store (only when local value differs from last store value)
   $effect(() => {
     if (eventTitle !== lastStoreTitle) {
-      eventFormActions.updateField("title", eventTitle);
+      eventFormState.updateField("title", eventTitle);
       lastStoreTitle = eventTitle;
     }
   });
 
   $effect(() => {
     if (eventAddress !== lastStoreAddress) {
-      eventFormActions.updateField("address", eventAddress);
+      eventFormState.updateField("address", eventAddress);
       lastStoreAddress = eventAddress;
     }
   });
 
   $effect(() => {
     if (eventImportance !== lastStoreImportance) {
-      eventFormActions.updateField("importance", eventImportance);
+      eventFormState.updateField("importance", eventImportance);
       lastStoreImportance = eventImportance;
     }
   });
 
   $effect(() => {
     if (eventTimeLabel !== lastStoreTimeLabel) {
-      eventFormActions.updateField("timeLabel", eventTimeLabel);
+      eventFormState.updateField("timeLabel", eventTimeLabel);
       lastStoreTimeLabel = eventTimeLabel;
     }
   });
@@ -141,7 +140,7 @@
     const recurrence = buildRecurrenceObject();
     const recurrenceStr = JSON.stringify(recurrence);
     if (recurrenceStr !== lastStoreRecurrence) {
-      eventFormActions.updateField("recurrence", recurrence);
+      eventFormState.updateField("recurrence", recurrence);
       lastStoreRecurrence = recurrenceStr;
     }
   });
@@ -155,7 +154,7 @@
       eventEndDate && eventEndTime ? `${eventEndDate}T${eventEndTime}` : "";
 
     if (startDateTime !== lastStoreStart || endDateTime !== lastStoreEnd) {
-      eventFormActions.updateFields({
+      eventFormState.updateFields({
         start: startDateTime,
         end: endDateTime,
       });
@@ -220,7 +219,7 @@
     timeMode = "default";
     isManualDateOrTimeEdit = true;
     eventTimeLabel = "timed";
-    eventFormActions.switchTimeLabel("timed");
+    eventFormState.switchTimeLabel("timed");
   }
 
   async function handleDelete(): Promise<void> {
@@ -403,7 +402,7 @@
             onclick={() => {
               timeMode = "all-day";
               eventTimeLabel = "all-day";
-              eventFormActions.switchTimeLabel("all-day");
+              eventFormState.switchTimeLabel("all-day");
               eventStartTime = "00:00";
               eventEndTime = "23:59";
               isManualDateOrTimeEdit = false;
@@ -421,7 +420,7 @@
             onclick={() => {
               timeMode = "some-timing";
               eventTimeLabel = "some-timing";
-              eventFormActions.switchTimeLabel("some-timing");
+              eventFormState.switchTimeLabel("some-timing");
               const dateString = utcToLocalDateString(dataState.selectedDate);
               eventStartDate = dateString;
               eventEndDate = dateString;

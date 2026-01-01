@@ -7,9 +7,9 @@
    */
 
   import {
-    calendarActions,
+    calendarState,
     settingsState,
-  } from "$lib/bootstrap/compat.svelte.ts";
+  } from "$lib/bootstrap/index.svelte.ts";
   import { UserSettings } from "$lib/features/shared/components/index.ts";
 
   interface Props {
@@ -55,7 +55,7 @@
     importResult = null;
 
     try {
-      const result = await calendarActions.importICS(file);
+      const result = await calendarState.importICS(file);
       importResult = result;
     } catch (error) {
       importResult = {
@@ -72,7 +72,7 @@
   }
 
   function handleExport() {
-    const url = calendarActions.getExportUrl(undefined, undefined, exportName);
+    const url = calendarState.getExportUrl(undefined, undefined, exportName);
     window.location.href = url;
   }
 

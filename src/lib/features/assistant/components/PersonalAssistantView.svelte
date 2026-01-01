@@ -582,7 +582,7 @@
         </div>
 
         <div
-          class="relative h-[min(70vw,60vh)] w-[min(70vw,60vh)] flex-shrink-0 overflow-visible"
+          class="relative h-[min(85vw,75vh)] w-[min(85vw,75vh)] flex-shrink-0 overflow-visible"
         >
           <CircularTimelineCss
             externalGaps={availableGaps}
