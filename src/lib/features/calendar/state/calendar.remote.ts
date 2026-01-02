@@ -52,7 +52,7 @@ export async function createEventApi(event: Omit<Event, "id">): Promise<Event> {
     description: event.description,
     address: event.address,
     importance: event.importance,
-    timeLabel: event.timeLabel,
+    timeLabel: event.timeLabel ?? "all-day",
     tzid: event.tzid,
     recurrence: event.recurrence,
   });

@@ -40,18 +40,21 @@
 
   // Create drag handler for swipe (only used on mobile)
   const swipeHandler = createDragHandler<{ startX: number }>({
-    onStart: (coords) => {
-      if (!isMobile) return null; // Disable on desktop
+    onStart: (coords, e) => {
+      if (!isMobile) {
+        // Return default context but onMove/onEnd will check isMobile
+        return { startX: 0 };
+      }
       isSwiping = true;
       return { startX: translateX };
     },
-    onMove: (coords, delta, context) => {
-      if (!isMobile || !context) return; // Disable on desktop
+    onMove: (coords, delta, context, e) => {
+      if (!isMobile) return; // Disable on desktop
       // Only allow left swipe (dx < 0) to reveal actions
       const newX = context.startX + delta.dx;
       translateX = Math.max(-MAX_SWIPE, Math.min(0, newX));
     },
-    onEnd: (coords, wasDrag) => {
+    onEnd: (coords, wasDrag, context, e) => {
       if (!isMobile) return; // Disable on desktop
       isSwiping = false;
       

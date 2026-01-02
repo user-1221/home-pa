@@ -37,12 +37,19 @@ import {
 
 /**
  * Format date for iCalendar (YYYYMMDD or YYYYMMDDTHHmmss)
+ * 
+ * For all-day events: Uses UTC date components since all-day events 
+ * are stored as UTC midnight (00:00:00.000Z). This ensures consistent
+ * behavior regardless of local timezone.
+ * 
+ * For timed events: Uses local time since timed events have specific times.
  */
 function formatDateForIcal(date: Date, isAllDay: boolean): string {
   if (isAllDay) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
+    // Use UTC components for all-day events to avoid timezone issues
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
     return `${year}${month}${day}`;
   }
 
@@ -403,7 +410,7 @@ class CalendarStateClass {
                 description: event.description,
                 location: event.address,
                 importance: event.importance,
-                timeLabel: event.timeLabel,
+                timeLabel: event.timeLabel ?? "all-day",
                 isForever,
                 recurrenceId: occ.recurrenceId,
               };

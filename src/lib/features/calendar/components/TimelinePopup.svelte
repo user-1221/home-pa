@@ -139,7 +139,9 @@
           e.id === (event as Event & { eventId?: string }).eventId ||
           e.id === event.id,
       ) || event;
-    eventActions.editEvent(masterEvent);
+    // Pass the occurrence's start date for recurring event deletion
+    const occurrenceDate = event.start;
+    eventActions.editEvent(masterEvent, occurrenceDate);
     parseRecurrenceForEdit(masterEvent);
   }
 

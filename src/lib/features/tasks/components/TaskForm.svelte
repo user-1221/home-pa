@@ -7,10 +7,15 @@
     isTaskFormValid,
     showDeadlineField,
     showRecurrenceFields,
+    isTaskFormEditing,
+    hasEnrichedFieldsCleared,
     taskFormActions,
   } from "$lib/features/tasks/state/taskForm.ts";
   import { taskActions } from "$lib/features/tasks/state/taskActions.ts";
-  import type { MemoType, LocationPreference } from "$lib/types.ts";
+  import type { MemoType, LocationPreference, ImportanceLevel } from "$lib/types.ts";
+
+  // Advanced settings section state
+  let showAdvancedSettings = $state(false);
 
   // Type options
   const typeOptions: { value: MemoType; label: string; description: string }[] =
@@ -42,9 +47,46 @@
     { value: "month", label: "Month" },
   ];
 
+  // Genre options
+  const genreOptions: string[] = [
+    "勉強",
+    "仕事",
+    "運動",
+    "家事",
+    "趣味",
+    "買い物",
+    "その他",
+  ];
+
+  // Importance options
+  const importanceOptions: { value: ImportanceLevel; label: string }[] = [
+    { value: "low", label: "低" },
+    { value: "medium", label: "中" },
+    { value: "high", label: "高" },
+  ];
+
+  // Auto-expand advanced settings when editing with LLM values
+  $effect(() => {
+    if ($isTaskFormEditing) {
+      // Open advanced settings if there are any LLM-enriched values to edit
+      const hasEnrichedValues =
+        $taskForm.genre ||
+        $taskForm.importance ||
+        $taskForm.sessionDuration ||
+        $taskForm.totalDurationExpected;
+      if (hasEnrichedValues) {
+        showAdvancedSettings = true;
+      }
+    } else {
+      // Reset when creating new task
+      showAdvancedSettings = false;
+    }
+  });
+
   // Handlers
   function handleClose() {
     taskFormActions.closeForm();
+    showAdvancedSettings = false;
   }
 
   async function handleSubmit(e: Event) {
@@ -257,6 +299,133 @@
               {/each}
             </div>
           </div>
+
+          <!-- Advanced Settings Collapsible -->
+          <div class="border-t border-base-300 pt-2 mt-2">
+            <button
+              type="button"
+              class="btn btn-ghost btn-sm w-full justify-start gap-2 text-[var(--color-text-secondary)]"
+              onclick={() => (showAdvancedSettings = !showAdvancedSettings)}
+            >
+              <span class="transition-transform duration-200 {showAdvancedSettings ? 'rotate-90' : ''}">▶</span>
+              詳細設定
+            </button>
+
+            {#if showAdvancedSettings}
+              <div class="flex flex-col gap-4 pt-3 pl-2">
+                <!-- Genre -->
+                <div class="form-control">
+                  <label class="label" for="genre">
+                    <span class="label-text text-sm text-[var(--color-text-secondary)]"
+                      >ジャンル</span
+                    >
+                  </label>
+                  <select
+                    id="genre"
+                    class="select-bordered select w-full"
+                    bind:value={$taskForm.genre}
+                  >
+                    <option value="">未設定（AIが推定）</option>
+                    {#each genreOptions as genre (genre)}
+                      <option value={genre}>{genre}</option>
+                    {/each}
+                  </select>
+                </div>
+
+                <!-- Importance -->
+                <div class="form-control">
+                  <span class="label">
+                    <span class="label-text text-sm text-[var(--color-text-secondary)]"
+                      >重要度</span
+                    >
+                  </span>
+                  <div class="flex gap-2" role="group" aria-label="重要度">
+                    <button
+                      type="button"
+                      class="btn flex-1 btn-sm {$taskForm.importance === ''
+                        ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+                        : 'border-base-300 btn-ghost'} border transition-all duration-200"
+                      onclick={() => taskFormActions.updateField("importance", "")}
+                    >
+                      未設定
+                    </button>
+                    {#each importanceOptions as option (option.value)}
+                      <button
+                        type="button"
+                        class="btn flex-1 btn-sm {$taskForm.importance === option.value
+                          ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+                          : 'border-base-300 btn-ghost'} border transition-all duration-200"
+                        onclick={() => taskFormActions.updateField("importance", option.value)}
+                      >
+                        {option.label}
+                      </button>
+                    {/each}
+                  </div>
+                </div>
+
+                <!-- Session Duration & Total Duration (only in edit mode) -->
+                {#if $isTaskFormEditing}
+                  <div class="form-control">
+                    <label class="label" for="sessionDuration">
+                      <span class="label-text text-sm text-[var(--color-text-secondary)]"
+                        >1回のセッション時間（分）</span
+                      >
+                    </label>
+                    <input
+                      id="sessionDuration"
+                      type="number"
+                      min="5"
+                      max="480"
+                      placeholder="例: 30"
+                      class="input-bordered input w-full"
+                      value={$taskForm.sessionDuration ?? ""}
+                      onchange={(e) => {
+                        const val = e.currentTarget.value;
+                        taskFormActions.updateField(
+                          "sessionDuration",
+                          val ? parseInt(val, 10) : null
+                        );
+                      }}
+                    />
+                  </div>
+
+                  <div class="form-control">
+                    <label class="label" for="totalDuration">
+                      <span class="label-text text-sm text-[var(--color-text-secondary)]"
+                        >合計所要時間（分）</span
+                      >
+                    </label>
+                    <input
+                      id="totalDuration"
+                      type="number"
+                      min="5"
+                      max="9999"
+                      placeholder="例: 120"
+                      class="input-bordered input w-full"
+                      value={$taskForm.totalDurationExpected ?? ""}
+                      onchange={(e) => {
+                        const val = e.currentTarget.value;
+                        taskFormActions.updateField(
+                          "totalDurationExpected",
+                          val ? parseInt(val, 10) : null
+                        );
+                      }}
+                    />
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          </div>
+
+          <!-- Enriched Fields Cleared Warning -->
+          {#if $taskFormErrors.enrichedFieldsCleared}
+            <div
+              class="flex items-center gap-2 rounded-lg border border-[var(--color-warning-500)] bg-[var(--color-warning-100)] p-3"
+            >
+              <div class="text-xl">⚠️</div>
+              <div class="text-sm text-[var(--color-warning-700)]">{$taskFormErrors.enrichedFieldsCleared}</div>
+            </div>
+          {/if}
 
           <!-- General Error Display -->
           {#if $taskFormErrors.general}

@@ -19,6 +19,7 @@ import {
   createDateOnlyUTC,
   createMultiDayAllDayUTCRange,
 } from "../../../utils/date-utils.ts";
+import ICAL from "ical.js";
 
 /**
  * Event Actions
@@ -172,15 +173,168 @@ export const eventActions = {
       const deleted = await calendarState.deleteEvent(eventId);
 
       if (deleted) {
-        toastState.success("Event deleted");
+        toastState.success("予定を削除しました");
       } else {
-        toastState.error("Event not found");
+        toastState.error("予定が見つかりません");
       }
 
       return deleted;
     } catch (error: unknown) {
       const message =
-        error instanceof Error ? error.message : "Failed to delete event";
+        error instanceof Error ? error.message : "削除に失敗しました";
+      toastState.error(message);
+      return false;
+    }
+  },
+
+  /**
+   * Delete a single occurrence of a recurring event by adding EXDATE
+   * Delegates to CalendarState.addExdateToEvent which uses ical.js for proper RFC 5545 compliance
+   */
+  async deleteOccurrence(eventId: string, occurrenceDate: Date): Promise<boolean> {
+    try {
+      const event = calendarState.getEvent(eventId);
+      if (!event) {
+        toastState.error("予定が見つかりません");
+        return false;
+      }
+
+      // Verify this is a recurring event
+      const currentRecurrence = event.recurrence;
+      if (!currentRecurrence || currentRecurrence.type !== "RRULE") {
+        toastState.error("繰り返し設定がありません");
+        return false;
+      }
+
+      // Add EXDATE via calendarState (uses ical.js for proper iCal format)
+      const success = await calendarState.addExdateToEvent(eventId, occurrenceDate);
+
+      if (success) {
+        toastState.success("この予定を削除しました");
+      }
+
+      return success;
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "削除に失敗しました";
+      toastState.error(message);
+      return false;
+    }
+  },
+
+  /**
+   * Delete this and all future occurrences by setting UNTIL on the recurrence rule
+   * Uses ical.js for proper RFC 5545 compliance
+   * Preserves existing EXDATE values
+   */
+  async deleteThisAndFuture(eventId: string, occurrenceDate: Date): Promise<boolean> {
+    try {
+      const event = calendarState.getEvent(eventId);
+      if (!event) {
+        toastState.error("予定が見つかりません");
+        return false;
+      }
+
+      const currentRecurrence = event.recurrence;
+      if (!currentRecurrence || currentRecurrence.type !== "RRULE" || !currentRecurrence.rrule) {
+        toastState.error("繰り返し設定がありません");
+        return false;
+      }
+
+      // Parse RRULE using ical.js to ensure proper handling
+      let recur: ICAL.Recur;
+      try {
+        recur = ICAL.Recur.fromString(currentRecurrence.rrule);
+      } catch (parseError) {
+        console.error("[eventActions] Invalid RRULE:", currentRecurrence.rrule, parseError);
+        toastState.error("無効な繰り返しルールです");
+        return false;
+      }
+
+      // Calculate UNTIL date: day before this occurrence
+      const isAllDay = event.timeLabel === "all-day";
+      const untilDate = new Date(occurrenceDate);
+      untilDate.setUTCDate(untilDate.getUTCDate() - 1);
+
+      let untilTime: ICAL.Time;
+      if (isAllDay) {
+        // All-day events: use DATE format (end of previous day)
+        const year = untilDate.getUTCFullYear();
+        const month = untilDate.getUTCMonth() + 1;
+        const day = untilDate.getUTCDate();
+        const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        untilTime = ICAL.Time.fromDateString(dateStr);
+      } else {
+        // Timed events: use DATE-TIME format in UTC (end of day)
+        untilDate.setUTCHours(23, 59, 59, 0);
+        untilTime = ICAL.Time.fromJSDate(untilDate, true); // true = UTC
+      }
+
+      // Set UNTIL on the recurrence (ical.js handles removing COUNT automatically)
+      recur.until = untilTime;
+      // Explicitly clear COUNT to avoid conflicts (ical.js uses null, not undefined)
+      recur.count = null;
+
+      // Convert back to RRULE string
+      const newRrule = recur.toString();
+
+      // IMPORTANT: When updating recurrence, we need to preserve existing EXDATE values
+      // by updating the icalData directly instead of regenerating it
+      if (event.icalData) {
+        // Parse existing icalData to preserve EXDATE
+        const icsContent = event.icalData.includes("BEGIN:VCALENDAR")
+          ? event.icalData
+          : `BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${event.icalData}\r\nEND:VCALENDAR`;
+
+        const jcalData = ICAL.parse(icsContent);
+        const vcalendar = new ICAL.Component(jcalData);
+        const vevent = vcalendar.getFirstSubcomponent("vevent");
+
+        if (vevent) {
+          // Update RRULE property while preserving EXDATE
+          const rruleProp = vevent.getFirstProperty("rrule");
+          if (rruleProp) {
+            vevent.removeProperty(rruleProp);
+          }
+          vevent.addPropertyWithValue("rrule", recur);
+
+          // Regenerate icalData with preserved EXDATE
+          const newIcalData = vevent.toString();
+
+          // Update with both new recurrence and preserved icalData
+          // The icalData contains EXDATE and the updated RRULE
+          const success = await calendarState.updateEvent(eventId, {
+            recurrence: {
+              type: "RRULE",
+              rrule: newRrule,
+            },
+            icalData: newIcalData,
+          });
+
+          if (success) {
+            toastState.success("これ以降の予定を削除しました");
+          }
+
+          return success;
+        }
+      }
+
+      // Fallback: if no icalData, just update recurrence (will regenerate icalData)
+      const success = await calendarState.updateEvent(eventId, {
+        recurrence: {
+          type: "RRULE",
+          rrule: newRrule,
+        },
+      });
+
+      if (success) {
+        toastState.success("これ以降の予定を削除しました");
+      }
+
+      return success;
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : "削除に失敗しました";
       toastState.error(message);
       return false;
     }
@@ -188,16 +342,21 @@ export const eventActions = {
 
   /**
    * Start editing an event
+   * @param event - The master event to edit
+   * @param occurrenceDate - For recurring events: the specific occurrence date being edited
    */
-  editEvent(event: Event): void {
+  editEvent(event: Event, occurrenceDate?: Date): void {
     // Use the event's timeLabel directly, defaulting to "all-day" if not set
     const timeLabel = event.timeLabel || "all-day";
 
-    // Set form data for editing
-    eventFormState.setForEditing({
-      ...event,
-      timeLabel,
-    });
+    // Set form data for editing (include occurrence date for recurring events)
+    eventFormState.setForEditing(
+      {
+        ...event,
+        timeLabel,
+      },
+      occurrenceDate,
+    );
 
     // Show the form
     eventFormState.open();
