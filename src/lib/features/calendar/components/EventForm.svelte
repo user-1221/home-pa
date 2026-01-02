@@ -44,6 +44,11 @@
   ]);
   let monthlyType = $state<"dayOfMonth" | "nthWeekday">("nthWeekday");
   let isDeleting = $state(false);
+  
+  // Recurring delete dialog state
+  let showRecurringDeleteDialog = $state(false);
+  type RecurringDeleteOption = "this" | "future" | "all";
+  let selectedDeleteOption = $state<RecurringDeleteOption>("this");
 
   // Track store changes to avoid circular updates
   let lastStoreTitle = $state("");
@@ -103,9 +108,77 @@
     lastStoreStart = form.start;
     lastStoreEnd = form.end;
 
-    // Track recurrence for sync guard
-    lastStoreRecurrence = JSON.stringify(form.recurrence ?? { type: "NONE" });
+    // Sync recurrence from store when editing
+    const recurrenceStr = JSON.stringify(form.recurrence ?? { type: "NONE" });
+    if (recurrenceStr !== lastStoreRecurrence) {
+      lastStoreRecurrence = recurrenceStr;
+      parseRecurrenceFromStore(form.recurrence);
+    }
   });
+
+  /**
+   * Parse recurrence from store and populate local state
+   */
+  function parseRecurrenceFromStore(recurrence: Recurrence | undefined): void {
+    if (!recurrence || recurrence.type === "NONE") {
+      isRecurring = false;
+      recurrenceFrequency = "WEEKLY";
+      recurrenceInterval = 1;
+      recurrenceEndDate = "";
+      weeklyDays = [false, false, false, false, false, false, false];
+      monthlyType = "nthWeekday";
+      return;
+    }
+
+    isRecurring = true;
+
+    if (recurrence.type === "RRULE" && recurrence.rrule) {
+      const rrule = recurrence.rrule;
+
+      // Parse FREQ
+      const freqMatch = rrule.match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/);
+      if (freqMatch) {
+        recurrenceFrequency = freqMatch[1] as "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+      }
+
+      // Parse INTERVAL
+      const intervalMatch = rrule.match(/INTERVAL=(\d+)/);
+      if (intervalMatch) {
+        recurrenceInterval = parseInt(intervalMatch[1], 10);
+      } else {
+        recurrenceInterval = 1;
+      }
+
+      // Parse UNTIL
+      const untilMatch = rrule.match(/UNTIL=(\d{4})(\d{2})(\d{2})/);
+      if (untilMatch) {
+        recurrenceEndDate = `${untilMatch[1]}-${untilMatch[2]}-${untilMatch[3]}`;
+      } else {
+        recurrenceEndDate = "";
+      }
+
+      // Parse BYDAY for weekly
+      if (recurrenceFrequency === "WEEKLY") {
+        const bydayMatch = rrule.match(/BYDAY=([A-Z,]+)/);
+        if (bydayMatch) {
+          const dayNames = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+          const selectedDays = bydayMatch[1].split(",");
+          weeklyDays = dayNames.map((day) => selectedDays.includes(day));
+        } else {
+          weeklyDays = [false, false, false, false, false, false, false];
+        }
+      }
+
+      // Parse BYMONTHDAY vs BYDAY for monthly
+      if (recurrenceFrequency === "MONTHLY") {
+        if (rrule.includes("BYMONTHDAY=")) {
+          monthlyType = "dayOfMonth";
+        } else {
+          monthlyType = "nthWeekday";
+        }
+      }
+    }
+  }
 
   // Sync to store (only when local value differs from last store value)
   $effect(() => {
@@ -225,6 +298,15 @@
   async function handleDelete(): Promise<void> {
     const form = eventFormState.formData;
     if (!form.editingId || isDeleting) return;
+
+    // Check if this is a recurring event
+    if (form.recurrence && form.recurrence.type !== "NONE") {
+      // Show recurring delete dialog
+      showRecurringDeleteDialog = true;
+      return;
+    }
+
+    // Non-recurring event: simple confirmation
     const confirmed = window.confirm("この予定を削除しますか？");
     if (!confirmed) return;
 
@@ -235,6 +317,43 @@
     if (success) {
       eventFormState.close();
     }
+  }
+
+  async function handleRecurringDelete(): Promise<void> {
+    const form = eventFormState.formData;
+    if (!form.editingId || isDeleting) return;
+
+    isDeleting = true;
+    showRecurringDeleteDialog = false;
+
+    try {
+      let success = false;
+
+      // Use occurrenceDate if available (for recurring events), otherwise fall back to form.start
+      const targetDate = form.occurrenceDate ?? new Date(form.start);
+
+      if (selectedDeleteOption === "all") {
+        // Delete all: simply delete the master event
+        success = await eventActions.delete(form.editingId);
+      } else if (selectedDeleteOption === "future") {
+        // Delete this and future: set UNTIL on the recurrence rule to the day before this occurrence
+        success = await eventActions.deleteThisAndFuture(form.editingId, targetDate);
+      } else if (selectedDeleteOption === "this") {
+        // Delete only this: add EXDATE to exclude this occurrence
+        success = await eventActions.deleteOccurrence(form.editingId, targetDate);
+      }
+
+      if (success) {
+        eventFormState.close();
+      }
+    } finally {
+      isDeleting = false;
+    }
+  }
+
+  function cancelRecurringDelete(): void {
+    showRecurringDeleteDialog = false;
+    selectedDeleteOption = "this";
   }
 </script>
 
@@ -778,3 +897,85 @@
   </div>
   <div class="modal-backdrop bg-base-content/40 backdrop-blur-sm"></div>
 </div>
+
+<!-- Recurring Delete Dialog -->
+{#if showRecurringDeleteDialog}
+  <div
+    class="modal-open modal z-[2200] md:modal-middle"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="recurring-delete-title"
+  >
+    <div class="modal-box max-w-sm">
+      <h3 id="recurring-delete-title" class="text-lg font-medium mb-4">
+        繰り返し予定の削除
+      </h3>
+      
+      <div class="flex flex-col gap-3">
+        <label class="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-base-200">
+          <input
+            type="radio"
+            name="deleteOption"
+            value="this"
+            class="radio radio-primary"
+            bind:group={selectedDeleteOption}
+          />
+          <span class="text-sm">この予定だけを削除</span>
+        </label>
+        
+        <label class="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-base-200">
+          <input
+            type="radio"
+            name="deleteOption"
+            value="future"
+            class="radio radio-primary"
+            bind:group={selectedDeleteOption}
+          />
+          <span class="text-sm">これ以降の予定を削除</span>
+        </label>
+        
+        <label class="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-base-200">
+          <input
+            type="radio"
+            name="deleteOption"
+            value="all"
+            class="radio radio-primary"
+            bind:group={selectedDeleteOption}
+          />
+          <span class="text-sm">すべての予定を削除</span>
+        </label>
+      </div>
+      
+      <div class="modal-action mt-6">
+        <button
+          type="button"
+          class="btn btn-ghost"
+          onclick={cancelRecurringDelete}
+          disabled={isDeleting}
+        >
+          キャンセル
+        </button>
+        <button
+          type="button"
+          class="btn btn-error"
+          onclick={handleRecurringDelete}
+          disabled={isDeleting}
+        >
+          {#if isDeleting}
+            <span class="loading loading-sm loading-spinner"></span>
+          {:else}
+            削除
+          {/if}
+        </button>
+      </div>
+    </div>
+    <div
+      class="modal-backdrop bg-black/50"
+      onclick={cancelRecurringDelete}
+      onkeydown={(e) => e.key === "Escape" && cancelRecurringDelete()}
+      role="button"
+      tabindex="-1"
+      aria-label="Close dialog"
+    ></div>
+  </div>
+{/if}

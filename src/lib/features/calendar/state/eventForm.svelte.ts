@@ -28,6 +28,8 @@ export interface EventFormData {
   isEditing: boolean;
   editingId: string | null;
   recurrence?: Recurrence;
+  /** For recurring event occurrences: the actual occurrence date being edited */
+  occurrenceDate?: Date;
 }
 
 /**
@@ -65,6 +67,8 @@ class EventFormState {
   isEditing = $state(false);
   editingId = $state<string | null>(null);
   recurrence = $state<Recurrence | undefined>(undefined);
+  /** For recurring event occurrences: the actual occurrence date being edited */
+  occurrenceDate = $state<Date | undefined>(undefined);
 
   // Validation errors
   errors = $state<EventFormErrors>({});
@@ -126,6 +130,7 @@ class EventFormState {
       isEditing: this.isEditing,
       editingId: this.editingId,
       recurrence: this.recurrence,
+      occurrenceDate: this.occurrenceDate,
     };
   }
 
@@ -218,6 +223,9 @@ class EventFormState {
       case "recurrence":
         this.recurrence = value as Recurrence | undefined;
         break;
+      case "occurrenceDate":
+        this.occurrenceDate = value as Date | undefined;
+        break;
     }
 
     // Clear field-specific error on change
@@ -228,8 +236,10 @@ class EventFormState {
 
   /**
    * Set form data for editing an existing event
+   * @param event - The master event to edit
+   * @param occurrenceDate - For recurring events: the specific occurrence date being edited
    */
-  setForEditing(event: Event): void {
+  setForEditing(event: Event, occurrenceDate?: Date): void {
     const timeLabel = event.timeLabel || "all-day";
 
     let startValue = "";
@@ -253,6 +263,7 @@ class EventFormState {
     this.isEditing = true;
     this.editingId = event.id;
     this.recurrence = event.recurrence;
+    this.occurrenceDate = occurrenceDate;
     this.errors = {};
   }
 
@@ -270,6 +281,7 @@ class EventFormState {
     this.isEditing = false;
     this.editingId = null;
     this.recurrence = undefined;
+    this.occurrenceDate = undefined;
     this.errors = {};
     this.isSubmitting = false;
   }

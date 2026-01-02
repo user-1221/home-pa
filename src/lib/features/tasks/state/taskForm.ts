@@ -28,6 +28,9 @@ export interface TaskEditData {
   recurrenceGoal?: RecurrenceGoal;
   locationPreference: LocationPreference;
   importance?: ImportanceLevel;
+  genre?: string;
+  sessionDuration?: number;
+  totalDurationExpected?: number;
 }
 
 /**
@@ -41,8 +44,15 @@ export interface TaskFormData {
   recurrencePeriod: "day" | "week" | "month";
   locationPreference: LocationPreference;
   importance: ImportanceLevel | "";
+  genre: string;
+  sessionDuration: number | null; // Minutes per session (null = not set)
+  totalDurationExpected: number | null; // Total expected time in minutes (null = not set)
   isEditing: boolean;
   editingId: string | null;
+  // Track original LLM-enriched values to detect clearing
+  originalGenre?: string;
+  originalSessionDuration?: number;
+  originalTotalDurationExpected?: number;
 }
 
 /**
@@ -52,6 +62,7 @@ export interface TaskFormErrors {
   title?: string;
   deadline?: string;
   recurrence?: string;
+  enrichedFieldsCleared?: string; // Warning when LLM-enriched fields are emptied
   general?: string;
 }
 
@@ -67,8 +78,14 @@ const initialFormState: TaskFormData = {
   recurrencePeriod: "week",
   locationPreference: "no_preference",
   importance: "",
+  genre: "",
+  sessionDuration: null,
+  totalDurationExpected: null,
   isEditing: false,
   editingId: null,
+  originalGenre: undefined,
+  originalSessionDuration: undefined,
+  originalTotalDurationExpected: undefined,
 };
 
 // ============================================================================
@@ -147,6 +164,33 @@ export const showRecurrenceFields = derived(
   ($form) => $form.type === "ルーティン",
 );
 
+/**
+ * Check if any LLM-enriched fields have been cleared during editing
+ * Returns true if any field that had a value is now empty
+ */
+export const hasEnrichedFieldsCleared = derived(taskForm, ($form) => {
+  if (!$form.isEditing) return false;
+
+  const clearedFields: string[] = [];
+
+  // Check genre - was set, now empty
+  if ($form.originalGenre && !$form.genre.trim()) {
+    clearedFields.push("ジャンル");
+  }
+
+  // Check sessionDuration - was set, now null/0
+  if ($form.originalSessionDuration && !$form.sessionDuration) {
+    clearedFields.push("セッション時間");
+  }
+
+  // Check totalDurationExpected - was set, now null/0
+  if ($form.originalTotalDurationExpected && !$form.totalDurationExpected) {
+    clearedFields.push("合計時間");
+  }
+
+  return clearedFields.length > 0 ? clearedFields : false;
+});
+
 // ============================================================================
 // Actions
 // ============================================================================
@@ -188,8 +232,15 @@ export const taskFormActions = {
       recurrencePeriod: task.recurrenceGoal?.period ?? "week",
       locationPreference: task.locationPreference,
       importance: task.importance ?? "",
+      genre: task.genre ?? "",
+      sessionDuration: task.sessionDuration ?? null,
+      totalDurationExpected: task.totalDurationExpected ?? null,
       isEditing: true,
       editingId: task.id,
+      // Track original LLM-enriched values
+      originalGenre: task.genre,
+      originalSessionDuration: task.sessionDuration,
+      originalTotalDurationExpected: task.totalDurationExpected,
     });
     taskFormErrors.set({});
   },

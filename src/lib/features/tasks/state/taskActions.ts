@@ -207,8 +207,9 @@ function createMemoFromForm(formData: TaskFormData): Memo {
       formData.importance && formData.importance.length > 0
         ? (formData.importance as ImportanceLevel)
         : undefined,
-    // LLM will fill these later:
-    // genre, sessionDuration, totalDurationExpected
+    // Preserve genre if manually set (otherwise LLM will fill)
+    genre: formData.genre.trim() || undefined,
+    // LLM will fill sessionDuration, totalDurationExpected later
   };
 }
 
@@ -244,6 +245,30 @@ function validateTaskForm(formData: TaskFormData): {
   // Recurrence count must be positive
   if (formData.type === "ルーティン" && formData.recurrenceCount < 1) {
     errors.recurrence = "回数は1以上を設定してください";
+  }
+
+  // Check if LLM-enriched fields have been cleared (only during edit)
+  if (formData.isEditing) {
+    const clearedFields: string[] = [];
+
+    // Check genre - was set, now empty
+    if (formData.originalGenre && !formData.genre.trim()) {
+      clearedFields.push("ジャンル");
+    }
+
+    // Check sessionDuration - was set, now null/0
+    if (formData.originalSessionDuration && !formData.sessionDuration) {
+      clearedFields.push("セッション時間");
+    }
+
+    // Check totalDurationExpected - was set, now null/0
+    if (formData.originalTotalDurationExpected && !formData.totalDurationExpected) {
+      clearedFields.push("合計時間");
+    }
+
+    if (clearedFields.length > 0) {
+      errors.enrichedFieldsCleared = `以下のAI推定値がクリアされています: ${clearedFields.join("、")}。編集を完了するには値を設定してください。`;
+    }
   }
 
   return {
@@ -457,6 +482,10 @@ export const taskActions = {
           formData.importance && formData.importance.length > 0
             ? (formData.importance as ImportanceLevel)
             : undefined,
+        // User-editable LLM-enriched fields
+        genre: formData.genre.trim() || undefined,
+        sessionDuration: formData.sessionDuration ?? undefined,
+        totalDurationExpected: formData.totalDurationExpected ?? undefined,
       };
 
       // Update in DB
@@ -598,6 +627,9 @@ export const taskActions = {
       recurrenceGoal: task.recurrenceGoal,
       locationPreference: task.locationPreference,
       importance: task.importance,
+      genre: task.genre,
+      sessionDuration: task.sessionDuration,
+      totalDurationExpected: task.totalDurationExpected,
     });
   },
 

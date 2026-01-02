@@ -312,8 +312,41 @@ export function expandRecurrences(
 
     // If not recurring, return single occurrence
     if (!event.isRecurring()) {
-      const startDate = event.startDate.toJSDate();
-      const endDate = event.endDate?.toJSDate() || startDate;
+      const isAllDay = event.startDate.isDate;
+      let startDate: Date;
+      let endDate: Date;
+
+      if (isAllDay) {
+        // For all-day events, convert to UTC midnight
+        startDate = new Date(Date.UTC(
+          event.startDate.year,
+          event.startDate.month - 1,
+          event.startDate.day,
+          0, 0, 0, 0
+        ));
+        if (event.endDate) {
+          // iCal uses exclusive DTEND for all-day events
+          // Convert to inclusive: subtract 1 day if DTEND > DTSTART
+          const exclusiveEnd = new Date(Date.UTC(
+            event.endDate.year,
+            event.endDate.month - 1,
+            event.endDate.day,
+            0, 0, 0, 0
+          ));
+          if (exclusiveEnd.getTime() > startDate.getTime()) {
+            // Multi-day event: convert exclusive to inclusive (subtract 1 day)
+            endDate = new Date(exclusiveEnd.getTime() - 24 * 60 * 60 * 1000);
+          } else {
+            // Single-day or same date: end = start
+            endDate = startDate;
+          }
+        } else {
+          endDate = startDate;
+        }
+      } else {
+        startDate = event.startDate.toJSDate();
+        endDate = event.endDate?.toJSDate() || startDate;
+      }
 
       // Check if within window
       if (startDate <= windowEnd && endDate >= windowStart) {
@@ -327,11 +360,35 @@ export function expandRecurrences(
       return [];
     }
 
+    // Check if this is an all-day event (DATE value vs DATE-TIME)
+    const isAllDay = event.startDate.isDate;
+
     // Calculate event duration for occurrence end times
-    const durationMs = event.endDate
-      ? event.endDate.toJSDate().getTime() -
-        event.startDate.toJSDate().getTime()
-      : 0;
+    let durationMs: number;
+    if (isAllDay) {
+      // For all-day events, calculate duration using UTC date components
+      // to avoid timezone issues with toJSDate()
+      const startUtc = Date.UTC(
+        event.startDate.year,
+        event.startDate.month - 1,
+        event.startDate.day,
+        0, 0, 0, 0
+      );
+      const endUtc = event.endDate
+        ? Date.UTC(
+            event.endDate.year,
+            event.endDate.month - 1,
+            event.endDate.day,
+            0, 0, 0, 0
+          )
+        : startUtc;
+      durationMs = endUtc - startUtc;
+    } else {
+      durationMs = event.endDate
+        ? event.endDate.toJSDate().getTime() -
+          event.startDate.toJSDate().getTime()
+        : 0;
+    }
 
     const occurrences: ExpandedOccurrence[] = [];
     const iterator = event.iterator();
@@ -340,7 +397,16 @@ export function expandRecurrences(
     let count = 0;
 
     while (next && count < maxOccurrences) {
-      const occStart = next.toJSDate();
+      let occStart: Date;
+
+      if (isAllDay) {
+        // For all-day events (DATE values), convert to UTC midnight
+        // ical.js returns DATE values as local time, but we store as UTC midnight
+        // Use the year/month/day from ICAL.Time directly and create UTC date
+        occStart = new Date(Date.UTC(next.year, next.month - 1, next.day, 0, 0, 0, 0));
+      } else {
+        occStart = next.toJSDate();
+      }
 
       // Past the window, stop
       if (occStart > windowEnd) {
@@ -349,9 +415,32 @@ export function expandRecurrences(
 
       // Within window, add to results
       if (occStart >= windowStart) {
+        let endDate: Date;
+        if (isAllDay) {
+          // For all-day events, iCal uses exclusive DTEND
+          // But app uses inclusive end dates, so we need to convert:
+          // - If durationMs > 0 (multi-day), subtract 1 day from the calculated end
+          // - If durationMs = 0 (single-day), end = start (same day)
+          if (durationMs > 0) {
+            // Multi-day: calculated end is exclusive, convert to inclusive
+            const exclusiveEnd = new Date(occStart.getTime() + durationMs);
+            endDate = new Date(Date.UTC(
+              exclusiveEnd.getUTCFullYear(),
+              exclusiveEnd.getUTCMonth(),
+              exclusiveEnd.getUTCDate() - 1,
+              0, 0, 0, 0
+            ));
+          } else {
+            // Single-day: end = start
+            endDate = occStart;
+          }
+        } else {
+          endDate = new Date(occStart.getTime() + durationMs);
+        }
+
         occurrences.push({
           startDate: occStart,
-          endDate: new Date(occStart.getTime() + durationMs),
+          endDate,
           recurrenceId: next.toICALString(),
         });
       }

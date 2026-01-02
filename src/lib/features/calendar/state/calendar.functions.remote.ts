@@ -62,6 +62,7 @@ const EventUpdateSchema = v.object({
     timeLabel: v.optional(v.picklist(["all-day", "some-timing", "timed"])),
     tzid: v.optional(v.string()),
     recurrence: v.optional(v.any()),
+    icalData: v.optional(v.string()), // For EXDATE updates
   }),
 });
 
@@ -222,6 +223,11 @@ export const updateEvent = command(EventUpdateSchema, async (input) => {
 
     // Convert to database update format
     const dbUpdates = appEventToDbUpdate(updates, existing);
+    
+    // Handle direct icalData update (for EXDATE additions)
+    if (input.updates.icalData !== undefined) {
+      dbUpdates.icalData = input.updates.icalData;
+    }
 
     // Update in database
     const updated = await prisma.calendarEvent.update({

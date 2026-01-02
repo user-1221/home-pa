@@ -21,6 +21,7 @@ import {
   type ExpandedOccurrence as IcalOccurrence,
 } from "../services/index.ts";
 import { toastState } from "../../../bootstrap/toast.svelte.ts";
+import ICAL from "ical.js";
 import {
   fetchEvents as fetchEventsRemote,
   createEvent as createEventRemote,
@@ -271,7 +272,7 @@ class CalendarState {
         description: event.description,
         address: event.address,
         importance: event.importance,
-        timeLabel: event.timeLabel,
+        timeLabel: event.timeLabel ?? "all-day",
         tzid: event.tzid,
         recurrence: event.recurrence,
       });
@@ -329,6 +330,8 @@ class CalendarState {
       if (updates.tzid !== undefined) updateInput.tzid = updates.tzid;
       if (updates.recurrence !== undefined)
         updateInput.recurrence = updates.recurrence;
+      if (updates.icalData !== undefined)
+        updateInput.icalData = updates.icalData;
 
       const updatedJson = await updateEventRemote({
         id,
@@ -381,11 +384,150 @@ class CalendarState {
         );
       }
 
-      toastState.success("Event deleted");
       return true;
     } catch (error) {
       console.error("[CalendarState] deleteEvent error:", error);
       toastState.error("Failed to delete event");
+      return false;
+    }
+  }
+
+  /**
+   * Add EXDATE to a recurring event to exclude a specific occurrence
+   * Uses ical.js for proper RFC 5545 compliance
+   */
+  async addExdateToEvent(eventId: string, occurrenceDate: Date): Promise<boolean> {
+    try {
+      const event = this.events.find((e) => e.id === eventId);
+      if (!event) {
+        console.error("[CalendarState] Event not found:", eventId);
+        return false;
+      }
+
+      // If no icalData, we need to construct a basic VEVENT to add EXDATE
+      let icalDataToUse = event.icalData;
+      if (!icalDataToUse) {
+        // Construct minimal VEVENT from event data
+        const isAllDay = event.timeLabel === "all-day";
+        const dtstartLine = isAllDay
+          ? `DTSTART;VALUE=DATE:${event.start.getUTCFullYear()}${String(event.start.getUTCMonth() + 1).padStart(2, "0")}${String(event.start.getUTCDate()).padStart(2, "0")}`
+          : `DTSTART:${event.start.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")}`;
+        const rrule = event.recurrence?.type === "RRULE" ? event.recurrence.rrule : "";
+        
+        icalDataToUse = [
+          "BEGIN:VEVENT",
+          `UID:${event.id}`,
+          dtstartLine,
+          rrule ? `RRULE:${rrule}` : "",
+          `SUMMARY:${event.title}`,
+          "END:VEVENT",
+        ].filter(Boolean).join("\r\n");
+      }
+
+      // Parse icalData using ical.js
+      const icsContent = icalDataToUse.includes("BEGIN:VCALENDAR")
+        ? icalDataToUse
+        : `BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${icalDataToUse}\r\nEND:VCALENDAR`;
+
+      const jcalData = ICAL.parse(icsContent);
+      const vcalendar = new ICAL.Component(jcalData);
+      const vevent = vcalendar.getFirstSubcomponent("vevent");
+
+      if (!vevent) {
+        console.error("[CalendarState] No VEVENT found in icalData");
+        return false;
+      }
+
+      // Create ICAL.Time for the occurrence date
+      const isAllDay = event.timeLabel === "all-day";
+      let exdateTime: ICAL.Time;
+
+      if (isAllDay) {
+        // For all-day events, use DATE value (no time component)
+        const year = occurrenceDate.getUTCFullYear();
+        const month = occurrenceDate.getUTCMonth() + 1;
+        const day = occurrenceDate.getUTCDate();
+        const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        exdateTime = ICAL.Time.fromDateString(dateStr);
+      } else {
+        // For timed events, use UTC datetime
+        exdateTime = ICAL.Time.fromJSDate(occurrenceDate, true); // true = UTC
+      }
+
+      // Check for existing EXDATE properties to avoid duplicates
+      const existingExdates = vevent.getAllProperties("exdate");
+      for (const prop of existingExdates) {
+        const values = prop.getValues();
+        for (const val of values) {
+          const valTime = val as ICAL.Time;
+          if (isAllDay) {
+            // Compare dates only
+            if (
+              valTime.year === exdateTime.year &&
+              valTime.month === exdateTime.month &&
+              valTime.day === exdateTime.day
+            ) {
+              // Already excluded
+              return true;
+            }
+          } else {
+            // Compare full datetime
+            if (valTime.toJSDate().getTime() === exdateTime.toJSDate().getTime()) {
+              // Already excluded
+              return true;
+            }
+          }
+        }
+      }
+
+      // Add EXDATE property using ical.js
+      const exdateProp = new ICAL.Property("exdate");
+      exdateProp.setValue(exdateTime);
+
+      // Set VALUE parameter for all-day events (DATE vs DATE-TIME)
+      if (isAllDay) {
+        exdateProp.setParameter("value", "DATE");
+      }
+
+      vevent.addProperty(exdateProp);
+
+      // Regenerate icalData from the modified VEVENT
+      const newIcalData = vevent.toString();
+
+      // Update the event with new icalData
+      const updateInput: Record<string, unknown> = {
+        icalData: newIcalData,
+      };
+
+      const updatedJson = await updateEventRemote({
+        id: eventId,
+        updates: updateInput,
+      });
+
+      const updated: Event = {
+        ...(updatedJson as object),
+        start: new Date(updatedJson.start as string),
+        end: new Date(updatedJson.end as string),
+        icalData: newIcalData,
+      } as Event;
+
+      // Update local store
+      const newEvents = this.events.map((e) => (e.id === eventId ? updated : e));
+      this.events = newEvents;
+
+      // Re-expand occurrences to reflect the exclusion
+      if (this.currentWindow) {
+        this.occurrences = this.expandRecurringEvents(
+          newEvents,
+          this.currentWindow.start,
+          this.currentWindow.end,
+        );
+      }
+
+      return true;
+    } catch (error) {
+      console.error("[CalendarState] addExdateToEvent error:", error);
+      toastState.error("Failed to exclude occurrence");
       return false;
     }
   }
@@ -506,7 +648,7 @@ class CalendarState {
                 description: event.description,
                 location: event.address,
                 importance: event.importance,
-                timeLabel: event.timeLabel,
+                timeLabel: event.timeLabel ?? "all-day",
                 isForever,
                 recurrenceId: occ.recurrenceId,
               };
@@ -560,12 +702,19 @@ class CalendarState {
 
 /**
  * Format date for iCalendar (YYYYMMDD or YYYYMMDDTHHmmss)
+ * 
+ * For all-day events: Uses UTC date components since all-day events 
+ * are stored as UTC midnight (00:00:00.000Z). This ensures consistent
+ * behavior regardless of local timezone.
+ * 
+ * For timed events: Uses local time since timed events have specific times.
  */
 function formatDateForIcal(date: Date, isAllDay: boolean): string {
   if (isAllDay) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
+    // Use UTC components for all-day events to avoid timezone issues
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
     return `${year}${month}${day}`;
   }
 
