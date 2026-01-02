@@ -166,9 +166,14 @@ export function createVEvent(input: VEventInput): string {
   vevent.addPropertyWithValue("dtstamp", dtstamp);
 
   // DTSTART
+  // For all-day events, use UTC date components directly to avoid timezone issues
+  // (same pattern as event-converter.ts for consistency)
+  // For timed events, use UTC (true) to avoid server timezone issues in production
   const dtstart = input.isAllDay
-    ? ICAL.Time.fromDateString(input.dtstart.toISOString().split("T")[0])
-    : ICAL.Time.fromJSDate(input.dtstart, false);
+    ? ICAL.Time.fromDateString(
+        `${input.dtstart.getUTCFullYear()}-${String(input.dtstart.getUTCMonth() + 1).padStart(2, "0")}-${String(input.dtstart.getUTCDate()).padStart(2, "0")}`
+      )
+    : ICAL.Time.fromJSDate(input.dtstart, true);
 
   if (input.dtstartTzid && !input.isAllDay) {
     // Set timezone for timed events
@@ -184,9 +189,14 @@ export function createVEvent(input: VEventInput): string {
 
   // DTEND (if provided)
   if (input.dtend) {
+    // For all-day events, use UTC date components directly to avoid timezone issues
+    // (same pattern as event-converter.ts for consistency)
+    // For timed events, use UTC (true) to avoid server timezone issues in production
     const dtend = input.isAllDay
-      ? ICAL.Time.fromDateString(input.dtend.toISOString().split("T")[0])
-      : ICAL.Time.fromJSDate(input.dtend, false);
+      ? ICAL.Time.fromDateString(
+          `${input.dtend.getUTCFullYear()}-${String(input.dtend.getUTCMonth() + 1).padStart(2, "0")}-${String(input.dtend.getUTCDate()).padStart(2, "0")}`
+        )
+      : ICAL.Time.fromJSDate(input.dtend, true);
 
     if (input.dtstartTzid && !input.isAllDay) {
       dtend.zone = new ICAL.Timezone({ tzid: input.dtstartTzid });
@@ -385,9 +395,9 @@ export function expandRecurrences(
       durationMs = endUtc - startUtc;
     } else {
       durationMs = event.endDate
-        ? event.endDate.toJSDate().getTime() -
-          event.startDate.toJSDate().getTime()
-        : 0;
+      ? event.endDate.toJSDate().getTime() -
+        event.startDate.toJSDate().getTime()
+      : 0;
     }
 
     const occurrences: ExpandedOccurrence[] = [];

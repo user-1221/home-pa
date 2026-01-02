@@ -130,9 +130,13 @@
           {$taskForm.isEditing ? "タスクを編集" : "新しいタスク"}
         </h3>
         <button
-          type="submit"
+          type="button"
           class="btn btn-primary btn-sm md:hidden"
           disabled={!$isTaskFormValid || $isTaskFormSubmitting}
+          onclick={async (e) => {
+            e.preventDefault();
+            await taskActions.submit();
+          }}
         >
           {#if $isTaskFormSubmitting}
             <span class="loading loading-sm loading-spinner"></span>
