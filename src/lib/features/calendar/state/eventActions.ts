@@ -352,8 +352,8 @@ export const eventActions = {
     // Set form data for editing (include occurrence date for recurring events)
     eventFormState.setForEditing(
       {
-        ...event,
-        timeLabel,
+      ...event,
+      timeLabel,
       },
       occurrenceDate,
     );

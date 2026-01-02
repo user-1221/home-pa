@@ -44,7 +44,7 @@
   ]);
   let monthlyType = $state<"dayOfMonth" | "nthWeekday">("nthWeekday");
   let isDeleting = $state(false);
-  
+
   // Recurring delete dialog state
   let showRecurringDeleteDialog = $state(false);
   type RecurringDeleteOption = "this" | "future" | "all";
