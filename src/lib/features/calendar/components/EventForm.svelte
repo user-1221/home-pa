@@ -9,6 +9,10 @@
     utcToLocalDateString,
     utcToLocalTimeString,
   } from "$lib/utils/date-utils.ts";
+  import DatePicker from "$lib/features/shared/components/DatePicker.svelte";
+  import { browser } from "$app/environment";
+  import { onMount, tick } from "svelte";
+  import { slide } from "svelte/transition";
 
   // Form state
   let eventTitle = $state("");
@@ -44,6 +48,22 @@
   ]);
   let monthlyType = $state<"dayOfMonth" | "nthWeekday">("nthWeekday");
   let isDeleting = $state(false);
+
+  // Calendar picker state
+  type ActiveDatePicker = "start" | "end" | "recurrence-end" | null;
+  let activeDatePicker = $state<ActiveDatePicker>(null);
+  let activePickerLabel = $derived(() => {
+    switch (activeDatePicker) {
+      case "start":
+        return "開始日";
+      case "end":
+        return "終了日";
+      case "recurrence-end":
+        return "繰り返し終了日";
+      default:
+        return "";
+    }
+  });
 
   // Recurring delete dialog state
   let showRecurringDeleteDialog = $state(false);
@@ -138,7 +158,11 @@
       // Parse FREQ
       const freqMatch = rrule.match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/);
       if (freqMatch) {
-        recurrenceFrequency = freqMatch[1] as "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY";
+        recurrenceFrequency = freqMatch[1] as
+          | "DAILY"
+          | "WEEKLY"
+          | "MONTHLY"
+          | "YEARLY";
       }
 
       // Parse INTERVAL
@@ -337,10 +361,16 @@
         success = await eventActions.delete(form.editingId);
       } else if (selectedDeleteOption === "future") {
         // Delete this and future: set UNTIL on the recurrence rule to the day before this occurrence
-        success = await eventActions.deleteThisAndFuture(form.editingId, targetDate);
+        success = await eventActions.deleteThisAndFuture(
+          form.editingId,
+          targetDate,
+        );
       } else if (selectedDeleteOption === "this") {
         // Delete only this: add EXDATE to exclude this occurrence
-        success = await eventActions.deleteOccurrence(form.editingId, targetDate);
+        success = await eventActions.deleteOccurrence(
+          form.editingId,
+          targetDate,
+        );
       }
 
       if (success) {
@@ -355,26 +385,134 @@
     showRecurringDeleteDialog = false;
     selectedDeleteOption = "this";
   }
+
+  // Import cally on mount
+  onMount(async () => {
+    if (browser) {
+      await import("cally");
+    }
+  });
+
+  function handleCalendarChange(e: Event) {
+    const target = e.target as HTMLElement & { value?: string };
+    console.log(
+      "[EventForm] Calendar change event:",
+      target.value,
+      "activeDatePicker:",
+      activeDatePicker,
+    );
+    if (target.value) {
+      switch (activeDatePicker) {
+        case "start":
+          eventStartDate = target.value;
+          if (eventTimeLabel === "some-timing") {
+            switchToTimedMode();
+          }
+          break;
+        case "end":
+          eventEndDate = target.value;
+          if (eventTimeLabel === "some-timing") {
+            switchToTimedMode();
+          }
+          break;
+        case "recurrence-end":
+          recurrenceEndDate = target.value;
+          break;
+      }
+      activeDatePicker = null;
+    }
+  }
+
+  // Svelte action to add change event listener to calendar-date element
+  function calendarChangeAction(node: HTMLElement) {
+    const handler = (e: Event) => handleCalendarChange(e);
+    node.addEventListener("change", handler);
+    return {
+      destroy() {
+        node.removeEventListener("change", handler);
+      },
+    };
+  }
+
+  // Refs for scrolling
+  let calendarSectionRef: HTMLDivElement | undefined = $state();
+  let recurrenceEndCalendarRef: HTMLDivElement | undefined = $state();
+  let recurrenceSectionRef: HTMLDivElement | undefined = $state();
+
+  // Auto-scroll when calendar opens
+  $effect(() => {
+    if (activeDatePicker) {
+      tick().then(() => {
+        if (activeDatePicker === "recurrence-end" && recurrenceEndCalendarRef) {
+          recurrenceEndCalendarRef.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "nearest",
+          });
+        } else if (calendarSectionRef) {
+          calendarSectionRef.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "nearest",
+          });
+        }
+      });
+    }
+  });
+
+  // Auto-scroll when recurrence section opens
+  $effect(() => {
+    if (isRecurring && recurrenceSectionRef) {
+      tick().then(() => {
+        recurrenceSectionRef?.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+          inline: "nearest",
+        });
+      });
+    }
+  });
+
+  function handleClickOutside(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (
+      activeDatePicker &&
+      !target.closest("#shared-calendar-section") &&
+      !target.closest("#event-start-date-btn") &&
+      !target.closest("#event-end-date-btn") &&
+      !target.closest("#recurrence-end-btn")
+    ) {
+      activeDatePicker = null;
+    }
+  }
+
+  $effect(() => {
+    if (browser && activeDatePicker) {
+      document.addEventListener("click", handleClickOutside);
+      return () => document.removeEventListener("click", handleClickOutside);
+    }
+  });
 </script>
 
 <div
-  class="modal-open modal modal-mobile-fullscreen z-[2100] md:modal-middle"
-  onkeydown={(e) => e.key === "Escape" && eventFormState.close()}
+  class="modal-open modal-mobile-fullscreen modal z-[2100] md:modal-middle"
+  onkeydown={(e: KeyboardEvent) => e.key === "Escape" && eventFormState.close()}
   role="dialog"
   aria-modal="true"
   aria-label="Event form"
   tabindex="-1"
 >
   <div
-    class="modal-box h-full w-full max-w-[500px] overflow-hidden p-0 md:max-h-[90vh] md:h-auto md:overflow-y-auto"
-    onclick={(e) => e.stopPropagation()}
-    onkeydown={(e) => e.key === "Escape" && eventFormState.close()}
+    class="modal-box h-full w-full max-w-[500px] overflow-hidden p-0 md:h-auto md:max-h-[90vh] md:overflow-y-auto"
+    onclick={(e: MouseEvent) => e.stopPropagation()}
+    onkeydown={(e: KeyboardEvent) =>
+      e.key === "Escape" && eventFormState.close()}
     role="dialog"
     aria-modal="true"
     tabindex="-1"
   >
     <div
-      class="flex items-center justify-between border-b border-base-300 bg-base-100 p-4 flex-shrink-0"
+      class="flex flex-shrink-0 items-center justify-between border-b border-base-300 bg-base-100 p-4"
     >
       <button
         class="btn btn-square btn-ghost btn-sm md:hidden"
@@ -383,14 +521,14 @@
       >
         ✕
       </button>
-      <h3 class="text-lg font-medium flex-1 md:flex-none text-left">
+      <h3 class="flex-1 text-left text-lg font-medium md:flex-none">
         {isEventEditing ? "予定を編集" : "新しい予定"}
       </h3>
       {#if isEventEditing}
         <div class="flex gap-2 md:hidden">
           <button
             type="button"
-            class="btn btn-sm btn-outline btn-error"
+            class="btn btn-outline btn-sm btn-error"
             onclick={handleDelete}
             disabled={isDeleting}
           >
@@ -402,7 +540,7 @@
           </button>
           <button
             type="button"
-            class="btn btn-sm border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
+            class="btn border-none text-white btn-sm hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
             style="background-color: var(--color-primary);"
             onclick={() => eventActions.submitEventForm()}
           >
@@ -412,7 +550,7 @@
       {:else}
         <button
           type="button"
-          class="btn btn-sm md:hidden border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
+          class="btn border-none text-white btn-sm hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)] md:hidden"
           style="background-color: var(--color-primary);"
           onclick={() => eventActions.submitEventForm()}
         >
@@ -420,7 +558,7 @@
         </button>
       {/if}
       <button
-        class="btn btn-square btn-ghost btn-sm hidden md:flex"
+        class="btn hidden btn-square btn-ghost btn-sm md:flex"
         onclick={() => eventFormState.close()}
         aria-label="Close"
       >
@@ -428,14 +566,9 @@
       </button>
     </div>
 
-    <div class="flex flex-col gap-4 p-4 overflow-y-auto flex-1 min-h-0">
+    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
       <!-- Title -->
       <div class="form-control">
-        <label class="label" for="event-title">
-          <span class="label-text text-sm text-[var(--color-text-secondary)]"
-            >タイトル</span
-          >
-        </label>
         <input
           id="event-title"
           type="text"
@@ -554,43 +687,68 @@
       <!-- Date Settings -->
       <div class="form-control">
         <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="label" for="event-start-date">
-              <span
-                class="label-text text-sm text-[var(--color-text-secondary)]"
-                >開始日</span
-              >
-            </label>
-            <input
-              id="event-start-date"
-              type="date"
-              class="input-bordered input w-full"
-              bind:value={eventStartDate}
-              onfocus={() =>
-                eventTimeLabel === "some-timing" && switchToTimedMode()}
-              oninput={() =>
-                eventTimeLabel === "some-timing" && switchToTimedMode()}
-            />
-          </div>
-          <div>
-            <label class="label" for="event-end-date">
-              <span
-                class="label-text text-sm text-[var(--color-text-secondary)]"
-                >終了日</span
-              >
-            </label>
-            <input
-              id="event-end-date"
-              type="date"
-              class="input-bordered input w-full"
-              bind:value={eventEndDate}
-              onfocus={() =>
-                eventTimeLabel === "some-timing" && switchToTimedMode()}
-              oninput={() =>
-                eventTimeLabel === "some-timing" && switchToTimedMode()}
-            />
-          </div>
+          <DatePicker
+            id="event-start-date"
+            label="開始日"
+            bind:value={eventStartDate}
+            active={activeDatePicker === "start"}
+            onclick={() =>
+              (activeDatePicker =
+                activeDatePicker === "start" ? null : "start")}
+          />
+          <DatePicker
+            id="event-end-date"
+            label="終了日"
+            bind:value={eventEndDate}
+            active={activeDatePicker === "end"}
+            onclick={() =>
+              (activeDatePicker = activeDatePicker === "end" ? null : "end")}
+          />
         </div>
+
+        <!-- Shared Calendar Picker -->
+        {#if activeDatePicker === "start" || activeDatePicker === "end"}
+          <div
+            id="shared-calendar-section"
+            bind:this={calendarSectionRef}
+            class="mt-3 flex justify-center"
+          >
+            <div class="rounded-box border border-base-300 bg-base-200 p-3">
+              <div
+                class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
+              >
+                {activePickerLabel()}を選択
+              </div>
+              <calendar-date
+                class="cally bg-base-200"
+                value={activeDatePicker === "start"
+                  ? eventStartDate
+                  : eventEndDate}
+                use:calendarChangeAction
+              >
+                <svg
+                  aria-label="Previous"
+                  class="size-4 fill-current"
+                  slot="previous"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+                </svg>
+                <svg
+                  aria-label="Next"
+                  class="size-4 fill-current"
+                  slot="next"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
+                </svg>
+                <calendar-month></calendar-month>
+              </calendar-date>
+            </div>
+          </div>
+        {/if}
       </div>
 
       <!-- Time Settings -->
@@ -674,25 +832,26 @@
       </div>
 
       {#if isRecurring}
-        <div class="card flex flex-col gap-4 bg-base-200 p-4">
+        <div
+          bind:this={recurrenceSectionRef}
+          class="card flex flex-col gap-4 bg-base-200 p-4"
+        >
           <div class="form-control">
-            <label class="label" for="recurrence-interval-input">
+            <div class="flex flex-nowrap items-center gap-2">
               <span
-                class="label-text text-sm text-[var(--color-text-secondary)]"
+                class="label-text text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
                 >繰り返し</span
               >
-            </label>
-            <div class="flex items-center gap-2">
               <input
                 id="recurrence-interval-input"
                 type="number"
                 min="1"
-                class="input-bordered input w-[60px] text-center"
+                class="input-bordered input w-[60px] text-center text-sm"
                 bind:value={recurrenceInterval}
                 placeholder="1"
               />
               <select
-                class="select-bordered select"
+                class="select-bordered select text-sm"
                 bind:value={recurrenceFrequency}
               >
                 <option value="DAILY">日</option>
@@ -700,7 +859,8 @@
                 <option value="MONTHLY">月</option>
                 <option value="YEARLY">年</option>
               </select>
-              <span class="text-sm text-[var(--color-text-secondary)]"
+              <span
+                class="text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
                 >ごと</span
               >
             </div>
@@ -708,28 +868,34 @@
 
           {#if recurrenceFrequency === "WEEKLY"}
             <div class="form-control">
-              <span class="label">
+              <div class="flex flex-nowrap items-center gap-2">
                 <span
-                  class="label-text text-sm text-[var(--color-text-secondary)]"
+                  class="label-text text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
                   >曜日</span
                 >
-              </span>
-              <div class="flex flex-wrap gap-1" role="group" aria-label="曜日">
-                {#each ["日", "月", "火", "水", "木", "金", "土"] as day, i (i)}
-                  <label
-                    class="btn btn-sm {weeklyDays[i]
-                      ? 'border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]'
-                      : 'border-base-300 btn-ghost'} cursor-pointer transition-all duration-200"
-                    style={weeklyDays[i] ? 'background-color: var(--color-primary);' : ''}
-                  >
-                    <input
-                      type="checkbox"
-                      class="hidden"
-                      bind:checked={weeklyDays[i]}
-                    />
-                    {day}
-                  </label>
-                {/each}
+                <div
+                  class="flex flex-wrap gap-1"
+                  role="group"
+                  aria-label="曜日"
+                >
+                  {#each ["日", "月", "火", "水", "木", "金", "土"] as day, i (i)}
+                    <label
+                      class="btn btn-sm {weeklyDays[i]
+                        ? 'border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]'
+                        : 'border-base-300 btn-ghost'} cursor-pointer transition-all duration-200"
+                      style={weeklyDays[i]
+                        ? "background-color: var(--color-primary);"
+                        : ""}
+                    >
+                      <input
+                        type="checkbox"
+                        class="hidden"
+                        bind:checked={weeklyDays[i]}
+                      />
+                      {day}
+                    </label>
+                  {/each}
+                </div>
               </div>
             </div>
           {/if}
@@ -812,22 +978,67 @@
           {/if}
 
           <div class="form-control">
-            <label class="label" for="recurrence-end">
+            <div class="flex flex-nowrap items-center gap-2">
               <span
-                class="label-text text-sm text-[var(--color-text-secondary)]"
+                class="label-text text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
+                >終了日（空欄 = ずっと繰り返す）</span
               >
-                終了日
-                <span class="ml-1 text-xs opacity-70"
-                  >空欄 = ずっと繰り返す</span
+              <div class="min-w-0 flex-1">
+                <DatePicker
+                  id="recurrence-end"
+                  bind:value={recurrenceEndDate}
+                  active={activeDatePicker === "recurrence-end"}
+                  onclick={() =>
+                    (activeDatePicker =
+                      activeDatePicker === "recurrence-end"
+                        ? null
+                        : "recurrence-end")}
+                />
+              </div>
+            </div>
+
+            {#if activeDatePicker === "recurrence-end"}
+              <div
+                id="shared-calendar-section"
+                bind:this={recurrenceEndCalendarRef}
+                class="mt-3 flex justify-center"
+              >
+                <div
+                  class="rounded-box border border-base-content/10 bg-base-300 p-3"
                 >
-              </span>
-            </label>
-            <input
-              id="recurrence-end"
-              type="date"
-              class="input-bordered input w-full"
-              bind:value={recurrenceEndDate}
-            />
+                  <div
+                    class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
+                  >
+                    {activePickerLabel()}を選択
+                  </div>
+                  <calendar-date
+                    class="cally bg-base-300"
+                    value={recurrenceEndDate}
+                    use:calendarChangeAction
+                  >
+                    <svg
+                      aria-label="Previous"
+                      class="size-4 fill-current"
+                      slot="previous"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+                    </svg>
+                    <svg
+                      aria-label="Next"
+                      class="size-4 fill-current"
+                      slot="next"
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
+                    </svg>
+                    <calendar-month></calendar-month>
+                  </calendar-date>
+                </div>
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
@@ -839,13 +1050,15 @@
         class="mx-4 flex items-center gap-2 rounded-lg border border-[var(--color-error-500)] bg-[var(--color-error-100)] p-3"
       >
         <div class="text-xl">⚠️</div>
-        <div class="text-sm text-[var(--color-error-500)]">{eventFormState.errors.general}</div>
+        <div class="text-sm text-[var(--color-error-500)]">
+          {eventFormState.errors.general}
+        </div>
       </div>
     {/if}
 
     <!-- Desktop Action Bar -->
     <div
-      class="hidden md:flex flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 flex-shrink-0"
+      class="hidden flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 md:flex"
     >
       {#if isEventEditing}
         <button
@@ -907,12 +1120,14 @@
     aria-labelledby="recurring-delete-title"
   >
     <div class="modal-box max-w-sm">
-      <h3 id="recurring-delete-title" class="text-lg font-medium mb-4">
+      <h3 id="recurring-delete-title" class="mb-4 text-lg font-medium">
         繰り返し予定の削除
       </h3>
-      
+
       <div class="flex flex-col gap-3">
-        <label class="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-base-200">
+        <label
+          class="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-base-200"
+        >
           <input
             type="radio"
             name="deleteOption"
@@ -922,8 +1137,10 @@
           />
           <span class="text-sm">この予定だけを削除</span>
         </label>
-        
-        <label class="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-base-200">
+
+        <label
+          class="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-base-200"
+        >
           <input
             type="radio"
             name="deleteOption"
@@ -933,8 +1150,10 @@
           />
           <span class="text-sm">これ以降の予定を削除</span>
         </label>
-        
-        <label class="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-base-200">
+
+        <label
+          class="flex cursor-pointer items-center gap-3 rounded-lg p-2 hover:bg-base-200"
+        >
           <input
             type="radio"
             name="deleteOption"
@@ -945,7 +1164,7 @@
           <span class="text-sm">すべての予定を削除</span>
         </label>
       </div>
-      
+
       <div class="modal-action mt-6">
         <button
           type="button"
@@ -972,7 +1191,8 @@
     <div
       class="modal-backdrop bg-black/50"
       onclick={cancelRecurringDelete}
-      onkeydown={(e) => e.key === "Escape" && cancelRecurringDelete()}
+      onkeydown={(e: KeyboardEvent) =>
+        e.key === "Escape" && cancelRecurringDelete()}
       role="button"
       tabindex="-1"
       aria-label="Close dialog"

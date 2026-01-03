@@ -405,4 +405,19 @@ svg circle[tabindex="0"]:focus-visible {
   .gap-arc {
     stroke-width: 2;
   }
+
+  /* Prevent iOS Safari zoom on input focus */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
