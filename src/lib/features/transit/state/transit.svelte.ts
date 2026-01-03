@@ -165,6 +165,18 @@ function getEventLocation(event: Event | ExpandedOccurrence): string {
   return "";
 }
 
+/**
+ * Get event ID (handles both Event and ExpandedOccurrence)
+ */
+function getEventId(event: Event | ExpandedOccurrence): string {
+  // ExpandedOccurrence has eventId, Event has id
+  if ("eventId" in event) {
+    // Include the start time for occurrences to differentiate them
+    return `${event.eventId}-${new Date(event.start).getTime()}`;
+  }
+  return event.id;
+}
+
 // ============================================================================
 // Transit State Class
 // ============================================================================
@@ -185,6 +197,13 @@ class TransitState {
 
   // Cache for geocoding results (keyed by address string)
   private geocodeCache = new Map<string, AddressItem | null>();
+
+  // Cache context for transit info (to avoid redundant API calls)
+  private lastTransitContext: {
+    eventId: string;
+    eventLocation: string;
+    userLocation: UserLocation;
+  } | null = null;
 
   // ============================================================================
   // Location Methods
@@ -287,7 +306,14 @@ class TransitState {
     console.log("[Transit] Geocoding location:", location);
 
     // Detect if this looks like a station/transport node
-    const stationKeywords = ["駅", "停留所", "バス停", "空港", "港", "ターミナル"];
+    const stationKeywords = [
+      "駅",
+      "停留所",
+      "バス停",
+      "空港",
+      "港",
+      "ターミナル",
+    ];
     const looksLikeStation = stationKeywords.some((keyword) =>
       location.includes(keyword),
     );
@@ -386,6 +412,7 @@ class TransitState {
     if (!event) {
       console.log("[Transit] No upcoming event with location");
       this.transitInfo = null;
+      this.lastTransitContext = null;
       return;
     }
 
@@ -395,7 +422,67 @@ class TransitState {
       return;
     }
 
+    const eventId = getEventId(event);
+    const eventLocation = getEventLocation(event);
+
+    // Check if we can use cached transit info
+    if (this.canUseCachedTransitInfo(eventId, eventLocation, location)) {
+      console.log(
+        "[Transit] Using cached transit info (event and location unchanged)",
+      );
+      return;
+    }
+
     await this.loadEventTransit(event, location);
+  }
+
+  /**
+   * Check if we can use the cached transit info
+   * Returns true if:
+   * - We have cached transit info
+   * - The event ID is the same
+   * - The event location is the same
+   * - The user location hasn't changed significantly (below threshold)
+   */
+  private canUseCachedTransitInfo(
+    eventId: string,
+    eventLocation: string,
+    currentLocation: UserLocation,
+  ): boolean {
+    // No cached info available
+    if (!this.transitInfo || !this.lastTransitContext) {
+      return false;
+    }
+
+    // Event changed
+    if (this.lastTransitContext.eventId !== eventId) {
+      console.log("[Transit] Event changed, will refresh routes");
+      return false;
+    }
+
+    // Event location changed
+    if (this.lastTransitContext.eventLocation !== eventLocation) {
+      console.log("[Transit] Event location changed, will refresh routes");
+      return false;
+    }
+
+    // User location changed significantly
+    const distance = calculateDistance(
+      this.lastTransitContext.userLocation.lat,
+      this.lastTransitContext.userLocation.lon,
+      currentLocation.lat,
+      currentLocation.lon,
+    );
+
+    if (distance > LOCATION_DISTANCE_THRESHOLD_M) {
+      console.log(
+        `[Transit] User moved ${Math.round(distance)}m (threshold: ${LOCATION_DISTANCE_THRESHOLD_M}m), will refresh routes`,
+      );
+      return false;
+    }
+
+    // All conditions met, can use cached info
+    return true;
   }
 
   /**
@@ -427,10 +514,17 @@ class TransitState {
       const eventStart = new Date(event.start);
 
       // Get buffer time based on event importance
-      const importance = ("importance" in event && event.importance) || "medium";
+      const importance =
+        ("importance" in event && event.importance) || "medium";
       const bufferMinutes = IMPORTANCE_BUFFER_MAP[importance] ?? 10;
 
-      console.log("[Transit] Event importance:", importance, "→ buffer:", bufferMinutes, "min");
+      console.log(
+        "[Transit] Event importance:",
+        importance,
+        "→ buffer:",
+        bufferMinutes,
+        "min",
+      );
 
       // Calculate target arrival time (event start - buffer)
       const targetArrival = new Date(
@@ -474,6 +568,13 @@ class TransitState {
         leaveNowRoute,
         isLoading: false,
         error: null,
+      };
+
+      // Store context for cache validation
+      this.lastTransitContext = {
+        eventId: getEventId(event),
+        eventLocation,
+        userLocation,
       };
 
       console.log("[Transit] Transit info loaded:", {
@@ -561,6 +662,8 @@ class TransitState {
    * Refresh all route data (called on "Leave Now" or manual refresh)
    */
   async refreshRoutes(): Promise<void> {
+    // Clear context to force refresh
+    this.lastTransitContext = null;
     // Force refresh location
     await this.getCurrentLocation(true);
     // Reload transit info
@@ -590,6 +693,7 @@ class TransitState {
   clearCache(): void {
     this.routeCache.clear();
     this.geocodeCache.clear();
+    this.lastTransitContext = null;
     console.log("[Transit] Cache cleared");
   }
 
@@ -606,4 +710,3 @@ class TransitState {
 // ============================================================================
 
 export const transitState = new TransitState();
-
