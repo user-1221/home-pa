@@ -159,6 +159,7 @@ The `bootstrap/` directory provides:
 - **Regeneration tracking**: Tracks when gaps change to trigger schedule regeneration
 
 **Key Properties:**
+
 - `allEvents`: Combines calendar events, occurrences, and timetable blocking events
 - `computedGaps`: Primary gap computation with past time blocking and effective active time
 - `enrichedGaps`: Final gap state with location labels (used for schedule generation)
@@ -168,12 +169,14 @@ The `bootstrap/` directory provides:
 - `isTodaySelected`: Whether selected date is today
 
 **Effective Active Time Calculation:**
+
 1. Starts with user-configured active time (from settings)
 2. Extends boundaries backward/forward for regular events (not midnight-crossing, not all-day)
 3. Midnight-crossing events from previous day are excluded if they end before effective start
 4. All-day events block entire day but don't extend boundaries
 
 **Timetable Integration:**
+
 - Loads timetable events for selected date
 - Filters by exception date ranges (holidays, vacations)
 - Only blocking events (作業不可) are included in gap calculation
@@ -503,6 +506,7 @@ Used by suggestion scheduler (scheduleActions.regenerate())
 ### Gap Calculation Details
 
 **Effective Active Time:**
+
 1. Starts with user settings (`activeStartTime`, `activeEndTime`)
 2. Extends backward/forward for regular events (not midnight-crossing, not all-day)
 3. Midnight-crossing events from previous day:
@@ -511,16 +515,19 @@ Used by suggestion scheduler (scheduleActions.regenerate())
 4. All-day events: Block entire day but don't extend boundaries
 
 **Event Types Handled:**
+
 - **Regular timed events**: Extend boundaries, block time
 - **All-day events**: Block entire day (00:00-23:59), don't extend boundaries
 - **Midnight-crossing events**: From previous day, conditionally included
 - **Timetable events**: Only blocking events (作業不可) included, respects exception ranges
 
 **Past Time Blocking:**
+
 - When viewing today (`isTodaySelected`), adds blocker from `effectiveStart` to `currentTime`
 - Updates every minute (reactive current time)
 
 **Timetable Integration:**
+
 - Loads timetable events for selected date via `loadTimetableEvents()`
 - Checks exception date ranges (holidays, vacations) - returns empty if date in exception
 - Only includes events where `workAllowed === "作業不可"` (blocking events)

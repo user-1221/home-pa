@@ -33,6 +33,13 @@ import {
   minutesToTime,
   findOverlappingSuggestions,
 } from "../services/suggestion-drag.ts";
+import {
+  loadSyncData,
+  saveAcceptedSuggestions,
+  removeAcceptedSuggestion,
+  saveRejectedMemos,
+  clearAcceptedSuggestions as clearSyncedAcceptedSuggestions,
+} from "../services/sync.remote.ts";
 
 // ============================================================================
 // Types for Suggestion Management
@@ -131,6 +138,16 @@ export interface MovedSuggestion extends ScheduledBlock {
   movedAt: Date;
 }
 export const movedSuggestions = writable<MovedSuggestion[]>([]);
+
+/**
+ * Whether sync data has been loaded from the server
+ */
+export const isSyncLoaded = writable<boolean>(false);
+
+/**
+ * Whether sync operations are in progress
+ */
+export const isSyncing = writable<boolean>(false);
 
 // ============================================================================
 // Derived Stores
@@ -522,6 +539,9 @@ export const scheduleActions = {
 
     console.log("[Schedule] Accepted suggestion:", suggestionId);
 
+    // Sync to server (fire and forget)
+    scheduleActions.syncAcceptedSuggestions();
+
     // Regenerate to fill remaining gaps
     await scheduleActions.regenerate(memos);
   },
@@ -566,6 +586,9 @@ export const scheduleActions = {
       "memoId:",
       block.memoId,
     );
+
+    // Sync rejected memos to server (fire and forget)
+    scheduleActions.syncRejectedMemos();
 
     // Regenerate to get new suggestion for the gap
     await scheduleActions.regenerate(memos);
@@ -790,6 +813,9 @@ export const scheduleActions = {
       `(${extensionResult.newStartTime} - ${extensionResult.newEndTime})`,
     );
 
+    // Sync updated accepted suggestions to server (fire and forget)
+    scheduleActions.syncAcceptedSuggestions();
+
     // Regenerate to reflow other suggestions
     await scheduleActions.regenerate(memos);
     return { success: true, maxAllowed: extensionResult.maxAllowedDuration };
@@ -799,16 +825,21 @@ export const scheduleActions = {
    * Update the duration of a pending suggestion
    * Start time is fixed, only end time changes.
    * Duration changes in 10-min increments.
+   * Also removes any overlapping pending suggestions and triggers regeneration.
    *
    * @param suggestionId - ID of the pending suggestion
    * @param newDuration - New duration in minutes
    * @param newEndTime - New end time in HH:mm format
+   * @param memos - Current memos for regeneration
+   * @param gaps - Optional gaps to use for regeneration
    */
-  updatePendingDuration(
+  async updatePendingDuration(
     suggestionId: string,
     newDuration: number,
     newEndTime: string,
-  ): void {
+    memos: Memo[],
+    gaps?: Gap[],
+  ): Promise<void> {
     const result = get(scheduleResult);
     if (!result) {
       console.warn("[Schedule] Cannot update pending: no schedule result");
@@ -817,44 +848,175 @@ export const scheduleActions = {
 
     // Check if in movedSuggestions first
     const currentMoved = get(movedSuggestions);
-    const movedIdx = currentMoved.findIndex(m => m.suggestionId === suggestionId);
-    
+    const movedIdx = currentMoved.findIndex(
+      (m) => m.suggestionId === suggestionId,
+    );
+
+    // Get the start time for overlap detection
+    let startTime: string;
+
     if (movedIdx !== -1) {
-      // Update in movedSuggestions
+      startTime = currentMoved[movedIdx].startTime;
+
+      // Find overlapping suggestions in scheduleResult
+      const overlappingScheduledIds = findOverlappingSuggestions(
+        result.scheduled,
+        startTime,
+        newEndTime,
+        suggestionId,
+      );
+
+      // Find overlapping moved suggestions
+      const overlappingMovedIds = findOverlappingSuggestions(
+        currentMoved,
+        startTime,
+        newEndTime,
+        suggestionId,
+      );
+
+      const hadOverlaps =
+        overlappingScheduledIds.length > 0 || overlappingMovedIds.length > 0;
+
+      // Remove overlapping suggestions from scheduleResult
+      if (overlappingScheduledIds.length > 0) {
+        const overlappingSet = new Set(overlappingScheduledIds);
+        scheduleResult.set({
+          ...result,
+          scheduled: result.scheduled.filter(
+            (b) => !overlappingSet.has(b.suggestionId),
+          ),
+        });
+        console.log(
+          "[Schedule] Removed overlapping scheduled suggestions:",
+          overlappingScheduledIds,
+        );
+      }
+
+      // Update in movedSuggestions and remove overlapping moved suggestions
       movedSuggestions.update((list) => {
-        const updated = [...list];
-        updated[movedIdx] = {
-          ...updated[movedIdx],
-          duration: newDuration,
-          endTime: newEndTime,
-        };
-        return updated;
+        const overlappingSet = new Set(overlappingMovedIds);
+        const filtered = list.filter(
+          (m) =>
+            m.suggestionId === suggestionId ||
+            !overlappingSet.has(m.suggestionId),
+        );
+        const idx = filtered.findIndex((m) => m.suggestionId === suggestionId);
+        if (idx !== -1) {
+          filtered[idx] = {
+            ...filtered[idx],
+            duration: newDuration,
+            endTime: newEndTime,
+          };
+        }
+        return filtered;
       });
-      console.log("[Schedule] Updated moved suggestion duration:", suggestionId, newDuration);
+
+      if (overlappingMovedIds.length > 0) {
+        console.log(
+          "[Schedule] Removed overlapping moved suggestions:",
+          overlappingMovedIds,
+        );
+      }
+
+      console.log(
+        "[Schedule] Updated moved suggestion duration:",
+        suggestionId,
+        newDuration,
+      );
+
+      // Trigger regeneration to fill gaps left by removed suggestions
+      if (hadOverlaps) {
+        await scheduleActions.regenerate(memos, { gaps });
+      }
       return;
     }
 
     // Update in scheduled blocks
-    const idx = result.scheduled.findIndex(b => b.suggestionId === suggestionId);
+    const idx = result.scheduled.findIndex(
+      (b) => b.suggestionId === suggestionId,
+    );
     if (idx === -1) {
-      console.warn("[Schedule] Cannot update pending: suggestion not found", suggestionId);
+      console.warn(
+        "[Schedule] Cannot update pending: suggestion not found",
+        suggestionId,
+      );
       return;
     }
 
-    // Create updated schedule result
-    const updatedScheduled = [...result.scheduled];
-    updatedScheduled[idx] = {
-      ...updatedScheduled[idx],
-      duration: newDuration,
-      endTime: newEndTime,
-    };
+    startTime = result.scheduled[idx].startTime;
+
+    // Find overlapping suggestions (excluding the one being resized)
+    const overlappingScheduledIds = findOverlappingSuggestions(
+      result.scheduled,
+      startTime,
+      newEndTime,
+      suggestionId,
+    );
+
+    const overlappingMovedIds = findOverlappingSuggestions(
+      currentMoved,
+      startTime,
+      newEndTime,
+      suggestionId,
+    );
+
+    // Remove overlapping moved suggestions
+    if (overlappingMovedIds.length > 0) {
+      const overlappingSet = new Set(overlappingMovedIds);
+      movedSuggestions.update((list) =>
+        list.filter((m) => !overlappingSet.has(m.suggestionId)),
+      );
+      console.log(
+        "[Schedule] Removed overlapping moved suggestions:",
+        overlappingMovedIds,
+      );
+    }
+
+    // Create updated schedule result, removing overlapping suggestions
+    const overlappingScheduledSet = new Set(overlappingScheduledIds);
+    const updatedScheduled = result.scheduled.filter(
+      (b) =>
+        b.suggestionId === suggestionId ||
+        !overlappingScheduledSet.has(b.suggestionId),
+    );
+
+    // Update the resized suggestion
+    const updatedIdx = updatedScheduled.findIndex(
+      (b) => b.suggestionId === suggestionId,
+    );
+    if (updatedIdx !== -1) {
+      updatedScheduled[updatedIdx] = {
+        ...updatedScheduled[updatedIdx],
+        duration: newDuration,
+        endTime: newEndTime,
+      };
+    }
 
     scheduleResult.set({
       ...result,
       scheduled: updatedScheduled,
     });
 
-    console.log("[Schedule] Updated pending suggestion duration:", suggestionId, newDuration);
+    const hadOverlaps =
+      overlappingScheduledIds.length > 0 || overlappingMovedIds.length > 0;
+
+    if (overlappingScheduledIds.length > 0) {
+      console.log(
+        "[Schedule] Removed overlapping scheduled suggestions:",
+        overlappingScheduledIds,
+      );
+    }
+
+    console.log(
+      "[Schedule] Updated pending suggestion duration:",
+      suggestionId,
+      newDuration,
+    );
+
+    // Trigger regeneration to fill gaps left by removed suggestions
+    if (hadOverlaps) {
+      await scheduleActions.regenerate(memos, { gaps });
+    }
   },
 
   /**
@@ -869,6 +1031,9 @@ export const scheduleActions = {
     );
 
     console.log("[Schedule] Deleted accepted suggestion:", suggestionId);
+
+    // Remove from server sync (fire and forget)
+    scheduleActions.unsyncAcceptedSuggestion(suggestionId);
 
     // Regenerate to fill the freed gap
     await scheduleActions.regenerate(memos);
@@ -899,6 +1064,9 @@ export const scheduleActions = {
       duration,
     });
 
+    // Remove from server sync (fire and forget)
+    scheduleActions.unsyncAcceptedSuggestion(suggestionId);
+
     // Note: The actual memo update is done via the remote function
     // called from PersonalAssistantView
   },
@@ -916,6 +1084,9 @@ export const scheduleActions = {
     );
 
     console.log("[Schedule] Missed suggestion:", suggestionId);
+
+    // Remove from server sync (fire and forget)
+    scheduleActions.unsyncAcceptedSuggestion(suggestionId);
     // No memo update for missed - just ignore
   },
 
@@ -973,6 +1144,181 @@ export const scheduleActions = {
    */
   getEngine() {
     return engine;
+  },
+
+  // ==========================================================================
+  // Sync Functions
+  // ==========================================================================
+
+  /**
+   * Load synced data from the server
+   * Should be called once when the app initializes
+   * This includes cleanup of expired data (handled server-side)
+   */
+  async loadSyncedData(): Promise<void> {
+    if (get(isSyncLoaded)) {
+      console.log("[Schedule] Sync data already loaded");
+      return;
+    }
+
+    isSyncing.set(true);
+
+    try {
+      console.log("[Schedule] Loading synced data...");
+      const data = await loadSyncData({});
+
+      // Convert synced accepted suggestions to local format
+      // Filter for today's suggestions only (additional local cleanup)
+      const today = new Date();
+      const todayStart = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+      ).toISOString();
+
+      const validSuggestions: AcceptedSuggestion[] = data.acceptedSuggestions
+        .filter((s) => s.date >= todayStart)
+        .map((s) => ({
+          suggestionId: s.suggestionId,
+          memoId: s.memoId,
+          gapId: s.gapId,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          duration: s.duration,
+          originalDuration: s.originalDuration,
+          acceptedAt: new Date(s.acceptedAt),
+        }));
+
+      // Load rejected memo IDs
+      const rejectedSet = new Set(data.rejectedMemoIds);
+
+      // Apply to stores
+      acceptedSuggestions.set(validSuggestions);
+      rejectedMemoIds.set(rejectedSet);
+
+      isSyncLoaded.set(true);
+      console.log("[Schedule] Synced data loaded:", {
+        acceptedSuggestions: validSuggestions.length,
+        rejectedMemos: rejectedSet.size,
+      });
+    } catch (error) {
+      console.error("[Schedule] Failed to load synced data:", error);
+      // Continue without synced data - will work with fresh state
+    } finally {
+      isSyncing.set(false);
+    }
+  },
+
+  /**
+   * Sync current accepted suggestions to the server
+   * Should be called after any change to accepted suggestions
+   */
+  async syncAcceptedSuggestions(): Promise<void> {
+    const accepted = get(acceptedSuggestions);
+    if (accepted.length === 0) return;
+
+    try {
+      // Get current date for the suggestions
+      const today = new Date();
+      const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+
+      await saveAcceptedSuggestions({
+        suggestions: accepted.map((s) => ({
+          suggestionId: s.suggestionId,
+          memoId: s.memoId,
+          gapId: s.gapId,
+          date: dateStr,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          duration: s.duration,
+          originalDuration: s.originalDuration,
+          acceptedAt: s.acceptedAt.toISOString(),
+        })),
+      });
+    } catch (error) {
+      console.error("[Schedule] Failed to sync accepted suggestions:", error);
+    }
+  },
+
+  /**
+   * Remove a synced accepted suggestion
+   */
+  async unsyncAcceptedSuggestion(suggestionId: string): Promise<void> {
+    try {
+      await removeAcceptedSuggestion({ suggestionId });
+    } catch (error) {
+      console.error("[Schedule] Failed to unsync accepted suggestion:", error);
+    }
+  },
+
+  /**
+   * Sync rejected memo IDs to the server
+   */
+  async syncRejectedMemos(): Promise<void> {
+    const rejected = get(rejectedMemoIds);
+    if (rejected.size === 0) return;
+
+    try {
+      await saveRejectedMemos({
+        memoIds: Array.from(rejected),
+      });
+    } catch (error) {
+      console.error("[Schedule] Failed to sync rejected memos:", error);
+    }
+  },
+
+  /**
+   * Clear all synced data (useful for testing or reset)
+   */
+  async clearSyncedData(): Promise<void> {
+    try {
+      await clearSyncedAcceptedSuggestions({});
+      console.log("[Schedule] Cleared all synced data");
+    } catch (error) {
+      console.error("[Schedule] Failed to clear synced data:", error);
+    }
+  },
+
+  /**
+   * Perform local cleanup of expired data
+   * Should be called periodically or on app initialization
+   */
+  cleanupExpiredData(): void {
+    const today = new Date();
+    const todayStart = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    );
+
+    // Clean up accepted suggestions from previous days
+    // Note: We don't have a date field in local AcceptedSuggestion,
+    // so we need to check if the suggestion's time has passed
+    const currentTime = `${String(today.getHours()).padStart(2, "0")}:${String(today.getMinutes()).padStart(2, "0")}`;
+
+    acceptedSuggestions.update((list) => {
+      const before = list.length;
+      // Remove suggestions whose end time is in the past
+      const filtered = list.filter((s) => s.endTime > currentTime);
+      if (filtered.length < before) {
+        console.log(
+          `[Schedule] Cleaned up ${before - filtered.length} expired accepted suggestions`,
+        );
+      }
+      return filtered;
+    });
+
+    // Clean up moved suggestions whose end time has passed
+    movedSuggestions.update((list) => {
+      const before = list.length;
+      const filtered = list.filter((s) => s.endTime > currentTime);
+      if (filtered.length < before) {
+        console.log(
+          `[Schedule] Cleaned up ${before - filtered.length} expired moved suggestions`,
+        );
+      }
+      return filtered;
+    });
   },
 };
 

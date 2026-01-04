@@ -24,7 +24,7 @@
 
   // Check if we're on mobile (screen width < 768px, which is Tailwind's md breakpoint)
   let isMobile = $state(false);
-  
+
   if (browser) {
     const checkMobile = () => {
       const wasMobile = isMobile;
@@ -39,45 +39,48 @@
   }
 
   // Create drag handler for swipe (only used on mobile)
-  const swipeHandler = createDragHandler<{ startX: number }>({
-    onStart: (coords, e) => {
-      if (!isMobile) {
-        // Return default context but onMove/onEnd will check isMobile
-        return { startX: 0 };
-      }
-      isSwiping = true;
-      return { startX: translateX };
-    },
-    onMove: (coords, delta, context, e) => {
-      if (!isMobile) return; // Disable on desktop
-      // Only allow left swipe (dx < 0) to reveal actions
-      const newX = context.startX + delta.dx;
-      translateX = Math.max(-MAX_SWIPE, Math.min(0, newX));
-    },
-    onEnd: (coords, wasDrag, context, e) => {
-      if (!isMobile) return; // Disable on desktop
-      isSwiping = false;
-      
-      if (!wasDrag) {
-        // Click - reset swipe if swiped, otherwise do nothing
-        if (translateX !== 0) {
-          translateX = 0;
+  const swipeHandler = createDragHandler<{ startX: number }>(
+    {
+      onStart: (coords, e) => {
+        if (!isMobile) {
+          // Return default context but onMove/onEnd will check isMobile
+          return { startX: 0 };
         }
-        return;
-      }
+        isSwiping = true;
+        return { startX: translateX };
+      },
+      onMove: (coords, delta, context, e) => {
+        if (!isMobile) return; // Disable on desktop
+        // Only allow left swipe (dx < 0) to reveal actions
+        const newX = context.startX + delta.dx;
+        translateX = Math.max(-MAX_SWIPE, Math.min(0, newX));
+      },
+      onEnd: (coords, wasDrag, context, e) => {
+        if (!isMobile) return; // Disable on desktop
+        isSwiping = false;
 
-      // Snap to open or closed based on threshold
-      if (translateX < -SWIPE_THRESHOLD) {
-        translateX = -MAX_SWIPE; // Snap to fully open
-      } else {
-        translateX = 0; // Snap to closed
-      }
+        if (!wasDrag) {
+          // Click - reset swipe if swiped, otherwise do nothing
+          if (translateX !== 0) {
+            translateX = 0;
+          }
+          return;
+        }
+
+        // Snap to open or closed based on threshold
+        if (translateX < -SWIPE_THRESHOLD) {
+          translateX = -MAX_SWIPE; // Snap to fully open
+        } else {
+          translateX = 0; // Snap to closed
+        }
+      },
     },
-  }, {
-    threshold: 3, // Lower threshold for swipe detection
-    preventDefault: true,
-    stopPropagation: true,
-  });
+    {
+      threshold: 3, // Lower threshold for swipe detection
+      preventDefault: true,
+      stopPropagation: true,
+    },
+  );
 
   // Computed values
   let typeLabel = $derived(
@@ -173,12 +176,12 @@
 >
   <!-- Action buttons behind (revealed on swipe, mobile only) -->
   <div
-    class="absolute right-0 top-0 bottom-0 flex items-center gap-2 pr-2 md:hidden"
+    class="absolute top-0 right-0 bottom-0 flex items-center gap-2 pr-2 md:hidden"
     style="width: {MAX_SWIPE}px;"
   >
     {#if task.status.completionState !== "completed"}
       <button
-        class="btn btn-square btn-success btn-sm"
+        class="btn btn-square btn-sm btn-success"
         onclick={handleComplete}
         title="完了"
       >
@@ -186,14 +189,14 @@
       </button>
     {/if}
     <button
-      class="btn btn-square btn-primary btn-sm"
+      class="btn btn-square btn-sm btn-primary"
       onclick={handleEdit}
       title="編集"
     >
       ✏️
     </button>
     <button
-      class="btn btn-square btn-error btn-sm"
+      class="btn btn-square btn-sm btn-error"
       onclick={handleDelete}
       title="削除"
     >
@@ -212,7 +215,9 @@
     class:opacity-60={task.status.completionState === "completed"}
     class:bg-base-200={task.status.completionState === "completed"}
     class:shadow-md={translateX < 0}
-    style="transform: translateX({translateX}px); transition: {isSwiping ? 'none' : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'};"
+    style="transform: translateX({translateX}px); transition: {isSwiping
+      ? 'none'
+      : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'};"
     onpointerdown={isMobile ? swipeHandler.start : undefined}
     onpointermove={isMobile ? swipeHandler.move : undefined}
     onpointerup={isMobile ? swipeHandler.end : undefined}
@@ -274,9 +279,12 @@
 
           {#if task.type === "ルーティン" && routineProgress()}
             {@const prog = routineProgress()}
-            <div class="flex items-center gap-1 text-[var(--color-text-secondary)]">
+            <div
+              class="flex items-center gap-1 text-[var(--color-text-secondary)]"
+            >
               <span
-                >{prog?.done}/{prog?.goal} this {task.recurrenceGoal?.period}</span
+                >{prog?.done}/{prog?.goal} this {task.recurrenceGoal
+                  ?.period}</span
               >
             </div>
           {/if}
@@ -307,23 +315,17 @@
         <div class="flex items-center gap-2">
           {#if task.type === "ルーティン" && routineProgress()}
             {@const prog = routineProgress()}
-            <span
-              class="text-xs text-[var(--color-text-secondary)]"
-            >
+            <span class="text-xs text-[var(--color-text-secondary)]">
               {prog?.done}/{prog?.goal}
             </span>
           {:else}
             {@const prog = timeProgress()}
-            <span
-              class="text-xs text-[var(--color-text-secondary)]"
-            >
+            <span class="text-xs text-[var(--color-text-secondary)]">
               {prog.spent}/{prog.total} min
             </span>
           {/if}
           <!-- Desktop-only action buttons (hidden on mobile, always visible on desktop) -->
-          <div
-            class="card-actions justify-end hidden md:flex"
-          >
+          <div class="card-actions hidden justify-end md:flex">
             {#if task.status.completionState !== "completed"}
               <button
                 class="btn btn-square btn-outline btn-xs btn-success"

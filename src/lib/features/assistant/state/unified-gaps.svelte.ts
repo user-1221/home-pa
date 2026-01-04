@@ -71,8 +71,8 @@ function minutesToTime(minutes: number): string {
  */
 function dateKey(date: Date): string {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
 
@@ -80,7 +80,8 @@ function dateKey(date: Date): string {
 if (typeof window !== "undefined") {
   // Calculate ms until next minute boundary for precise updates
   const now = new Date();
-  const msUntilNextMinute = (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+  const msUntilNextMinute =
+    (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
 
   // First update at next minute boundary
   setTimeout(() => {
@@ -114,7 +115,10 @@ function clearTimetableDateCache(): void {
  * Load timetable events for a given date
  * @param forceReload - If true, ignores the date cache and reloads anyway
  */
-async function loadTimetableForDate(date: Date, forceReload = false): Promise<void> {
+async function loadTimetableForDate(
+  date: Date,
+  forceReload = false,
+): Promise<void> {
   const key = dateKey(date);
   if (!forceReload && key === lastLoadedDateKey) return;
 
@@ -145,7 +149,9 @@ interface GapEventWithMeta extends Event {
  * Convert calendar event to gap-finder event format
  */
 function calendarEventToGapEvent(
-  event: CalendarEvent | { start: Date; end: Date; id: string; title: string; timeLabel?: string },
+  event:
+    | CalendarEvent
+    | { start: Date; end: Date; id: string; title: string; timeLabel?: string },
   targetDate: Date,
 ): GapEventWithMeta | null {
   const eventStart = new Date(event.start);
@@ -175,15 +181,25 @@ function calendarEventToGapEvent(
   const normalizedEventStart = startOfDay(eventStart);
   const normalizedEventEnd = startOfDay(eventEnd);
 
-  const startsOnTarget = normalizedEventStart.getTime() === normalizedTarget.getTime();
-  const endsOnTarget = normalizedEventEnd.getTime() === normalizedTarget.getTime();
+  const startsOnTarget =
+    normalizedEventStart.getTime() === normalizedTarget.getTime();
+  const endsOnTarget =
+    normalizedEventEnd.getTime() === normalizedTarget.getTime();
 
   const startTime = startsOnTarget
-    ? event.start.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+    ? event.start.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
     : "00:00";
 
   const endTime = endsOnTarget
-    ? event.end.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false })
+    ? event.end.toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
     : "23:59";
 
   // Detect midnight-crossing events (started on previous day and ends on target date)
@@ -206,8 +222,16 @@ function timetableEventToGapEvent(ttEvent: TimetableEvent): GapEventWithMeta {
   return {
     id: ttEvent.id,
     title: `[時間割] ${ttEvent.title}`,
-    start: ttEvent.start.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }),
-    end: ttEvent.end.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }),
+    start: ttEvent.start.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
+    end: ttEvent.end.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }),
     crossesMidnight: false,
     isAllDay: false,
     isMidnightCrossing: false,
@@ -312,7 +336,9 @@ class UnifiedGapState {
       .filter((e): e is Event => e !== null);
 
     // Convert timetable events
-    const timetableGapEvents = timetableBlockingEvents.map(timetableEventToGapEvent);
+    const timetableGapEvents = timetableBlockingEvents.map(
+      timetableEventToGapEvent,
+    );
 
     return [...calendarGapEvents, ...timetableGapEvents];
   }
@@ -329,42 +355,42 @@ class UnifiedGapState {
     // that occur before/after the configured active times
     const activeStart = settingsState.activeStartTime;
     const activeEnd = settingsState.activeEndTime;
-    
+
     // First pass: Find effective start time from non-midnight-crossing events
     // Midnight-crossing events should NOT extend the start time backward
     let effectiveStart = activeStart;
     let effectiveEnd = activeEnd;
-    
+
     for (const event of this.allEvents) {
       const eventWithMeta = event as GapEventWithMeta;
-      
+
       // Skip midnight-crossing events and all-day events for boundary extension
       if (eventWithMeta.isMidnightCrossing || eventWithMeta.isAllDay) {
         continue;
       }
-      
+
       // Extend boundaries for regular events
       if (event.start < effectiveStart) {
         effectiveStart = event.start;
       }
-      
+
       if (event.end > effectiveEnd) {
         effectiveEnd = event.end;
       }
     }
-    
+
     // Second pass: Filter events and adjust midnight-crossing events
     const filteredEvents: Event[] = [];
-    
+
     for (const event of this.allEvents) {
       const eventWithMeta = event as GapEventWithMeta;
-      
+
       // All-day events block the entire day
       if (eventWithMeta.isAllDay) {
         filteredEvents.push(event);
         continue;
       }
-      
+
       // Midnight-crossing events (started on previous day):
       // - If they end before or at effective start time, exclude completely
       // - If they end after effective start time, include only the portion within active time
@@ -380,11 +406,11 @@ class UnifiedGapState {
         });
         continue;
       }
-      
+
       // Regular events - include as-is
       filteredEvents.push(event);
     }
-    
+
     const gf = new GapFinder({
       dayStart: effectiveStart,
       dayEnd: effectiveEnd,
@@ -397,7 +423,7 @@ class UnifiedGapState {
     // Only block from effective start time to current time
     if (this.isTodaySelected) {
       const currentTimeStr = minutesToTime(currentTimeMinutes);
-      
+
       // Only add blocker if current time is after effective start time
       if (currentTimeStr > effectiveStart) {
         eventsWithPastBlocker.push({
@@ -512,4 +538,3 @@ export const unifiedGapState = new UnifiedGapState();
 
 // Note: currentTimeMinutes is NOT exported because it's a $state that gets reassigned.
 // Access via unifiedGapState.currentTime instead.
-

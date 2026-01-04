@@ -171,7 +171,7 @@ export function createVEvent(input: VEventInput): string {
   // For timed events, use UTC (true) to avoid server timezone issues in production
   const dtstart = input.isAllDay
     ? ICAL.Time.fromDateString(
-        `${input.dtstart.getUTCFullYear()}-${String(input.dtstart.getUTCMonth() + 1).padStart(2, "0")}-${String(input.dtstart.getUTCDate()).padStart(2, "0")}`
+        `${input.dtstart.getUTCFullYear()}-${String(input.dtstart.getUTCMonth() + 1).padStart(2, "0")}-${String(input.dtstart.getUTCDate()).padStart(2, "0")}`,
       )
     : ICAL.Time.fromJSDate(input.dtstart, true);
 
@@ -194,7 +194,7 @@ export function createVEvent(input: VEventInput): string {
     // For timed events, use UTC (true) to avoid server timezone issues in production
     const dtend = input.isAllDay
       ? ICAL.Time.fromDateString(
-          `${input.dtend.getUTCFullYear()}-${String(input.dtend.getUTCMonth() + 1).padStart(2, "0")}-${String(input.dtend.getUTCDate()).padStart(2, "0")}`
+          `${input.dtend.getUTCFullYear()}-${String(input.dtend.getUTCMonth() + 1).padStart(2, "0")}-${String(input.dtend.getUTCDate()).padStart(2, "0")}`,
         )
       : ICAL.Time.fromJSDate(input.dtend, true);
 
@@ -328,21 +328,31 @@ export function expandRecurrences(
 
       if (isAllDay) {
         // For all-day events, convert to UTC midnight
-        startDate = new Date(Date.UTC(
-          event.startDate.year,
-          event.startDate.month - 1,
-          event.startDate.day,
-          0, 0, 0, 0
-        ));
+        startDate = new Date(
+          Date.UTC(
+            event.startDate.year,
+            event.startDate.month - 1,
+            event.startDate.day,
+            0,
+            0,
+            0,
+            0,
+          ),
+        );
         if (event.endDate) {
           // iCal uses exclusive DTEND for all-day events
           // Convert to inclusive: subtract 1 day if DTEND > DTSTART
-          const exclusiveEnd = new Date(Date.UTC(
-            event.endDate.year,
-            event.endDate.month - 1,
-            event.endDate.day,
-            0, 0, 0, 0
-          ));
+          const exclusiveEnd = new Date(
+            Date.UTC(
+              event.endDate.year,
+              event.endDate.month - 1,
+              event.endDate.day,
+              0,
+              0,
+              0,
+              0,
+            ),
+          );
           if (exclusiveEnd.getTime() > startDate.getTime()) {
             // Multi-day event: convert exclusive to inclusive (subtract 1 day)
             endDate = new Date(exclusiveEnd.getTime() - 24 * 60 * 60 * 1000);
@@ -382,22 +392,28 @@ export function expandRecurrences(
         event.startDate.year,
         event.startDate.month - 1,
         event.startDate.day,
-        0, 0, 0, 0
+        0,
+        0,
+        0,
+        0,
       );
       const endUtc = event.endDate
         ? Date.UTC(
             event.endDate.year,
             event.endDate.month - 1,
             event.endDate.day,
-            0, 0, 0, 0
+            0,
+            0,
+            0,
+            0,
           )
         : startUtc;
       durationMs = endUtc - startUtc;
     } else {
       durationMs = event.endDate
-      ? event.endDate.toJSDate().getTime() -
-        event.startDate.toJSDate().getTime()
-      : 0;
+        ? event.endDate.toJSDate().getTime() -
+          event.startDate.toJSDate().getTime()
+        : 0;
     }
 
     const occurrences: ExpandedOccurrence[] = [];
@@ -413,7 +429,9 @@ export function expandRecurrences(
         // For all-day events (DATE values), convert to UTC midnight
         // ical.js returns DATE values as local time, but we store as UTC midnight
         // Use the year/month/day from ICAL.Time directly and create UTC date
-        occStart = new Date(Date.UTC(next.year, next.month - 1, next.day, 0, 0, 0, 0));
+        occStart = new Date(
+          Date.UTC(next.year, next.month - 1, next.day, 0, 0, 0, 0),
+        );
       } else {
         occStart = next.toJSDate();
       }
@@ -434,12 +452,17 @@ export function expandRecurrences(
           if (durationMs > 0) {
             // Multi-day: calculated end is exclusive, convert to inclusive
             const exclusiveEnd = new Date(occStart.getTime() + durationMs);
-            endDate = new Date(Date.UTC(
-              exclusiveEnd.getUTCFullYear(),
-              exclusiveEnd.getUTCMonth(),
-              exclusiveEnd.getUTCDate() - 1,
-              0, 0, 0, 0
-            ));
+            endDate = new Date(
+              Date.UTC(
+                exclusiveEnd.getUTCFullYear(),
+                exclusiveEnd.getUTCMonth(),
+                exclusiveEnd.getUTCDate() - 1,
+                0,
+                0,
+                0,
+                0,
+              ),
+            );
           } else {
             // Single-day: end = start
             endDate = occStart;
@@ -513,11 +536,11 @@ export function extractRRule(icalData: string): string | null {
  * @returns true if valid
  */
 export function isValidRRule(rrule: string): boolean {
-  if (!rrule || rrule.trim() === '') {
+  if (!rrule || rrule.trim() === "") {
     return false;
   }
   // Must contain FREQ= to be a valid RRULE
-  if (!rrule.includes('FREQ=')) {
+  if (!rrule.includes("FREQ=")) {
     return false;
   }
   try {
@@ -532,7 +555,7 @@ export function isValidRRule(rrule: string): boolean {
 /**
  * Locale options for RRULE formatting
  */
-export type RRuleLocale = 'ja' | 'en';
+export type RRuleLocale = "ja" | "en";
 
 /**
  * Format an RRULE into human-readable text
@@ -541,10 +564,7 @@ export type RRuleLocale = 'ja' | 'en';
  * @param locale - 'ja' for Japanese (default), 'en' for English
  * @returns Human-readable description
  */
-export function formatRRule(
-  rrule: string,
-  locale: RRuleLocale = "ja",
-): string {
+export function formatRRule(rrule: string, locale: RRuleLocale = "ja"): string {
   try {
     const recur = ICAL.Recur.fromString(rrule);
 
@@ -625,16 +645,18 @@ export function formatRRule(
  */
 function dayMapJa(day: string | number): string {
   const days: Record<string, string> = {
-    'SU': '日',
-    'MO': '月',
-    'TU': '火',
-    'WE': '水',
-    'TH': '木',
-    'FR': '金',
-    'SA': '土',
+    SU: "日",
+    MO: "月",
+    TU: "火",
+    WE: "水",
+    TH: "木",
+    FR: "金",
+    SA: "土",
   };
   // Handle numeric prefixes like "1MO" (first Monday)
-  const cleanDay = String(day).replace(/[+-]?\d+/, '').toUpperCase();
+  const cleanDay = String(day)
+    .replace(/[+-]?\d+/, "")
+    .toUpperCase();
   return days[cleanDay] || String(day);
 }
 
@@ -652,6 +674,8 @@ function dayMapEn(day: string | number): string {
     SA: "Saturday",
   };
   // Handle numeric prefixes like "1MO" (first Monday)
-  const cleanDay = String(day).replace(/[+-]?\d+/, '').toUpperCase();
+  const cleanDay = String(day)
+    .replace(/[+-]?\d+/, "")
+    .toUpperCase();
   return days[cleanDay] || String(day);
 }

@@ -68,6 +68,10 @@ export interface RouteSection {
   name?: string;
   node_id?: string;
   gateway?: string;
+  numbering?: {
+    departure?: Array<{ number: string; symbol: string }>;
+    arrival?: Array<{ number: string; symbol: string }>;
+  };
   from_time?: string;
   to_time?: string;
   time?: number;
@@ -81,6 +85,14 @@ export interface RouteSection {
     type: string;
     company?: { id: string; name: string };
     fare?: Record<string, number>;
+    links?: Array<{
+      id: string;
+      name: string;
+      from: { id: string; name: string };
+      to: { id: string; name: string };
+      destination: { id: string; name: string };
+      direction: string;
+    }>;
   };
 }
 
@@ -240,10 +252,7 @@ export const searchRoutes = query(
       }
 
       const result = (await response.json()) as RouteSearchResult;
-      console.log(
-        "[Transit API] Routes found:",
-        result.items?.length ?? 0,
-      );
+      console.log("[Transit API] Routes found:", result.items?.length ?? 0);
       return result;
     } catch (error) {
       console.error("[Transit API] Request failed:", error);
@@ -290,10 +299,7 @@ export const findNearbyStations = query(
       }
 
       const result = (await response.json()) as NearbyStationsResult;
-      console.log(
-        "[Transit API] Stations found:",
-        result.items?.length ?? 0,
-      );
+      console.log("[Transit API] Stations found:", result.items?.length ?? 0);
       return result;
     } catch (error) {
       console.error("[Transit API] Request failed:", error);
@@ -336,10 +342,7 @@ export const searchStations = query(
       }
 
       const result = (await response.json()) as StationSearchResult;
-      console.log(
-        "[Transit API] Stations found:",
-        result.items?.length ?? 0,
-      );
+      console.log("[Transit API] Stations found:", result.items?.length ?? 0);
       return result;
     } catch (error) {
       console.error("[Transit API] Request failed:", error);
@@ -383,10 +386,7 @@ export const searchAddress = query(
       }
 
       const result = (await response.json()) as AddressSearchResult;
-      console.log(
-        "[Transit API] Addresses found:",
-        result.items?.length ?? 0,
-      );
+      console.log("[Transit API] Addresses found:", result.items?.length ?? 0);
       return result;
     } catch (error) {
       console.error("[Transit API] Geocoding request failed:", error);
@@ -438,4 +438,3 @@ export const autocompleteAddress = query(
     }
   },
 );
-

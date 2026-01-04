@@ -12,7 +12,11 @@
     taskFormActions,
   } from "$lib/features/tasks/state/taskForm.ts";
   import { taskActions } from "$lib/features/tasks/state/taskActions.ts";
-  import type { MemoType, LocationPreference, ImportanceLevel } from "$lib/types.ts";
+  import type {
+    MemoType,
+    LocationPreference,
+    ImportanceLevel,
+  } from "$lib/types.ts";
 
   // Advanced settings section state
   let showAdvancedSettings = $state(false);
@@ -30,7 +34,11 @@
         label: "バックログ",
         description: "Task without urgency",
       },
-      { value: "ルーティン", label: "ルーティーン", description: "Recurring task" },
+      {
+        value: "ルーティン",
+        label: "ルーティーン",
+        description: "Recurring task",
+      },
     ];
 
   // Location options (UI labels in Japanese, internal values unchanged)
@@ -101,7 +109,7 @@
 
 {#if $isTaskFormOpen}
   <div
-    class="modal-open modal modal-mobile-fullscreen z-[2100] md:modal-middle"
+    class="modal-open modal-mobile-fullscreen modal z-[2100] md:modal-middle"
     onkeydown={(e) => e.key === "Escape" && handleClose()}
     role="dialog"
     aria-modal="true"
@@ -109,7 +117,7 @@
     tabindex="-1"
   >
     <div
-      class="modal-box h-full w-full max-w-[500px] overflow-hidden p-0 md:max-h-[90vh] md:h-auto md:overflow-y-auto"
+      class="modal-box h-full w-full max-w-[500px] overflow-hidden p-0 md:h-auto md:max-h-[90vh] md:overflow-y-auto"
       onclick={(e) => e.stopPropagation()}
       onkeydown={(e) => e.key === "Escape" && handleClose()}
       role="dialog"
@@ -117,7 +125,7 @@
       tabindex="-1"
     >
       <div
-        class="flex items-center justify-between border-b border-base-300 bg-base-100 p-4 flex-shrink-0"
+        class="flex flex-shrink-0 items-center justify-between border-b border-base-300 bg-base-100 p-4"
       >
         <button
           class="btn btn-square btn-ghost btn-sm md:hidden"
@@ -126,12 +134,12 @@
         >
           ✕
         </button>
-        <h3 class="text-lg font-medium flex-1 md:flex-none text-left">
+        <h3 class="flex-1 text-left text-lg font-medium md:flex-none">
           {$taskForm.isEditing ? "タスクを編集" : "新しいタスク"}
         </h3>
         <button
           type="button"
-          class="btn btn-primary btn-sm md:hidden"
+          class="btn btn-sm btn-primary md:hidden"
           disabled={!$isTaskFormValid || $isTaskFormSubmitting}
           onclick={async (e) => {
             e.preventDefault();
@@ -145,7 +153,7 @@
           {/if}
         </button>
         <button
-          class="btn btn-square btn-ghost btn-sm hidden md:flex"
+          class="btn hidden btn-square btn-ghost btn-sm md:flex"
           onclick={handleClose}
           aria-label="Close"
         >
@@ -153,12 +161,16 @@
         </button>
       </div>
 
-      <form onsubmit={handleSubmit} class="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <div class="flex flex-col gap-4 p-4 overflow-y-auto flex-1 min-h-0">
+      <form
+        onsubmit={handleSubmit}
+        class="flex min-h-0 flex-1 flex-col overflow-hidden"
+      >
+        <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
           <!-- Title -->
           <div class="form-control">
             <label class="label" for="title">
-              <span class="label-text text-sm text-[var(--color-text-secondary)]"
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
                 >タイトル</span
               >
             </label>
@@ -183,7 +195,8 @@
           <!-- Type -->
           <div class="form-control">
             <span class="label">
-              <span class="label-text text-sm text-[var(--color-text-secondary)]"
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
                 >タイプ</span
               >
             </span>
@@ -207,7 +220,8 @@
           {#if $showDeadlineField}
             <div class="form-control">
               <label class="label" for="deadline">
-                <span class="label-text text-sm text-[var(--color-text-secondary)]"
+                <span
+                  class="label-text text-sm text-[var(--color-text-secondary)]"
                   >期限</span
                 >
               </label>
@@ -233,7 +247,8 @@
           {#if $showRecurrenceFields}
             <div class="form-control">
               <label class="label" for="recurrence-count">
-                <span class="label-text text-sm text-[var(--color-text-secondary)]"
+                <span
+                  class="label-text text-sm text-[var(--color-text-secondary)]"
                   >目標</span
                 >
               </label>
@@ -274,14 +289,15 @@
           <!-- Location -->
           <div class="form-control">
             <span class="label">
-              <span class="label-text text-sm text-[var(--color-text-secondary)]"
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
                 >場所</span
               >
             </span>
             <div class="flex gap-2" role="group" aria-label="場所">
               {#each locationOptions as option (option.value)}
                 <label
-                  class="btn flex-1 btn-sm cursor-pointer {$taskForm.locationPreference ===
+                  class="btn flex-1 cursor-pointer btn-sm {$taskForm.locationPreference ===
                   option.value
                     ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
                     : 'border-base-300 btn-ghost'} border transition-all duration-200"
@@ -305,13 +321,17 @@
           </div>
 
           <!-- Advanced Settings Collapsible -->
-          <div class="border-t border-base-300 pt-2 mt-2">
+          <div class="mt-2 border-t border-base-300 pt-2">
             <button
               type="button"
-              class="btn btn-ghost btn-sm w-full justify-start gap-2 text-[var(--color-text-secondary)]"
+              class="btn w-full justify-start gap-2 text-[var(--color-text-secondary)] btn-ghost btn-sm"
               onclick={() => (showAdvancedSettings = !showAdvancedSettings)}
             >
-              <span class="transition-transform duration-200 {showAdvancedSettings ? 'rotate-90' : ''}">▶</span>
+              <span
+                class="transition-transform duration-200 {showAdvancedSettings
+                  ? 'rotate-90'
+                  : ''}">▶</span
+              >
               詳細設定
             </button>
 
@@ -320,7 +340,8 @@
                 <!-- Genre -->
                 <div class="form-control">
                   <label class="label" for="genre">
-                    <span class="label-text text-sm text-[var(--color-text-secondary)]"
+                    <span
+                      class="label-text text-sm text-[var(--color-text-secondary)]"
                       >ジャンル</span
                     >
                   </label>
@@ -339,7 +360,8 @@
                 <!-- Importance -->
                 <div class="form-control">
                   <span class="label">
-                    <span class="label-text text-sm text-[var(--color-text-secondary)]"
+                    <span
+                      class="label-text text-sm text-[var(--color-text-secondary)]"
                       >重要度</span
                     >
                   </span>
@@ -349,17 +371,23 @@
                       class="btn flex-1 btn-sm {$taskForm.importance === ''
                         ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
                         : 'border-base-300 btn-ghost'} border transition-all duration-200"
-                      onclick={() => taskFormActions.updateField("importance", "")}
+                      onclick={() =>
+                        taskFormActions.updateField("importance", "")}
                     >
                       未設定
                     </button>
                     {#each importanceOptions as option (option.value)}
                       <button
                         type="button"
-                        class="btn flex-1 btn-sm {$taskForm.importance === option.value
+                        class="btn flex-1 btn-sm {$taskForm.importance ===
+                        option.value
                           ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
                           : 'border-base-300 btn-ghost'} border transition-all duration-200"
-                        onclick={() => taskFormActions.updateField("importance", option.value)}
+                        onclick={() =>
+                          taskFormActions.updateField(
+                            "importance",
+                            option.value,
+                          )}
                       >
                         {option.label}
                       </button>
@@ -371,7 +399,8 @@
                 {#if $isTaskFormEditing}
                   <div class="form-control">
                     <label class="label" for="sessionDuration">
-                      <span class="label-text text-sm text-[var(--color-text-secondary)]"
+                      <span
+                        class="label-text text-sm text-[var(--color-text-secondary)]"
                         >1回のセッション時間（分）</span
                       >
                     </label>
@@ -387,7 +416,7 @@
                         const val = e.currentTarget.value;
                         taskFormActions.updateField(
                           "sessionDuration",
-                          val ? parseInt(val, 10) : null
+                          val ? parseInt(val, 10) : null,
                         );
                       }}
                     />
@@ -395,7 +424,8 @@
 
                   <div class="form-control">
                     <label class="label" for="totalDuration">
-                      <span class="label-text text-sm text-[var(--color-text-secondary)]"
+                      <span
+                        class="label-text text-sm text-[var(--color-text-secondary)]"
                         >合計所要時間（分）</span
                       >
                     </label>
@@ -411,7 +441,7 @@
                         const val = e.currentTarget.value;
                         taskFormActions.updateField(
                           "totalDurationExpected",
-                          val ? parseInt(val, 10) : null
+                          val ? parseInt(val, 10) : null,
                         );
                       }}
                     />
@@ -427,7 +457,9 @@
               class="flex items-center gap-2 rounded-lg border border-[var(--color-warning-500)] bg-[var(--color-warning-100)] p-3"
             >
               <div class="text-xl">⚠️</div>
-              <div class="text-sm text-[var(--color-warning-700)]">{$taskFormErrors.enrichedFieldsCleared}</div>
+              <div class="text-sm text-[var(--color-warning-700)]">
+                {$taskFormErrors.enrichedFieldsCleared}
+              </div>
             </div>
           {/if}
 
@@ -437,20 +469,18 @@
               class="flex items-center gap-2 rounded-lg border border-[var(--color-error-500)] bg-[var(--color-error-100)] p-3"
             >
               <div class="text-xl">⚠️</div>
-              <div class="text-sm text-[var(--color-error-500)]">{$taskFormErrors.general}</div>
+              <div class="text-sm text-[var(--color-error-500)]">
+                {$taskFormErrors.general}
+              </div>
             </div>
           {/if}
         </div>
 
         <!-- Desktop Action Bar -->
         <div
-          class="hidden md:flex flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 flex-shrink-0"
+          class="hidden flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 md:flex"
         >
-          <button
-            type="button"
-            class="btn btn-ghost"
-            onclick={handleClose}
-          >
+          <button type="button" class="btn btn-ghost" onclick={handleClose}>
             キャンセル
           </button>
           <button

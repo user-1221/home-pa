@@ -4,9 +4,9 @@
 
 This document specifies the Transit API integration for Home-PA using **NAVITIME API 2.0** “ルート検索（トータルナビ）” (endpoint: `/v1/route_transit`).
 
-This API searches routes between two points using public transit (rail/bus etc.), including walking segments, and supports optional via points. The response includes route summaries, per-section details, and (optionally) route shapes (GeoJSON).  
+This API searches routes between two points using public transit (rail/bus etc.), including walking segments, and supports optional via points. The response includes route summaries, per-section details, and (optionally) route shapes (GeoJSON).
 
-Reference: NAVITIME API 2.0 Spec “ルート検索(トータルナビ)”.  
+Reference: NAVITIME API 2.0 Spec “ルート検索(トータルナビ)”.
 
 ---
 
@@ -37,11 +37,13 @@ NAVITIME API 2.0 uses a URL that embeds the **Client ID (CID)**:
 
 NAVITIME API 2.0 requires:
 
-1) **Client ID (CID)** in the URL path  
+1. **Client ID (CID)** in the URL path
+
 - Example pattern: `https://{HOST}/{CID}/v1/...`
 
-2) **Digital signature authentication** may be required unless it is omitted by applying access-origin restrictions (per NAVITIME documentation).  
-- Signature is generated using the issued "署名鍵" (secret key) and your generated "リクエストコード".  
+2. **Digital signature authentication** may be required unless it is omitted by applying access-origin restrictions (per NAVITIME documentation).
+
+- Signature is generated using the issued "署名鍵" (secret key) and your generated "リクエストコード".
 - The exact signature generation method is provided in materials NAVITIME supplies during introduction.
 
 > Implementation note (Home-PA): keep signature generation on the server side only.
@@ -54,9 +56,11 @@ RapidAPI requires HTTP headers for authentication:
 - **`X-RapidAPI-Host`**: The specific API host for each endpoint (varies by endpoint)
 
 **Environment Variables Required:**
+
 - `RAPIDAPI_KEY` - Your RapidAPI API key (used for `X-RapidAPI-Key` header)
 
 **Request Headers:**
+
 ```typescript
 {
   "x-rapidapi-key": env.RAPIDAPI_KEY,
@@ -73,23 +77,27 @@ RapidAPI requires HTTP headers for authentication:
 #### Route Search (Transit)
 
 **NAVITIME API 2.0:**
+
 - **GET** `/v1/route_transit`
 - Full form: `GET https://{HOST}/{CID}/v1/route_transit?...`
 
 **RapidAPI:**
+
 - **GET** `https://navitime-route-totalnavi.p.rapidapi.com/route_transit`
 - Headers: `x-rapidapi-key`, `x-rapidapi-host: navitime-route-totalnavi.p.rapidapi.com`
 
 **Complete Example Request:**
+
 ```typescript
-const url = 'https://navitime-route-totalnavi.p.rapidapi.com/route_transit?start=35.665251%2C139.712092&goal=35.661971%2C139.703795&datum=wgs84&term=1440&limit=5&start_time=2020-08-19T10%3A00%3A00&coord_unit=degree';
+const url =
+  "https://navitime-route-totalnavi.p.rapidapi.com/route_transit?start=35.665251%2C139.712092&goal=35.661971%2C139.703795&datum=wgs84&term=1440&limit=5&start_time=2020-08-19T10%3A00%3A00&coord_unit=degree";
 
 const options = {
-  method: 'GET',
+  method: "GET",
   headers: {
-    'x-rapidapi-key': env.RAPIDAPI_KEY,
-    'x-rapidapi-host': 'navitime-route-totalnavi.p.rapidapi.com'
-  }
+    "x-rapidapi-key": env.RAPIDAPI_KEY,
+    "x-rapidapi-host": "navitime-route-totalnavi.p.rapidapi.com",
+  },
 };
 
 const response = await fetch(url, options);
@@ -101,37 +109,42 @@ const result = await response.json();
 #### Fare Comparison
 
 **RapidAPI:**
+
 - **GET** `https://navitime-route-totalnavi.p.rapidapi.com/fare_comparison`
 - Headers: `x-rapidapi-key`, `x-rapidapi-host: navitime-route-totalnavi.p.rapidapi.com`
 
 #### Fare Table
 
 **RapidAPI:**
+
 - **GET** `https://navitime-route-totalnavi.p.rapidapi.com/fare_table`
 - Headers: `x-rapidapi-key`, `x-rapidapi-host: navitime-route-totalnavi.p.rapidapi.com`
 
 #### Shape Transit (GeoJSON)
 
 **RapidAPI:**
+
 - **GET** `https://navitime-route-totalnavi.p.rapidapi.com/shape_transit`
 - Headers: `x-rapidapi-key`, `x-rapidapi-host: navitime-route-totalnavi.p.rapidapi.com`
 
 #### Station/Stop Search (Transport Node)
 
 **RapidAPI:**
+
 - **GET** `https://navitime-transport.p.rapidapi.com/transport_node`
 - Headers: `x-rapidapi-key`, `x-rapidapi-host: navitime-transport.p.rapidapi.com`
 
 **Purpose:** Search for stations, bus stops, ports, and other transport nodes by keyword or address.
 
 **Complete Example Request:**
+
 ```typescript
 const params = new URLSearchParams({
-  word: "東京",           // Search keyword (station name, address, etc.)
-  coord_unit: "degree",  // "degree" or "millisec"
-  offset: "0",          // Pagination offset (default: 0)
-  datum: "wgs84",       // "wgs84" or "tokyo"
-  limit: "10"           // Number of results (default: 10)
+  word: "東京", // Search keyword (station name, address, etc.)
+  coord_unit: "degree", // "degree" or "millisec"
+  offset: "0", // Pagination offset (default: 0)
+  datum: "wgs84", // "wgs84" or "tokyo"
+  limit: "10", // Number of results (default: 10)
 });
 
 const url = `https://navitime-transport.p.rapidapi.com/transport_node?${params.toString()}`;
@@ -140,8 +153,8 @@ const response = await fetch(url, {
   method: "GET",
   headers: {
     "x-rapidapi-key": env.RAPIDAPI_KEY,
-    "x-rapidapi-host": "navitime-transport.p.rapidapi.com"
-  }
+    "x-rapidapi-host": "navitime-transport.p.rapidapi.com",
+  },
 });
 
 const result = await response.json();
@@ -150,20 +163,22 @@ const result = await response.json();
 #### Nearby Stations/Stops (Transport Node Around)
 
 **RapidAPI:**
+
 - **GET** `https://navitime-transport.p.rapidapi.com/transport_node/around`
 - Headers: `x-rapidapi-key`, `x-rapidapi-host: navitime-transport.p.rapidapi.com`
 
 **Purpose:** Find nearby stations and stops based on coordinates. Includes walking distance and time calculations, considering station entrances/exits.
 
 **Complete Example Request:**
+
 ```typescript
 const params = new URLSearchParams({
-  coord: "35.689457,139.691935",  // Latitude,longitude (comma-separated)
-  limit: "10",                     // Number of results (default: 10)
-  term: "60",                      // Maximum walking time in minutes (default: 60)
-  datum: "wgs84",                  // "wgs84" or "tokyo"
-  coord_unit: "degree",           // "degree" or "millisec"
-  walk_speed: "5"                  // Walking speed in km/h (default: 4.8, min: 3.0, max: 8.0)
+  coord: "35.689457,139.691935", // Latitude,longitude (comma-separated)
+  limit: "10", // Number of results (default: 10)
+  term: "60", // Maximum walking time in minutes (default: 60)
+  datum: "wgs84", // "wgs84" or "tokyo"
+  coord_unit: "degree", // "degree" or "millisec"
+  walk_speed: "5", // Walking speed in km/h (default: 4.8, min: 3.0, max: 8.0)
 });
 
 const url = `https://navitime-transport.p.rapidapi.com/transport_node/around?${params.toString()}`;
@@ -172,8 +187,8 @@ const response = await fetch(url, {
   method: "GET",
   headers: {
     "x-rapidapi-key": env.RAPIDAPI_KEY,
-    "x-rapidapi-host": "navitime-transport.p.rapidapi.com"
-  }
+    "x-rapidapi-host": "navitime-transport.p.rapidapi.com",
+  },
 });
 
 const result = await response.json();
@@ -182,20 +197,22 @@ const result = await response.json();
 #### Address Search (Geocoding)
 
 **RapidAPI:**
+
 - **GET** `https://navitime-geocoding.p.rapidapi.com/address`
 - Headers: `x-rapidapi-key`, `x-rapidapi-host: navitime-geocoding.p.rapidapi.com`
 
 **Purpose:** Search for addresses by keyword and get coordinates. Used for converting address strings to lat/lon for route planning.
 
 **Complete Example Request:**
+
 ```typescript
 const params = new URLSearchParams({
-  word: "代々木",                  // Search keyword (address, place name, etc.)
-  coord_unit: "degree",           // "degree" or "millisec"
-  datum: "wgs84",                 // "wgs84" or "tokyo"
-  limit: "10",                    // Number of results (default: 10)
-  sort: "code_asc",               // Sort order: "code_asc", "code_desc", "name_asc", "name_desc"
-  offset: "0"                     // Pagination offset (default: 0)
+  word: "代々木", // Search keyword (address, place name, etc.)
+  coord_unit: "degree", // "degree" or "millisec"
+  datum: "wgs84", // "wgs84" or "tokyo"
+  limit: "10", // Number of results (default: 10)
+  sort: "code_asc", // Sort order: "code_asc", "code_desc", "name_asc", "name_desc"
+  offset: "0", // Pagination offset (default: 0)
 });
 
 const url = `https://navitime-geocoding.p.rapidapi.com/address?${params.toString()}`;
@@ -204,8 +221,8 @@ const response = await fetch(url, {
   method: "GET",
   headers: {
     "x-rapidapi-key": env.RAPIDAPI_KEY,
-    "x-rapidapi-host": "navitime-geocoding.p.rapidapi.com"
-  }
+    "x-rapidapi-host": "navitime-geocoding.p.rapidapi.com",
+  },
 });
 
 const result = await response.json();
@@ -214,17 +231,19 @@ const result = await response.json();
 #### Address Autocomplete (Geocoding)
 
 **RapidAPI:**
+
 - **GET** `https://navitime-geocoding.p.rapidapi.com/address/autocomplete`
 - Headers: `x-rapidapi-key`, `x-rapidapi-host: navitime-geocoding.p.rapidapi.com`
 
 **Purpose:** Get address autocomplete suggestions as user types. Faster than full address search, optimized for real-time suggestions.
 
 **Complete Example Request:**
+
 ```typescript
 const params = new URLSearchParams({
-  word: "とうk",                   // Partial search keyword (e.g., user typing "とうきょう")
-  datum: "wgs84",                 // "wgs84" or "tokyo"
-  coord_unit: "degree"            // "degree" or "millisec"
+  word: "とうk", // Partial search keyword (e.g., user typing "とうきょう")
+  datum: "wgs84", // "wgs84" or "tokyo"
+  coord_unit: "degree", // "degree" or "millisec"
 });
 
 const url = `https://navitime-geocoding.p.rapidapi.com/address/autocomplete?${params.toString()}`;
@@ -233,8 +252,8 @@ const response = await fetch(url, {
   method: "GET",
   headers: {
     "x-rapidapi-key": env.RAPIDAPI_KEY,
-    "x-rapidapi-host": "navitime-geocoding.p.rapidapi.com"
-  }
+    "x-rapidapi-host": "navitime-geocoding.p.rapidapi.com",
+  },
 });
 
 const result = await response.json();
@@ -250,6 +269,7 @@ Parameter names / behaviors below are taken from the NAVITIME spec table.
 - `goal` (required): arrival point
 
 **Accepted formats for `start` / `goal`:**
+
 - Point as “地点のJSON表現”
 - Node ID string (e.g., station node id)
 - Comma-separated lat/lon: `lat,lon`
@@ -260,15 +280,15 @@ NAVITIME labels some of these as “(✔)” in the table; treat as conditionall
 
 - `start_time`: departure datetime (`YYYY-MM-DDThh:mm:ss`)
 - `goal_time`: arrival datetime (`YYYY-MM-DDThh:mm:ss`)
-- `first_operation`: first-train search date (`YYYY-MM-DD`)  
+- `first_operation`: first-train search date (`YYYY-MM-DD`)
   - Only available when using timetable data; not available on API marketplace
-- `last_operation`: last-train search date (`YYYY-MM-DD`)  
+- `last_operation`: last-train search date (`YYYY-MM-DD`)
   - Only available when using timetable data; not available on API marketplace
 
 #### Via points
 
 - `via`: array of point JSON (max 10 points)
-  - Note: if using *bus timetable only* and specifying 4+ via points, it falls back to “average-time rail-only search” per spec.
+  - Note: if using _bus timetable only_ and specifying 4+ via points, it falls back to “average-time rail-only search” per spec.
 - `via_type`: `specified` (default) or `optimal`
 
 #### Exclusions / preferences
@@ -343,16 +363,20 @@ Any parameter that uses **JSON expressions** (e.g., `via`, `goal` as array, `com
 
 ### Example Requests (from spec)
 
-1) With via + options:
+1. With via + options:
+
 - `/route_transit?start=00008247&goal=00005172&via=[{"node":"00006668"}]&start_time=2019-10-01T08:00:00&options=railway_calling_at`
 
-2) One-to-many (goal as array):
+2. One-to-many (goal as array):
+
 - `/route_transit?start=00006668&goal=[{"node":"00005172"},{"node":"00000838"}]&start_time=2019-10-01T08:00:00`
 
-3) Commuter pass section:
+3. Commuter pass section:
+
 - `/route_transit?start=00005564&goal=00002128&commuter_pass=[{"link":"00000141","start":"00005947","goal":"00003544","direction":"up"}]&start_time=2019-10-01T08:00:00`
 
-4) Avoid station:
+4. Avoid station:
+
 - `/route_transit?start=00004254&goal=00007820&avoid_node=00003544&start_time=2020-12-01T10:00:00`
 
 ---
@@ -616,27 +640,33 @@ Represents a movement segment (walking, train, bus, etc.):
 ### Key Fields for Home-PA Integration
 
 **For travel time calculation:**
+
 - `summary.move.time` - Total travel time in minutes
 - `summary.move.from_time` / `summary.move.to_time` - Exact departure/arrival times (ISO format with timezone)
 
 **For fare display:**
+
 - `summary.move.fare.unit_0` - Standard fare (JPY)
 - `summary.move.fare.unit_48` - IC card fare (JPY)
 
 **For route visualization:**
+
 - `sections[]` - Detailed step-by-step route (alternating point/move)
 - `transport.color` - Line color hex code (e.g., "#8F76D6") for UI display
 - `transport.name` - Line name (e.g., "東京メトロ半蔵門線") for display
 - `line_name` - Display name for move segments (e.g., "徒歩", line names)
 
 **For walking distance:**
+
 - `summary.move.walk_distance` - Total walking distance in metres
 - Individual walk segments in `sections[]` with `move: "walk"`
 
 **For transfer count:**
+
 - `summary.move.transit_count` - Number of transit transfers
 
 **For station/platform information:**
+
 - `node_id` - Station node ID for linking/display
 - `gateway` - Station exit/gateway name (e.g., "B4口")
 - `numbering.departure` / `numbering.arrival` - Platform/track numbers with symbols
@@ -670,15 +700,15 @@ interface RouteSummary {
 }
 
 interface MoveSummary {
-  from_time: string;  // ISO datetime with timezone
-  to_time: string;    // ISO datetime with timezone
-  time: number;       // Minutes
-  distance: number;   // Metres
+  from_time: string; // ISO datetime with timezone
+  to_time: string; // ISO datetime with timezone
+  time: number; // Minutes
+  distance: number; // Metres
   walk_distance: number; // Metres
   transit_count: number;
   fare: {
-    unit_0?: number;   // Standard fare (JPY)
-    unit_48?: number;  // IC card fare (JPY)
+    unit_0?: number; // Standard fare (JPY)
+    unit_48?: number; // IC card fare (JPY)
     [key: string]: number | undefined;
   };
   type: "move";
@@ -704,11 +734,11 @@ interface PointSection {
 
 interface MoveSection {
   type: "move";
-  from_time: string;  // ISO datetime with timezone
-  to_time: string;    // ISO datetime with timezone
-  time: number;       // Minutes
-  distance: number;   // Metres
-  move: string;       // "walk", "local_train", "bus", etc.
+  from_time: string; // ISO datetime with timezone
+  to_time: string; // ISO datetime with timezone
+  time: number; // Minutes
+  distance: number; // Metres
+  move: string; // "walk", "local_train", "bus", etc.
   line_name: string;
   transport?: TransportDetails;
 }
@@ -716,8 +746,8 @@ interface MoveSection {
 interface TransportDetails {
   id: string;
   name: string;
-  color: string;      // Hex color code
-  type: string;       // Train type (e.g., "普通")
+  color: string; // Hex color code
+  type: string; // Train type (e.g., "普通")
   company: {
     id: string;
     name: string;
@@ -860,10 +890,10 @@ interface CountInfo {
 }
 
 interface TransportNode {
-  id: string;              // Use as start/goal in route_transit
+  id: string; // Use as start/goal in route_transit
   name: string;
   ruby: string;
-  types: string[];         // ["station"], ["port"], ["bus_stop"], etc.
+  types: string[]; // ["station"], ["port"], ["bus_stop"], etc.
   address_name: string;
   address_code: string;
   coord: {
@@ -881,19 +911,23 @@ interface Unit {
 ### Key Fields for Home-PA Integration
 
 **For station selection:**
+
 - `id` - Node ID to use as `start` or `goal` parameter in `/route_transit`
 - `name` - Display name for the station/stop
 - `ruby` - Pronunciation (useful for sorting/searching in Japanese)
 
 **For location display:**
+
 - `coord.lat` / `coord.lon` - Coordinates for map display
 - `address_name` - Full address for context
 
 **For filtering:**
+
 - `types` - Array of node types (e.g., `["station"]`, `["port"]`, `["bus_stop"]`)
 - Filter by `types.includes("station")` to show only train stations
 
 **For pagination:**
+
 - `count.total` - Total number of results
 - `count.offset` / `count.limit` - Current pagination state
 
@@ -1000,19 +1034,19 @@ interface TransportNodeAroundResponse {
 }
 
 interface TransportNodeAround {
-  id: string;              // Use as start/goal in route_transit
+  id: string; // Use as start/goal in route_transit
   name: string;
   ruby: string;
-  types: string[];         // ["station"], ["port"], ["bus_stop"], etc.
+  types: string[]; // ["station"], ["port"], ["bus_stop"], etc.
   address_name: string;
   address_code: string;
   coord: {
     lat: number;
     lon: number;
   };
-  distance: number;        // Walking distance in metres
-  time: number;           // Walking time in minutes
-  gateway?: string;        // Station exit/gateway name
+  distance: number; // Walking distance in metres
+  time: number; // Walking time in minutes
+  gateway?: string; // Station exit/gateway name
 }
 
 interface UnitWithDistanceTime {
@@ -1026,21 +1060,25 @@ interface UnitWithDistanceTime {
 ### Key Fields for Home-PA Integration
 
 **For nearby station selection:**
+
 - `id` - Node ID to use as `start` or `goal` parameter in `/route_transit`
 - `name` - Display name for the station/stop
 - `distance` - Walking distance in metres (useful for sorting/filtering)
 - `time` - Walking time in minutes (useful for sorting/filtering)
 
 **For location display:**
+
 - `coord.lat` / `coord.lon` - Coordinates for map display
 - `gateway` - Station exit/gateway name (e.g., "A3口") - useful for navigation
 
 **For filtering:**
+
 - `types` - Array of node types (e.g., `["station"]`, `["port"]`, `["bus_stop"]`)
 - Filter by `types.includes("station")` to show only train stations
 - Filter by `time <= maxWalkingTime` to show only stations within walking distance
 
 **For sorting:**
+
 - Results are typically sorted by `distance` (ascending) - nearest stations first
 - Can also sort by `time` (ascending) - fastest walking time first
 
@@ -1160,15 +1198,18 @@ interface AddressItem {
 ### Key Fields for Home-PA Integration
 
 **For geocoding:**
+
 - `coord.lat` / `coord.lon` - Use as `goal` coordinates in `/route_transit`
 - `name` - Full address string for display
 - `code` - Address code for caching/deduplication
 
 **For display:**
+
 - `details[]` - Hierarchical breakdown (prefecture → city → district)
 - `postal_code` - Postal code for address validation
 
 **For filtering:**
+
 - `is_end` - `true` means complete address, `false` means partial match
 - Filter by `is_end: true` to show only complete addresses
 
@@ -1272,11 +1313,13 @@ interface AddressAutocompleteItem {
 ### Key Fields for Home-PA Integration
 
 **For autocomplete UI:**
+
 - `name` - Display in dropdown/autocomplete list
 - `details[]` - Show hierarchical breakdown for context
 - `coord` - Store for later use in route search
 
 **For selection:**
+
 - Use `coord` as `goal` in `/route_transit` when user selects an address
 - `code` - Use for caching/deduplication
 
@@ -1285,14 +1328,17 @@ interface AddressAutocompleteItem {
 ## Error Handling
 
 NAVITIME provides error responses with:
+
 - HTTP status code (4xx client errors, 5xx server errors)
 - JSON body with `status_code` and `message` string
 
 Examples include:
+
 - 400 invalid path/parameter/API/contract usage
 - 401 invalid client or invalid signature
 
 Home-PA should:
+
 - Treat non-2xx as errors
 - Surface actionable messages for auth/signature/config errors
 - Implement retry/backoff only for transient server-side errors (5xx / timeouts), and only if it will not violate rate limits.
@@ -1304,6 +1350,7 @@ Home-PA should:
 NAVITIME states that the concrete request limits depend on your contract and should be confirmed with sales. High-computation queries (e.g., long-distance routes, multi-point, certain modes) may require individual pre-confirmation.
 
 Home-PA should:
+
 - Add caching (short TTL) for identical queries
 - Avoid firing repeated queries while user is dragging/typing (debounce)
 - Prefer server-side aggregation and caching
@@ -1435,13 +1482,13 @@ import { env } from "$env/dynamic/private";
 
 // Build query parameters
 const params = new URLSearchParams({
-  start: "35.665251,139.712092",  // lat,lon (will be URL-encoded)
+  start: "35.665251,139.712092", // lat,lon (will be URL-encoded)
   goal: "35.661971,139.703795",
   datum: "wgs84",
   term: "1440",
   limit: "5",
   start_time: "2020-08-19T10:00:00",
-  coord_unit: "degree"
+  coord_unit: "degree",
 });
 
 const url = `https://navitime-route-totalnavi.p.rapidapi.com/route_transit?${params.toString()}`;
@@ -1450,8 +1497,8 @@ const response = await fetch(url, {
   method: "GET",
   headers: {
     "x-rapidapi-key": env.RAPIDAPI_KEY,
-    "x-rapidapi-host": "navitime-route-totalnavi.p.rapidapi.com"
-  }
+    "x-rapidapi-host": "navitime-route-totalnavi.p.rapidapi.com",
+  },
 });
 
 if (!response.ok) {
@@ -1465,10 +1512,10 @@ const result = await response.json();
 
 ```typescript
 const params = new URLSearchParams({
-  start: "00008247",  // Station node ID
+  start: "00008247", // Station node ID
   goal: "00005172",
   start_time: "2024-12-30T08:00:00",
-  limit: "5"
+  limit: "5",
 });
 
 const url = `https://navitime-route-totalnavi.p.rapidapi.com/route_transit?${params.toString()}`;
@@ -1483,8 +1530,8 @@ const viaPoints = JSON.stringify([{ node: "00006668" }]);
 const params = new URLSearchParams({
   start: "00008247",
   goal: "00005172",
-  via: viaPoints,  // URLSearchParams will encode this
-  start_time: "2024-12-30T08:00:00"
+  via: viaPoints, // URLSearchParams will encode this
+  start_time: "2024-12-30T08:00:00",
 });
 
 const url = `https://navitime-route-totalnavi.p.rapidapi.com/route_transit?${params.toString()}`;
@@ -1495,11 +1542,11 @@ const url = `https://navitime-route-totalnavi.p.rapidapi.com/route_transit?${par
 
 ```typescript
 const params = new URLSearchParams({
-  word: "東京",           // Search keyword
+  word: "東京", // Search keyword
   coord_unit: "degree",
   offset: "0",
   datum: "wgs84",
-  limit: "10"
+  limit: "10",
 });
 
 const url = `https://navitime-transport.p.rapidapi.com/transport_node?${params.toString()}`;
@@ -1508,8 +1555,8 @@ const response = await fetch(url, {
   method: "GET",
   headers: {
     "x-rapidapi-key": env.RAPIDAPI_KEY,
-    "x-rapidapi-host": "navitime-transport.p.rapidapi.com"
-  }
+    "x-rapidapi-host": "navitime-transport.p.rapidapi.com",
+  },
 });
 
 if (!response.ok) {
@@ -1526,12 +1573,12 @@ const stationId = result.items[0]?.id; // e.g., "00006668"
 
 ```typescript
 const params = new URLSearchParams({
-  coord: "35.689457,139.691935",  // Current location or event coordinates
+  coord: "35.689457,139.691935", // Current location or event coordinates
   limit: "10",
-  term: "60",                     // Max 60 minutes walking time
+  term: "60", // Max 60 minutes walking time
   datum: "wgs84",
   coord_unit: "degree",
-  walk_speed: "5"                 // 5 km/h walking speed
+  walk_speed: "5", // 5 km/h walking speed
 });
 
 const url = `https://navitime-transport.p.rapidapi.com/transport_node/around?${params.toString()}`;
@@ -1540,8 +1587,8 @@ const response = await fetch(url, {
   method: "GET",
   headers: {
     "x-rapidapi-key": env.RAPIDAPI_KEY,
-    "x-rapidapi-host": "navitime-transport.p.rapidapi.com"
-  }
+    "x-rapidapi-host": "navitime-transport.p.rapidapi.com",
+  },
 });
 
 if (!response.ok) {
@@ -1564,7 +1611,7 @@ const params = new URLSearchParams({
   datum: "wgs84",
   limit: "10",
   sort: "code_asc",
-  offset: "0"
+  offset: "0",
 });
 
 const url = `https://navitime-geocoding.p.rapidapi.com/address?${params.toString()}`;
@@ -1573,8 +1620,8 @@ const response = await fetch(url, {
   method: "GET",
   headers: {
     "x-rapidapi-key": env.RAPIDAPI_KEY,
-    "x-rapidapi-host": "navitime-geocoding.p.rapidapi.com"
-  }
+    "x-rapidapi-host": "navitime-geocoding.p.rapidapi.com",
+  },
 });
 
 if (!response.ok) {
@@ -1595,9 +1642,9 @@ if (address) {
 
 ```typescript
 const params = new URLSearchParams({
-  word: "とうk",  // Partial input as user types
+  word: "とうk", // Partial input as user types
   datum: "wgs84",
-  coord_unit: "degree"
+  coord_unit: "degree",
 });
 
 const url = `https://navitime-geocoding.p.rapidapi.com/address/autocomplete?${params.toString()}`;
@@ -1606,8 +1653,8 @@ const response = await fetch(url, {
   method: "GET",
   headers: {
     "x-rapidapi-key": env.RAPIDAPI_KEY,
-    "x-rapidapi-host": "navitime-geocoding.p.rapidapi.com"
-  }
+    "x-rapidapi-host": "navitime-geocoding.p.rapidapi.com",
+  },
 });
 
 if (!response.ok) {
@@ -1640,10 +1687,12 @@ result.items.forEach((item) => {
 
 Home-PA may access NAVITIME data either via the official NAVITIME API 2.0 endpoints or via RapidAPI.
 The following is a **RapidAPI-based browser demo** that:
-1) Searches stations via `transport_node`
-2) Searches routes via `route_transit` using selected station IDs
+
+1. Searches stations via `transport_node`
+2. Searches routes via `route_transit` using selected station IDs
 
 > Notes:
+>
 > - RapidAPI uses `X-RapidAPI-Key` and `X-RapidAPI-Host` headers.
 > - The official NAVITIME API 2.0 uses a different base URL and authentication mechanism.
 > - `start_time` should be sent in an ISO-like format consistent with the API expectations; include seconds (e.g., `YYYY-MM-DDTHH:MM:SS`).
@@ -1658,6 +1707,7 @@ The following is a **RapidAPI-based browser demo** that:
 - GET `https://navitime-route-totalnavi.p.rapidapi.com/route_transit?start={startNodeId}&goal={goalNodeId}&start_time={departureTime}`
 
 The response includes:
+
 - `items[]`: route candidates
 - For each route:
   - `summary` (overview, includes `move.time` etc.)
@@ -1889,3 +1939,4 @@ function getNowDateTimeWithSeconds() {
 **Status**: Specification complete (based on NAVITIME API 2.0 public spec pages)
 
 **Last Updated**: 2025-12-30
+```

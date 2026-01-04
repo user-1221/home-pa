@@ -17,6 +17,13 @@ import {
   type AddressItem,
   type TransportNode,
 } from "../services/transit-api.remote.ts";
+import {
+  loadSyncData,
+  saveCachedTransit,
+  removeCachedTransit,
+  clearCachedTransit,
+  type SyncedCachedTransit,
+} from "$lib/features/assistant/services/sync.remote.ts";
 
 // ============================================================================
 // Types
@@ -204,6 +211,9 @@ class TransitState {
     eventLocation: string;
     userLocation: UserLocation;
   } | null = null;
+
+  // Whether synced transit data has been loaded
+  private isSyncLoaded = false;
 
   // ============================================================================
   // Location Methods
@@ -585,6 +595,9 @@ class TransitState {
         hasRecommendedDeparture: !!recommendedDeparture,
         hasLeaveNowRoute: !!leaveNowRoute,
       });
+
+      // Sync to server (fire and forget)
+      this.syncTransitInfo();
     } catch (error) {
       console.error("[Transit] Failed to load transit info:", error);
       this.routeError =
@@ -702,6 +715,121 @@ class TransitState {
    */
   getNextEventWithLocation(): Event | ExpandedOccurrence | null {
     return getNextEventWithLocation();
+  }
+
+  // ============================================================================
+  // Sync Methods
+  // ============================================================================
+
+  /**
+   * Load synced transit cache from server
+   * Should be called once on app initialization
+   */
+  async loadSyncedTransit(): Promise<void> {
+    if (this.isSyncLoaded) {
+      console.log("[Transit] Sync data already loaded");
+      return;
+    }
+
+    try {
+      console.log("[Transit] Loading synced transit cache...");
+      const data = await loadSyncData({});
+
+      // Load cached transit info if available for upcoming events
+      if (data.cachedTransit.length > 0) {
+        const now = new Date();
+        // Find the first valid cached transit (event in future)
+        const validCached = data.cachedTransit.find(
+          (t) => new Date(t.eventStart) > now,
+        );
+
+        if (validCached) {
+          try {
+            const parsed = JSON.parse(validCached.transitData);
+            // Restore transit info (but without loading states)
+            this.transitInfo = {
+              ...parsed,
+              isLoading: false,
+              error: null,
+            };
+            this.lastTransitContext = {
+              eventId: validCached.eventId,
+              eventLocation: validCached.eventLocation,
+              userLocation: {
+                lat: validCached.userLat,
+                lon: validCached.userLon,
+                timestamp: new Date(validCached.cachedAt).getTime(),
+              },
+            };
+            console.log(
+              "[Transit] Restored cached transit for event:",
+              validCached.eventId,
+            );
+          } catch (parseError) {
+            console.error(
+              "[Transit] Failed to parse cached transit:",
+              parseError,
+            );
+          }
+        }
+      }
+
+      this.isSyncLoaded = true;
+      console.log("[Transit] Sync data loaded");
+    } catch (error) {
+      console.error("[Transit] Failed to load synced transit:", error);
+    }
+  }
+
+  /**
+   * Sync current transit info to server
+   */
+  async syncTransitInfo(): Promise<void> {
+    if (!this.transitInfo || !this.lastTransitContext) return;
+
+    try {
+      // Serialize transit info (excluding loading states)
+      const transitData = JSON.stringify({
+        event: this.transitInfo.event,
+        eventLocation: this.transitInfo.eventLocation,
+        eventStart: this.transitInfo.eventStart,
+        importance: this.transitInfo.importance,
+        bufferMinutes: this.transitInfo.bufferMinutes,
+        recommendedDeparture: this.transitInfo.recommendedDeparture,
+        leaveNowRoute: this.transitInfo.leaveNowRoute,
+      });
+
+      await saveCachedTransit({
+        transitInfo: {
+          eventId: this.lastTransitContext.eventId,
+          eventLocation: this.lastTransitContext.eventLocation,
+          eventStart: this.transitInfo.eventStart.toISOString(),
+          userLat: this.lastTransitContext.userLocation.lat,
+          userLon: this.lastTransitContext.userLocation.lon,
+          transitData,
+          cachedAt: new Date().toISOString(),
+        },
+      });
+
+      console.log(
+        "[Transit] Synced transit info for event:",
+        this.lastTransitContext.eventId,
+      );
+    } catch (error) {
+      console.error("[Transit] Failed to sync transit info:", error);
+    }
+  }
+
+  /**
+   * Clear synced transit cache
+   */
+  async clearSyncedTransit(): Promise<void> {
+    try {
+      await clearCachedTransit({});
+      console.log("[Transit] Cleared synced transit cache");
+    } catch (error) {
+      console.error("[Transit] Failed to clear synced transit:", error);
+    }
   }
 }
 

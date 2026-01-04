@@ -52,10 +52,10 @@ The integration uses **ical.js** (ICAL library) for RFC-5545 compliant recurrenc
 ```typescript
 // features/calendar/services/ical-service.ts
 export function expandRecurrences(
-  icalData: string,      // VEVENT component string
+  icalData: string, // VEVENT component string
   windowStart: Date,
   windowEnd: Date,
-  maxOccurrences = 1000
+  maxOccurrences = 1000,
 ): ExpandedOccurrence[] {
   // Uses ICAL.Event.iterator() to generate occurrences
   // Returns array of { startDate, endDate, recurrenceId }
@@ -407,18 +407,14 @@ const occurrences = calendarState.expandRecurringEvents(
 ```typescript
 // From ical-service.ts
 export function expandRecurrences(
-  icalData: string,        // VEVENT component string
+  icalData: string, // VEVENT component string
   windowStart: Date,
   windowEnd: Date,
-  maxOccurrences = 1000
-): ExpandedOccurrence[]
+  maxOccurrences = 1000,
+): ExpandedOccurrence[];
 
 // Usage
-const occurrences = expandRecurrences(
-  event.icalData,
-  windowStart,
-  windowEnd
-);
+const occurrences = expandRecurrences(event.icalData, windowStart, windowEnd);
 ```
 
 ### Calendar Actions
@@ -447,15 +443,15 @@ calendarActions.fetchEvents(
 
 ### Key Features
 
-| Aspect  | Implementation                    |
-| ------- | --------------------------------- |
-| Library | ical.js (ICAL)                    |
-| Standard | RFC-5545 iCalendar                |
-| Expansion | Automatic on fetchEvents()        |
-| Storage | icalData field in database         |
-| State   | Reactive $state in calendarState  |
-| SSR     | Safe (no blocking)                |
-| UX      | Smooth, automatic occurrence display |
+| Aspect    | Implementation                       |
+| --------- | ------------------------------------ |
+| Library   | ical.js (ICAL)                       |
+| Standard  | RFC-5545 iCalendar                   |
+| Expansion | Automatic on fetchEvents()           |
+| Storage   | icalData field in database           |
+| State     | Reactive $state in calendarState     |
+| SSR       | Safe (no blocking)                   |
+| UX        | Smooth, automatic occurrence display |
 
 ## References
 

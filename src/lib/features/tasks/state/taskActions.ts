@@ -262,7 +262,10 @@ function validateTaskForm(formData: TaskFormData): {
     }
 
     // Check totalDurationExpected - was set, now null/0
-    if (formData.originalTotalDurationExpected && !formData.totalDurationExpected) {
+    if (
+      formData.originalTotalDurationExpected &&
+      !formData.totalDurationExpected
+    ) {
       clearedFields.push("合計時間");
     }
 

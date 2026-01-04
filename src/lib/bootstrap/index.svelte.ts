@@ -112,3 +112,12 @@ export {
 export { timezone, timezoneActions, timezoneLabel } from "./timezone.ts";
 export { devtools, devtoolsEnabled } from "./devtools.ts";
 export { formatDate, formatDateTime } from "../utils/date-utils.ts";
+
+// Bootstrap functions
+export { initializeStores, loadSyncedData } from "./bootstrap.ts";
+
+// Sync stores
+export {
+  isSyncLoaded,
+  isSyncing,
+} from "../features/assistant/state/schedule.ts";

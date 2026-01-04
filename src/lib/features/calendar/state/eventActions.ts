@@ -191,7 +191,10 @@ export const eventActions = {
    * Delete a single occurrence of a recurring event by adding EXDATE
    * Delegates to CalendarState.addExdateToEvent which uses ical.js for proper RFC 5545 compliance
    */
-  async deleteOccurrence(eventId: string, occurrenceDate: Date): Promise<boolean> {
+  async deleteOccurrence(
+    eventId: string,
+    occurrenceDate: Date,
+  ): Promise<boolean> {
     try {
       const event = calendarState.getEvent(eventId);
       if (!event) {
@@ -207,7 +210,10 @@ export const eventActions = {
       }
 
       // Add EXDATE via calendarState (uses ical.js for proper iCal format)
-      const success = await calendarState.addExdateToEvent(eventId, occurrenceDate);
+      const success = await calendarState.addExdateToEvent(
+        eventId,
+        occurrenceDate,
+      );
 
       if (success) {
         toastState.success("この予定を削除しました");
@@ -227,7 +233,10 @@ export const eventActions = {
    * Uses ical.js for proper RFC 5545 compliance
    * Preserves existing EXDATE values
    */
-  async deleteThisAndFuture(eventId: string, occurrenceDate: Date): Promise<boolean> {
+  async deleteThisAndFuture(
+    eventId: string,
+    occurrenceDate: Date,
+  ): Promise<boolean> {
     try {
       const event = calendarState.getEvent(eventId);
       if (!event) {
@@ -236,7 +245,11 @@ export const eventActions = {
       }
 
       const currentRecurrence = event.recurrence;
-      if (!currentRecurrence || currentRecurrence.type !== "RRULE" || !currentRecurrence.rrule) {
+      if (
+        !currentRecurrence ||
+        currentRecurrence.type !== "RRULE" ||
+        !currentRecurrence.rrule
+      ) {
         toastState.error("繰り返し設定がありません");
         return false;
       }
@@ -246,7 +259,11 @@ export const eventActions = {
       try {
         recur = ICAL.Recur.fromString(currentRecurrence.rrule);
       } catch (parseError) {
-        console.error("[eventActions] Invalid RRULE:", currentRecurrence.rrule, parseError);
+        console.error(
+          "[eventActions] Invalid RRULE:",
+          currentRecurrence.rrule,
+          parseError,
+        );
         toastState.error("無効な繰り返しルールです");
         return false;
       }
@@ -352,8 +369,8 @@ export const eventActions = {
     // Set form data for editing (include occurrence date for recurring events)
     eventFormState.setForEditing(
       {
-      ...event,
-      timeLabel,
+        ...event,
+        timeLabel,
       },
       occurrenceDate,
     );

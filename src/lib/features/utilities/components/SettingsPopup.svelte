@@ -6,10 +6,7 @@
    * Opens from settings icon in UtilitiesView.
    */
 
-  import {
-    calendarState,
-    settingsState,
-  } from "$lib/bootstrap/index.svelte.ts";
+  import { calendarState, settingsState } from "$lib/bootstrap/index.svelte.ts";
   import { UserSettings } from "$lib/features/shared/components/index.ts";
 
   interface Props {
@@ -102,7 +99,7 @@
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
-    class="modal-open modal modal-mobile-fullscreen z-[2100] md:modal-middle"
+    class="modal-open modal-mobile-fullscreen modal z-[2100] md:modal-middle"
     role="button"
     tabindex="-1"
     aria-label="Close settings"
