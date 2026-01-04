@@ -368,4 +368,3 @@ export function clientToSvgCoords(
  *   -webkit-user-select: none;
  * }
  */
-

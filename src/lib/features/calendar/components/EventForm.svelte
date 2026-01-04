@@ -572,11 +572,12 @@
         <input
           id="event-title"
           type="text"
-          class="input-bordered input w-full {eventFormState.errors.title
-            ? 'input-error'
+          class="w-full border-0 border-b border-base-300 bg-transparent px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none {eventFormState
+            .errors.title
+            ? 'border-[var(--color-error-500)]'
             : ''}"
           bind:value={eventTitle}
-          placeholder="予定のタイトルを入力"
+          placeholder="タイトル"
         />
         {#if eventFormState.errors.title}
           <p class="label">
@@ -696,6 +697,43 @@
               (activeDatePicker =
                 activeDatePicker === "start" ? null : "start")}
           />
+          <div>
+            <label class="label" for="event-start-time">
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
+                >開始時間</span
+              >
+            </label>
+            <input
+              id="event-start-time"
+              type="time"
+              class="input-bordered input w-full {eventFormState.errors.start
+                ? 'input-error'
+                : ''}"
+              bind:value={eventStartTime}
+              onfocus={() =>
+                (eventTimeLabel === "all-day" ||
+                  eventTimeLabel === "some-timing") &&
+                switchToTimedMode()}
+              oninput={() =>
+                (eventTimeLabel === "all-day" ||
+                  eventTimeLabel === "some-timing") &&
+                switchToTimedMode()}
+            />
+            {#if eventFormState.errors.start}
+              <p class="label">
+                <span class="label-text-alt text-[var(--color-error-500)]"
+                  >{eventFormState.errors.start}</span
+                >
+              </p>
+            {/if}
+          </div>
+        </div>
+      </div>
+
+      <!-- Time Settings -->
+      <div class="form-control">
+        <div class="grid grid-cols-2 gap-2">
           <DatePicker
             id="event-end-date"
             label="終了日"
@@ -704,6 +742,37 @@
             onclick={() =>
               (activeDatePicker = activeDatePicker === "end" ? null : "end")}
           />
+          <div>
+            <label class="label" for="event-end-time">
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
+                >終了時間</span
+              >
+            </label>
+            <input
+              id="event-end-time"
+              type="time"
+              class="input-bordered input w-full {eventFormState.errors.end
+                ? 'input-error'
+                : ''}"
+              bind:value={eventEndTime}
+              onfocus={() =>
+                (eventTimeLabel === "all-day" ||
+                  eventTimeLabel === "some-timing") &&
+                switchToTimedMode()}
+              oninput={() =>
+                (eventTimeLabel === "all-day" ||
+                  eventTimeLabel === "some-timing") &&
+                switchToTimedMode()}
+            />
+            {#if eventFormState.errors.end}
+              <p class="label">
+                <span class="label-text-alt text-[var(--color-error-500)]"
+                  >{eventFormState.errors.end}</span
+                >
+              </p>
+            {/if}
+          </div>
         </div>
 
         <!-- Shared Calendar Picker -->
@@ -749,74 +818,6 @@
             </div>
           </div>
         {/if}
-      </div>
-
-      <!-- Time Settings -->
-      <div class="form-control">
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="label" for="event-start-time">
-              <span
-                class="label-text text-sm text-[var(--color-text-secondary)]"
-                >開始時間</span
-              >
-            </label>
-            <input
-              id="event-start-time"
-              type="time"
-              class="input-bordered input w-full {eventFormState.errors.start
-                ? 'input-error'
-                : ''}"
-              bind:value={eventStartTime}
-              onfocus={() =>
-                (eventTimeLabel === "all-day" ||
-                  eventTimeLabel === "some-timing") &&
-                switchToTimedMode()}
-              oninput={() =>
-                (eventTimeLabel === "all-day" ||
-                  eventTimeLabel === "some-timing") &&
-                switchToTimedMode()}
-            />
-            {#if eventFormState.errors.start}
-              <p class="label">
-                <span class="label-text-alt text-[var(--color-error-500)]"
-                  >{eventFormState.errors.start}</span
-                >
-              </p>
-            {/if}
-          </div>
-          <div>
-            <label class="label" for="event-end-time">
-              <span
-                class="label-text text-sm text-[var(--color-text-secondary)]"
-                >終了時間</span
-              >
-            </label>
-            <input
-              id="event-end-time"
-              type="time"
-              class="input-bordered input w-full {eventFormState.errors.end
-                ? 'input-error'
-                : ''}"
-              bind:value={eventEndTime}
-              onfocus={() =>
-                (eventTimeLabel === "all-day" ||
-                  eventTimeLabel === "some-timing") &&
-                switchToTimedMode()}
-              oninput={() =>
-                (eventTimeLabel === "all-day" ||
-                  eventTimeLabel === "some-timing") &&
-                switchToTimedMode()}
-            />
-            {#if eventFormState.errors.end}
-              <p class="label">
-                <span class="label-text-alt text-[var(--color-error-500)]"
-                  >{eventFormState.errors.end}</span
-                >
-              </p>
-            {/if}
-          </div>
-        </div>
       </div>
 
       <!-- Recurrence Toggle -->

@@ -84,7 +84,9 @@ User Interaction → State Method → State Update → Component Reactivity
 import { dataState, calendarState } from "$lib/bootstrap/index.svelte.ts";
 
 // In component template
-{dataState.selectedDate}
+{
+  dataState.selectedDate;
+}
 
 // In component script
 dataState.setSelectedDate(new Date());

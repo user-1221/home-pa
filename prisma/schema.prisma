@@ -199,3 +199,79 @@ model TimetableCell {
   @@index([userId])
   @@map("timetable_cell")
 }
+
+// ============================================================================
+// Action Sync Pipeline
+// Persists accepted suggestions and cached transit info across sessions/devices
+// ============================================================================
+
+// Accepted suggestion that acts as a fixed event in schedule
+model AcceptedSuggestion {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String
+  
+  // Suggestion identification
+  suggestionId    String   // Unique ID for the suggestion
+  memoId          String   // ID of the memo this suggestion is for
+  gapId           String   // ID of the gap this suggestion is in
+  
+  // Time slot (stored for the specific date)
+  date            DateTime // Date this suggestion is scheduled for (YYYY-MM-DD)
+  startTime       String   // Start time in HH:mm format
+  endTime         String   // End time in HH:mm format
+  duration        Int      // Duration in minutes
+  
+  // Original duration before any resizing (for tracking changes)
+  originalDuration Int
+  
+  // Metadata
+  acceptedAt      DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, suggestionId])
+  @@index([userId, date])
+  @@map("accepted_suggestion")
+}
+
+// Cached transit route info to avoid redundant API calls
+model CachedTransitInfo {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String
+  
+  // Event identification
+  eventId         String   // Calendar event ID (or unique ID for recurring instance)
+  eventLocation   String   // Location string for the event
+  eventStart      DateTime // When the event starts
+  
+  // User location when cached (for invalidation)
+  userLat         Float
+  userLon         Float
+  
+  // Cached route data (JSON string)
+  transitData     String   // Serialized TransitInfo (excluding loading states)
+  
+  // Metadata
+  cachedAt        DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, eventId])
+  @@index([userId, eventStart])
+  @@map("cached_transit_info")
+}
+
+// Rejected memo IDs (memos that should never reappear as suggestions)
+model RejectedMemo {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String
+  
+  memoId          String   // ID of the rejected memo
+  
+  rejectedAt      DateTime
+  createdAt       DateTime @default(now())
+
+  @@unique([userId, memoId])
+  @@index([userId])
+  @@map("rejected_memo")
+}

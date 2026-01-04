@@ -2,10 +2,7 @@
   import { onMount, onDestroy } from "svelte";
   import CircularTimelineCss from "./CircularTimelineCss.svelte";
   import TimelineInfoPanel from "./TimelineInfoPanel.svelte";
-  import {
-    calendarState,
-    dataState,
-  } from "$lib/bootstrap/index.svelte.ts";
+  import { calendarState, dataState } from "$lib/bootstrap/index.svelte.ts";
   import {
     scheduleActions,
     pendingSuggestions,
@@ -405,11 +402,12 @@
   ) {
     const { type, data } = event.detail;
     if (type === "pending") {
-      const pendingData = data as import("$lib/features/assistant/state/schedule.ts").PendingSuggestion;
+      const pendingData =
+        data as import("$lib/features/assistant/state/schedule.ts").PendingSuggestion;
       // Find the gap this suggestion is in to get gapEnd
-      const gap = availableGaps?.find(g => g.gapId === pendingData.gapId);
+      const gap = availableGaps?.find((g) => g.gapId === pendingData.gapId);
       const gapEnd = gap?.end ?? "23:59"; // Fallback to end of day
-      
+
       selectedSuggestion = {
         type: "pending-suggestion",
         data: pendingData,
@@ -529,17 +527,29 @@
     selectedSuggestion = null;
   }
 
-  function handleInfoPanelDurationChange(
-    event: CustomEvent<{ suggestionId: string; newDuration: number; newEndTime: string }>,
+  async function handleInfoPanelDurationChange(
+    event: CustomEvent<{
+      suggestionId: string;
+      newDuration: number;
+      newEndTime: string;
+    }>,
   ) {
     const { suggestionId, newDuration, newEndTime } = event.detail;
-    
-    // Update the pending suggestion in the schedule
-    scheduleActions.updatePendingDuration(suggestionId, newDuration, newEndTime);
-    
+
+    // Update the pending suggestion in the schedule (triggers regeneration if overlaps were removed)
+    await scheduleActions.updatePendingDuration(
+      suggestionId,
+      newDuration,
+      newEndTime,
+      taskList,
+      enrichedGaps,
+    );
+
     // Update the selected suggestion display
-    if (selectedSuggestion?.type === "pending-suggestion" && 
-        selectedSuggestion.data.suggestionId === suggestionId) {
+    if (
+      selectedSuggestion?.type === "pending-suggestion" &&
+      selectedSuggestion.data.suggestionId === suggestionId
+    ) {
       selectedSuggestion = {
         ...selectedSuggestion,
         data: {
@@ -608,38 +618,38 @@
           class="card mb-4 w-full max-w-[720px] bg-base-100 shadow-sm card-md"
         >
           <div class="card-body gap-3">
-          <div
+            <div
               class="flex items-center justify-between border-b border-base-300 pb-3"
             >
               <h3 class="card-title text-xl font-normal">Events</h3>
-            <span
+              <span
                 class="badge border border-[var(--color-primary)] bg-[var(--color-primary-100)] badge-sm text-[var(--color-primary-800)]"
-              >{formatDateLabel(dataState.selectedDate)}</span
-            >
-          </div>
+                >{formatDateLabel(dataState.selectedDate)}</span
+              >
+            </div>
 
-          {#if displayEvents.length === 0}
-            <p
+            {#if displayEvents.length === 0}
+              <p
                 class="py-6 text-center text-sm text-[var(--color-text-secondary)]"
-            >
-              この日の予定はありません
-            </p>
-          {:else}
+              >
+                この日の予定はありません
+              </p>
+            {:else}
               <ul class="list rounded-box">
-              {#each displayEvents as event (event.id)}
-                <li
+                {#each displayEvents as event (event.id)}
+                  <li
                     class="list-row transition-colors duration-200 hover:bg-base-200/50"
                   >
                     <div class="list-col-grow">
                       <span class="text-sm font-medium">{event.title}</span>
-                  </div>
+                    </div>
                     <span class="badge badge-ghost text-xs font-medium">
-                    {formatEventTime(event)}
+                      {formatEventTime(event)}
                     </span>
-                </li>
-              {/each}
-            </ul>
-          {/if}
+                  </li>
+                {/each}
+              </ul>
+            {/if}
           </div>
         </div>
       </div>

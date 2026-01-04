@@ -234,14 +234,14 @@
     paddingAngle = 0,
   ): string {
     if (endAngle < startAngle) endAngle += TWO_PI;
-    
+
     // Apply padding to create gaps between arcs
     const paddedStartAngle = startAngle + paddingAngle;
     const paddedEndAngle = endAngle - paddingAngle;
-    
+
     // Don't render if padding makes it too small
     if (paddedEndAngle <= paddedStartAngle) return "";
-    
+
     const delta = paddedEndAngle - paddedStartAngle;
     const largeArc = delta > Math.PI ? 1 : 0;
 
@@ -345,7 +345,7 @@
   const maxEventLanes = $derived.by(() =>
     normalizedEvents.length > 0
       ? Math.max(...normalizedEvents.map((e) => e.lane)) + 1
-      : 1
+      : 1,
   );
 
   // Normalize gaps
@@ -543,7 +543,7 @@
   function onWindowResizeMove(e: PointerEvent) {
     if (!isDragging || !dragId) return;
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
-    
+
     e.preventDefault();
     const coords = getPointerCoords(e);
     const delta = Math.round((dragStartY - coords.y) / 5) * 5;
@@ -556,7 +556,7 @@
   function onWindowResizeUp(e: PointerEvent) {
     if (!isDragging) return;
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
-    
+
     cleanupResizeDrag();
   }
 
@@ -564,7 +564,7 @@
     isDragging = false;
     dragId = null;
     activePointerId = null;
-    
+
     window.removeEventListener("pointermove", onWindowResizeMove);
     window.removeEventListener("pointerup", onWindowResizeUp);
     window.removeEventListener("pointercancel", onWindowResizeUp);
@@ -573,14 +573,14 @@
   function startResize(id: string, duration: number, e: PointerEvent) {
     e.preventDefault();
     e.stopPropagation();
-    
+
     activePointerId = e.pointerId;
     const coords = getPointerCoords(e);
     isDragging = true;
     dragId = id;
     dragStartY = coords.y;
     dragOrigDuration = duration;
-    
+
     // Add window listeners for reliable tracking
     window.addEventListener("pointermove", onWindowResizeMove);
     window.addEventListener("pointerup", onWindowResizeUp);
@@ -597,8 +597,9 @@
   // Suggestion drag handlers using Pointer Events with window listeners
   function onWindowPointerMove(e: PointerEvent) {
     if (!isDraggingMidpoint || !svgElement || !draggingSuggestionId) return;
-    if (suggestionPointerId !== null && e.pointerId !== suggestionPointerId) return;
-    
+    if (suggestionPointerId !== null && e.pointerId !== suggestionPointerId)
+      return;
+
     e.preventDefault();
     const coords = getPointerCoords(e);
 
@@ -648,8 +649,9 @@
 
   function onWindowPointerUp(e: PointerEvent) {
     if (!isDraggingMidpoint) return;
-    if (suggestionPointerId !== null && e.pointerId !== suggestionPointerId) return;
-    
+    if (suggestionPointerId !== null && e.pointerId !== suggestionPointerId)
+      return;
+
     const interactionType = endTracking(dragTracker);
 
     if (
@@ -707,7 +709,7 @@
     dragPreviewGapId = null;
     currentSuggestion = null;
     suggestionPointerId = null;
-    
+
     window.removeEventListener("pointermove", onWindowPointerMove);
     window.removeEventListener("pointerup", onWindowPointerUp);
     window.removeEventListener("pointercancel", onWindowPointerUp);
@@ -720,7 +722,7 @@
   ) {
     e.preventDefault();
     e.stopPropagation();
-    
+
     suggestionPointerId = e.pointerId;
     const coords = getPointerCoords(e);
 
@@ -737,7 +739,7 @@
       end: timeToAngle(suggestion.endTime),
     };
     dragPreviewGapId = gapId;
-    
+
     // Add window listeners for reliable tracking
     window.addEventListener("pointermove", onWindowPointerMove);
     window.addEventListener("pointerup", onWindowPointerUp);
@@ -795,18 +797,28 @@
       <!-- Solid color refs for arcs -->
 
       <!-- Glow filters -->
-      <filter id="glow"
+      <filter
+        id="glow"
         filterUnits="userSpaceOnUse"
-        x="-20" y="-20" width="140" height="140">
+        x="-20"
+        y="-20"
+        width="140"
+        height="140"
+      >
         <feGaussianBlur stdDeviation="0.5" result="blur" />
         <feMerge>
           <feMergeNode in="blur" />
           <feMergeNode in="SourceGraphic" />
         </feMerge>
       </filter>
-      <filter id="softGlow"
+      <filter
+        id="softGlow"
         filterUnits="userSpaceOnUse"
-        x="-20" y="-20" width="140" height="140">
+        x="-20"
+        y="-20"
+        width="140"
+        height="140"
+      >
         <feGaussianBlur stdDeviation="0.3" result="blur" />
         <feMerge>
           <feMergeNode in="blur" />
@@ -989,7 +1001,11 @@
             pointer-events="auto"
             onpointerdown={(e) => {
               if (isPending) {
-                startSuggestionDrag(s.data as PendingSuggestion, s.data.gapId, e);
+                startSuggestionDrag(
+                  s.data as PendingSuggestion,
+                  s.data.gapId,
+                  e,
+                );
               } else {
                 // Accepted suggestion - just dispatch selection on click
                 e.preventDefault();
@@ -1078,7 +1094,12 @@
       <path
         role="button"
         tabindex="0"
-        d={annularTrapezoidPath(ev.startAngle, ev.endAngle, eventOuterR, eventInnerRCalc)}
+        d={annularTrapezoidPath(
+          ev.startAngle,
+          ev.endAngle,
+          eventOuterR,
+          eventInnerRCalc,
+        )}
         fill={laneColor}
         fill-opacity={isAllDay ? 0.35 : laneFade * 0.7}
         stroke="none"
@@ -1238,9 +1259,10 @@
     touch-action: none;
   }
 
-
   .event-arc {
-    transition: stroke-opacity 120ms ease, stroke-width 120ms ease;
+    transition:
+      stroke-opacity 120ms ease,
+      stroke-width 120ms ease;
   }
 
   .event-arc:hover,

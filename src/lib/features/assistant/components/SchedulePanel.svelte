@@ -46,7 +46,9 @@
   async function handleRegenerate() {
     const currentTasks = get(tasks);
     // Use enriched gaps from unified state (always fresh, properly enriched)
-    await scheduleActions.regenerate(currentTasks, { gaps: unifiedGapState.enrichedGaps });
+    await scheduleActions.regenerate(currentTasks, {
+      gaps: unifiedGapState.enrichedGaps,
+    });
   }
 </script>
 

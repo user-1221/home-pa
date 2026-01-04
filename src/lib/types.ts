@@ -114,7 +114,6 @@ export interface Memo {
   importance?: ImportanceLevel; // LLM-suggested if not provided
 }
 
-
 /**
  * Suggestion output from scoring system
  * Used by scheduler to assign tasks to gaps

@@ -130,7 +130,7 @@
     const today = new Date();
     const nextWeek = new Date(today);
     nextWeek.setDate(today.getDate() + 7);
-    
+
     const formatDate = (d: Date) => {
       const year = d.getFullYear();
       const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -150,9 +150,13 @@
     handleConfigChange();
   }
 
-  function updateExceptionRange(index: number, field: "start" | "end", value: string) {
+  function updateExceptionRange(
+    index: number,
+    field: "start" | "end",
+    value: string,
+  ) {
     exceptionRanges = exceptionRanges.map((range, i) =>
-      i === index ? { ...range, [field]: value } : range
+      i === index ? { ...range, [field]: value } : range,
     );
     handleConfigChange();
   }
@@ -264,15 +268,17 @@
   <!-- Hidden when not open -->
 {:else}
   <div
-    class="modal-open modal modal-mobile-fullscreen z-[2100] md:modal-middle"
+    class="modal-open modal-mobile-fullscreen modal z-[2100] md:modal-middle"
     role="dialog"
     aria-modal="true"
     aria-labelledby="timetable-title"
   >
-    <div class="modal-box h-full w-full max-w-4xl p-0 overflow-hidden md:h-auto md:w-11/12 md:overflow-visible">
+    <div
+      class="modal-box h-full w-full max-w-4xl overflow-hidden p-0 md:h-auto md:w-11/12 md:overflow-visible"
+    >
       <!-- Header -->
       <div
-        class="flex items-center justify-between border-b border-base-300 p-4 flex-shrink-0"
+        class="flex flex-shrink-0 items-center justify-between border-b border-base-300 p-4"
       >
         <h3 id="timetable-title" class="text-lg font-medium">時間割設定</h3>
         <button
@@ -285,189 +291,202 @@
       </div>
 
       {#if isLoading}
-        <div class="flex items-center justify-center p-12 flex-1">
+        <div class="flex flex-1 items-center justify-center p-12">
           <span class="loading loading-lg loading-spinner"></span>
         </div>
       {:else}
-        <div class="flex-1 overflow-y-auto min-h-0 flex flex-col">
-        <!-- Settings Row -->
-        <div
-          class="grid grid-cols-5 gap-3 border-b border-base-300 p-4 flex-shrink-0"
-        >
-          <label class="form-control w-full">
-            <div class="label py-1">
-              <span class="label-text text-xs">開始時間</span>
-            </div>
-            <input
-              type="time"
-              class="input-bordered input input-sm w-full"
-              bind:value={config.dayStartTime}
-              onchange={handleConfigChange}
-            />
-          </label>
-          <label class="form-control w-full">
-            <div class="label py-1">
-              <span class="label-text text-xs">昼休み開始</span>
-            </div>
-            <input
-              type="time"
-              class="input-bordered input input-sm w-full"
-              bind:value={config.lunchStartTime}
-              onchange={handleConfigChange}
-            />
-          </label>
-          <label class="form-control w-full">
-            <div class="label py-1">
-              <span class="label-text text-xs">昼休み終了</span>
-            </div>
-            <input
-              type="time"
-              class="input-bordered input input-sm w-full"
-              bind:value={config.lunchEndTime}
-              onchange={handleConfigChange}
-            />
-          </label>
-          <label class="form-control w-full">
-            <div class="label py-1">
-              <span class="label-text text-xs">授業時間(分)</span>
-            </div>
-            <input
-              type="number"
-              class="input-bordered input input-sm w-full"
-              bind:value={config.cellDuration}
-              onchange={handleConfigChange}
-              min="10"
-              max="180"
-            />
-          </label>
-          <label class="form-control w-full">
-            <div class="label py-1">
-              <span class="label-text text-xs">休憩時間(分)</span>
-            </div>
-            <input
-              type="number"
-              class="input-bordered input input-sm w-full"
-              bind:value={config.breakDuration}
-              onchange={handleConfigChange}
-              min="0"
-              max="60"
-            />
-          </label>
-        </div>
+        <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <!-- Settings Row -->
+          <div
+            class="grid flex-shrink-0 grid-cols-5 gap-3 border-b border-base-300 p-4"
+          >
+            <label class="form-control w-full">
+              <div class="label py-1">
+                <span class="label-text text-xs">開始時間</span>
+              </div>
+              <input
+                type="time"
+                class="input-bordered input input-sm w-full"
+                bind:value={config.dayStartTime}
+                onchange={handleConfigChange}
+              />
+            </label>
+            <label class="form-control w-full">
+              <div class="label py-1">
+                <span class="label-text text-xs">昼休み開始</span>
+              </div>
+              <input
+                type="time"
+                class="input-bordered input input-sm w-full"
+                bind:value={config.lunchStartTime}
+                onchange={handleConfigChange}
+              />
+            </label>
+            <label class="form-control w-full">
+              <div class="label py-1">
+                <span class="label-text text-xs">昼休み終了</span>
+              </div>
+              <input
+                type="time"
+                class="input-bordered input input-sm w-full"
+                bind:value={config.lunchEndTime}
+                onchange={handleConfigChange}
+              />
+            </label>
+            <label class="form-control w-full">
+              <div class="label py-1">
+                <span class="label-text text-xs">授業時間(分)</span>
+              </div>
+              <input
+                type="number"
+                class="input-bordered input input-sm w-full"
+                bind:value={config.cellDuration}
+                onchange={handleConfigChange}
+                min="10"
+                max="180"
+              />
+            </label>
+            <label class="form-control w-full">
+              <div class="label py-1">
+                <span class="label-text text-xs">休憩時間(分)</span>
+              </div>
+              <input
+                type="number"
+                class="input-bordered input input-sm w-full"
+                bind:value={config.breakDuration}
+                onchange={handleConfigChange}
+                min="0"
+                max="60"
+              />
+            </label>
+          </div>
 
-        <!-- Timetable Grid -->
-        <div class="overflow-x-auto p-4">
-          <table class="table w-full table-fixed">
-            <thead>
-              <tr>
-                <th class="w-16 text-center text-xs">時限</th>
-                {#each weekdays as day (day)}
-                  <th class="text-center text-sm font-medium">{day}</th>
-                {/each}
-              </tr>
-            </thead>
-            <tbody>
-              {#each Array(SLOTS_PER_DAY) as _, slotIndex (slotIndex)}
+          <!-- Timetable Grid -->
+          <div class="overflow-x-auto p-4">
+            <table class="table w-full table-fixed">
+              <thead>
                 <tr>
-                  <td class="text-center text-xs text-base-content/60">
-                    {getSlotStartTime(slotIndex)}
-                  </td>
-                  {#each Array(5) as _, dayIndex (dayIndex)}
-                    {@const cell = getCell(dayIndex, slotIndex)}
-                    <td
-                      class="cursor-pointer p-1 transition-colors hover:bg-base-300/50"
-                    >
-                      <button
-                        class="flex h-16 w-full flex-col items-center justify-center rounded-lg p-1 text-xs transition-colors {getCellBgClass(
-                          cell,
-                        )}"
-                        onclick={() => openCellEditor(dayIndex, slotIndex)}
-                      >
-                        {#if cell && cell.attendance === "出席する"}
-                          <span class="font-medium">{cell.title || "無題"}</span
-                          >
-                          <span class="mt-0.5 opacity-70"
-                            >{cell.workAllowed}</span
-                          >
-                        {:else if cell?.attendance === "出席しない"}
-                          <span class="opacity-50">欠席</span>
-                        {:else}
-                          <span class="opacity-30">+</span>
-                        {/if}
-                      </button>
-                    </td>
+                  <th class="w-16 text-center text-xs">時限</th>
+                  {#each weekdays as day (day)}
+                    <th class="text-center text-sm font-medium">{day}</th>
                   {/each}
                 </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Exception Ranges -->
-        <div class="border-t border-base-300 p-4">
-          <div class="flex items-center justify-between mb-3">
-            <h4 class="text-sm font-medium">休講期間（時間割を適用しない期間）</h4>
-            <button
-              type="button"
-              class="btn btn-xs btn-ghost"
-              onclick={addExceptionRange}
-            >
-              + 追加
-            </button>
+              </thead>
+              <tbody>
+                {#each Array(SLOTS_PER_DAY) as _, slotIndex (slotIndex)}
+                  <tr>
+                    <td class="text-center text-xs text-base-content/60">
+                      {getSlotStartTime(slotIndex)}
+                    </td>
+                    {#each Array(5) as _, dayIndex (dayIndex)}
+                      {@const cell = getCell(dayIndex, slotIndex)}
+                      <td
+                        class="cursor-pointer p-1 transition-colors hover:bg-base-300/50"
+                      >
+                        <button
+                          class="flex h-16 w-full flex-col items-center justify-center rounded-lg p-1 text-xs transition-colors {getCellBgClass(
+                            cell,
+                          )}"
+                          onclick={() => openCellEditor(dayIndex, slotIndex)}
+                        >
+                          {#if cell && cell.attendance === "出席する"}
+                            <span class="font-medium"
+                              >{cell.title || "無題"}</span
+                            >
+                            <span class="mt-0.5 opacity-70"
+                              >{cell.workAllowed}</span
+                            >
+                          {:else if cell?.attendance === "出席しない"}
+                            <span class="opacity-50">欠席</span>
+                          {:else}
+                            <span class="opacity-30">+</span>
+                          {/if}
+                        </button>
+                      </td>
+                    {/each}
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
           </div>
-          
-          {#if exceptionRanges.length === 0}
-            <p class="text-xs text-base-content/50 text-center py-2">
-              休講期間は設定されていません
-            </p>
-          {:else}
-            <div class="flex flex-col gap-2">
-              {#each exceptionRanges as range, index (index)}
-                <div class="flex items-center gap-2">
-                  <input
-                    type="date"
-                    class="input input-bordered input-sm flex-1"
-                    value={range.start}
-                    onchange={(e) => updateExceptionRange(index, "start", e.currentTarget.value)}
-                  />
-                  <span class="text-xs text-base-content/60">〜</span>
-                  <input
-                    type="date"
-                    class="input input-bordered input-sm flex-1"
-                    value={range.end}
-                    onchange={(e) => updateExceptionRange(index, "end", e.currentTarget.value)}
-                  />
-                  <button
-                    type="button"
-                    class="btn btn-xs btn-ghost btn-square text-error"
-                    onclick={() => removeExceptionRange(index)}
-                    aria-label="削除"
-                  >
-                    ✕
-                  </button>
-                </div>
-              {/each}
+
+          <!-- Exception Ranges -->
+          <div class="border-t border-base-300 p-4">
+            <div class="mb-3 flex items-center justify-between">
+              <h4 class="text-sm font-medium">
+                休講期間（時間割を適用しない期間）
+              </h4>
+              <button
+                type="button"
+                class="btn btn-ghost btn-xs"
+                onclick={addExceptionRange}
+              >
+                + 追加
+              </button>
             </div>
-          {/if}
-        </div>
 
-        <!-- Legend -->
-        <div
-          class="flex flex-wrap items-center justify-center gap-4 border-t border-base-300 px-4 py-3 text-xs flex-shrink-0"
-        >
-          <div class="flex items-center gap-1.5">
-            <div class="h-3 w-3 rounded bg-warning/30"></div>
-            <span>作業不可（タイムラインに表示）</span>
+            {#if exceptionRanges.length === 0}
+              <p class="py-2 text-center text-xs text-base-content/50">
+                休講期間は設定されていません
+              </p>
+            {:else}
+              <div class="flex flex-col gap-2">
+                {#each exceptionRanges as range, index (index)}
+                  <div class="flex items-center gap-2">
+                    <input
+                      type="date"
+                      class="input-bordered input input-sm flex-1"
+                      value={range.start}
+                      onchange={(e) =>
+                        updateExceptionRange(
+                          index,
+                          "start",
+                          e.currentTarget.value,
+                        )}
+                    />
+                    <span class="text-xs text-base-content/60">〜</span>
+                    <input
+                      type="date"
+                      class="input-bordered input input-sm flex-1"
+                      value={range.end}
+                      onchange={(e) =>
+                        updateExceptionRange(
+                          index,
+                          "end",
+                          e.currentTarget.value,
+                        )}
+                    />
+                    <button
+                      type="button"
+                      class="btn btn-square text-error btn-ghost btn-xs"
+                      onclick={() => removeExceptionRange(index)}
+                      aria-label="削除"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </div>
-          <div class="flex items-center gap-1.5">
-            <div class="h-3 w-3 rounded bg-success/30"></div>
-            <span>作業可</span>
+
+          <!-- Legend -->
+          <div
+            class="flex flex-shrink-0 flex-wrap items-center justify-center gap-4 border-t border-base-300 px-4 py-3 text-xs"
+          >
+            <div class="flex items-center gap-1.5">
+              <div class="h-3 w-3 rounded bg-warning/30"></div>
+              <span>作業不可（タイムラインに表示）</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="h-3 w-3 rounded bg-success/30"></div>
+              <span>作業可</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="h-3 w-3 rounded bg-base-200"></div>
+              <span>欠席</span>
+            </div>
           </div>
-          <div class="flex items-center gap-1.5">
-            <div class="h-3 w-3 rounded bg-base-200"></div>
-            <span>欠席</span>
-          </div>
-        </div>
         </div>
       {/if}
     </div>
@@ -475,17 +494,22 @@
     <!-- Cell Editor Sub-Modal -->
     {#if showCellEditor && editingCell}
       <div
-        class="modal-open modal modal-mobile-fullscreen z-[2200] md:modal-middle"
+        class="modal-open modal-mobile-fullscreen modal z-[2200] md:modal-middle"
         role="dialog"
         aria-modal="true"
         aria-labelledby="cell-editor-title"
       >
-        <div class="modal-box h-full w-full max-w-sm p-0 overflow-hidden md:h-auto md:overflow-visible flex flex-col">
-          <h3 id="cell-editor-title" class="mb-4 text-lg font-medium p-4 pb-0 flex-shrink-0">
+        <div
+          class="modal-box flex h-full w-full max-w-sm flex-col overflow-hidden p-0 md:h-auto md:overflow-visible"
+        >
+          <h3
+            id="cell-editor-title"
+            class="mb-4 flex-shrink-0 p-4 pb-0 text-lg font-medium"
+          >
             セルを編集
           </h3>
 
-          <div class="space-y-4 p-4 overflow-y-auto flex-1 min-h-0">
+          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
             <label class="form-control w-full">
               <div class="label">
                 <span class="label-text">タイトル</span>

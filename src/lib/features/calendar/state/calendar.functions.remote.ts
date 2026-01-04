@@ -223,7 +223,7 @@ export const updateEvent = command(EventUpdateSchema, async (input) => {
 
     // Convert to database update format
     const dbUpdates = appEventToDbUpdate(updates, existing);
-    
+
     // Handle direct icalData update (for EXDATE additions)
     if (input.updates.icalData !== undefined) {
       dbUpdates.icalData = input.updates.icalData;

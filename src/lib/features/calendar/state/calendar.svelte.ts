@@ -396,7 +396,10 @@ class CalendarState {
    * Add EXDATE to a recurring event to exclude a specific occurrence
    * Uses ical.js for proper RFC 5545 compliance
    */
-  async addExdateToEvent(eventId: string, occurrenceDate: Date): Promise<boolean> {
+  async addExdateToEvent(
+    eventId: string,
+    occurrenceDate: Date,
+  ): Promise<boolean> {
     try {
       const event = this.events.find((e) => e.id === eventId);
       if (!event) {
@@ -411,9 +414,13 @@ class CalendarState {
         const isAllDay = event.timeLabel === "all-day";
         const dtstartLine = isAllDay
           ? `DTSTART;VALUE=DATE:${event.start.getUTCFullYear()}${String(event.start.getUTCMonth() + 1).padStart(2, "0")}${String(event.start.getUTCDate()).padStart(2, "0")}`
-          : `DTSTART:${event.start.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")}`;
-        const rrule = event.recurrence?.type === "RRULE" ? event.recurrence.rrule : "";
-        
+          : `DTSTART:${event.start
+              .toISOString()
+              .replace(/[-:]/g, "")
+              .replace(/\.\d{3}/, "")}`;
+        const rrule =
+          event.recurrence?.type === "RRULE" ? event.recurrence.rrule : "";
+
         icalDataToUse = [
           "BEGIN:VEVENT",
           `UID:${event.id}`,
@@ -421,7 +428,9 @@ class CalendarState {
           rrule ? `RRULE:${rrule}` : "",
           `SUMMARY:${event.title}`,
           "END:VEVENT",
-        ].filter(Boolean).join("\r\n");
+        ]
+          .filter(Boolean)
+          .join("\r\n");
       }
 
       // Parse icalData using ical.js
@@ -472,7 +481,9 @@ class CalendarState {
             }
           } else {
             // Compare full datetime
-            if (valTime.toJSDate().getTime() === exdateTime.toJSDate().getTime()) {
+            if (
+              valTime.toJSDate().getTime() === exdateTime.toJSDate().getTime()
+            ) {
               // Already excluded
               return true;
             }
@@ -512,7 +523,9 @@ class CalendarState {
       } as Event;
 
       // Update local store
-      const newEvents = this.events.map((e) => (e.id === eventId ? updated : e));
+      const newEvents = this.events.map((e) =>
+        e.id === eventId ? updated : e,
+      );
       this.events = newEvents;
 
       // Re-expand occurrences to reflect the exclusion
@@ -702,11 +715,11 @@ class CalendarState {
 
 /**
  * Format date for iCalendar (YYYYMMDD or YYYYMMDDTHHmmss)
- * 
- * For all-day events: Uses UTC date components since all-day events 
+ *
+ * For all-day events: Uses UTC date components since all-day events
  * are stored as UTC midnight (00:00:00.000Z). This ensures consistent
  * behavior regardless of local timezone.
- * 
+ *
  * For timed events: Uses local time since timed events have specific times.
  */
 function formatDateForIcal(date: Date, isAllDay: boolean): string {

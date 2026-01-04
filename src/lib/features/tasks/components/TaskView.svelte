@@ -10,9 +10,9 @@
 
   // Task type priority order: 期限付き (Deadline) → ルーティン (Routine) → バックログ (Backlog)
   const TYPE_ORDER: Record<MemoType, number> = {
-    "期限付き": 0,
-    "ルーティン": 1,
-    "バックログ": 2,
+    期限付き: 0,
+    ルーティン: 1,
+    バックログ: 2,
   };
 
   // Calculate progress percentage for a task
@@ -43,10 +43,14 @@
     let result: Memo[];
     switch (filter) {
       case "active":
-        result = allTasks.filter((t) => t.status.completionState !== "completed");
+        result = allTasks.filter(
+          (t) => t.status.completionState !== "completed",
+        );
         break;
       case "completed":
-        result = allTasks.filter((t) => t.status.completionState === "completed");
+        result = allTasks.filter(
+          (t) => t.status.completionState === "completed",
+        );
         break;
       default:
         result = allTasks;
@@ -124,38 +128,38 @@
   <!-- Task List -->
   <div class="flex-1 overflow-y-auto p-4">
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-    {#if filteredTasks().length === 0}
-      <div
-        class="col-span-2 flex flex-col items-center justify-center px-4 py-16 text-center"
-      >
-        {#if filter === "active"}
-          <div class="mb-4 text-6xl opacity-50">🎯</div>
-          <p class="text-lg font-medium text-[var(--color-text-secondary)]">
-            No active tasks
-          </p>
-          <p class="mt-2 text-sm text-[var(--color-text-muted)]">
-            Tap + to create your first task
-          </p>
-        {:else if filter === "completed"}
-          <div class="mb-4 text-6xl opacity-50">✓</div>
-          <p class="text-lg font-medium text-[var(--color-text-secondary)]">
-            No completed tasks yet
-          </p>
-        {:else}
-          <div class="mb-4 text-6xl opacity-50">📋</div>
-          <p class="text-lg font-medium text-[var(--color-text-secondary)]">
-            No tasks
-          </p>
-          <p class="mt-2 text-sm text-[var(--color-text-muted)]">
-            Tap + to create your first task
-          </p>
-        {/if}
-      </div>
-    {:else}
-      {#each filteredTasks() as task (task.id)}
-        <TaskCard {task} />
-      {/each}
-    {/if}
+      {#if filteredTasks().length === 0}
+        <div
+          class="col-span-2 flex flex-col items-center justify-center px-4 py-16 text-center"
+        >
+          {#if filter === "active"}
+            <div class="mb-4 text-6xl opacity-50">🎯</div>
+            <p class="text-lg font-medium text-[var(--color-text-secondary)]">
+              No active tasks
+            </p>
+            <p class="mt-2 text-sm text-[var(--color-text-muted)]">
+              Tap + to create your first task
+            </p>
+          {:else if filter === "completed"}
+            <div class="mb-4 text-6xl opacity-50">✓</div>
+            <p class="text-lg font-medium text-[var(--color-text-secondary)]">
+              No completed tasks yet
+            </p>
+          {:else}
+            <div class="mb-4 text-6xl opacity-50">📋</div>
+            <p class="text-lg font-medium text-[var(--color-text-secondary)]">
+              No tasks
+            </p>
+            <p class="mt-2 text-sm text-[var(--color-text-muted)]">
+              Tap + to create your first task
+            </p>
+          {/if}
+        </div>
+      {:else}
+        {#each filteredTasks() as task (task.id)}
+          <TaskCard {task} />
+        {/each}
+      {/if}
     </div>
   </div>
 </div>

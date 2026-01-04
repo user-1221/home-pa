@@ -33,10 +33,16 @@
   // Initialize on mount
   onMount(async () => {
     console.log("[TransitView] Mounted, loading transit info...");
-    console.log("[TransitView] navigator.geolocation available:", !!navigator?.geolocation);
+    console.log(
+      "[TransitView] navigator.geolocation available:",
+      !!navigator?.geolocation,
+    );
     await transitState.loadNextEventTransit();
     isInitialized = true;
-    console.log("[TransitView] Initialization complete, locationError:", transitState.locationError);
+    console.log(
+      "[TransitView] Initialization complete, locationError:",
+      transitState.locationError,
+    );
 
     // Auto-select the recommended route
     if (transitState.transitInfo?.recommendedDeparture?.route) {
@@ -100,37 +106,37 @@
     const diffMinutes = Math.floor(diffMs / 60000);
 
     if (diffMinutes < 0) return "過去のイベント";
-    if (diffMinutes < 60) return `あと${diffMinutes}分`;
+    if (diffMinutes < 60) return `${diffMinutes}分後`;
     const hours = Math.floor(diffMinutes / 60);
     const mins = diffMinutes % 60;
-    if (hours < 24) return `あと${hours}時間${mins > 0 ? `${mins}分` : ""}`;
+    if (hours < 24) return `${hours}時間${mins > 0 ? `${mins}分` : ""}後`;
     const days = Math.floor(hours / 24);
-    return `あと${days}日`;
+    return `${days}日後`;
   }
 
   function getImportanceLabel(importance: string): string {
     switch (importance) {
       case "high":
-        return "🔴 重要";
+        return "重要";
       case "medium":
-        return "🟡 普通";
+        return "普通";
       case "low":
-        return "🟢 低";
+        return "低";
       default:
         return "普通";
     }
   }
 
-  function getImportanceColor(importance: string): string {
+  function getImportanceClass(importance: string): string {
     switch (importance) {
       case "high":
-        return "text-error";
+        return "bg-error/10 text-error";
       case "medium":
-        return "text-warning";
+        return "bg-warning/10 text-warning";
       case "low":
-        return "text-success";
+        return "bg-success/10 text-success";
       default:
-        return "text-base-content";
+        return "bg-base-200 text-base-content/70";
     }
   }
 
@@ -154,7 +160,7 @@
 
   function getMoveLabel(section: RouteSection): string {
     if (section.move === "walk") {
-      return `徒歩 ${section.distance}m`;
+      return "徒歩";
     }
     return section.transport?.name ?? section.line_name ?? "移動";
   }
@@ -168,178 +174,304 @@
   }
 </script>
 
-<div class="flex h-full min-h-0 flex-col">
+<div class="flex h-full min-h-0 flex-col bg-base-100">
   <!-- Header -->
-  <div class="flex items-center justify-between border-b border-base-300 p-4">
-    <div class="flex items-center gap-3">
-      <span class="text-2xl">🚃</span>
-      <h2 class="m-0 text-xl font-medium text-base-content">Transit</h2>
-    </div>
+  <div
+    class="flex items-center justify-between border-b border-base-200 px-5 py-4"
+  >
+    <h2 class="text-lg font-medium text-base-content">経路案内</h2>
     <div class="flex items-center gap-2">
       <button
-        class="btn btn-ghost btn-sm"
+        class="btn btn-square btn-ghost btn-sm"
         onclick={handleRefresh}
         disabled={isLoadingRoutes || isLoadingLocation}
-        aria-label="Refresh"
+        aria-label="更新"
       >
-        <span class={isLoadingRoutes || isLoadingLocation ? "animate-spin" : ""}>🔄</span>
+        <svg
+          class="h-4 w-4 {isLoadingRoutes || isLoadingLocation
+            ? 'animate-spin'
+            : ''}"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+          />
+        </svg>
       </button>
       {#if onClose}
         <button
-          class="flex h-9 w-9 items-center justify-center rounded-lg text-xl text-base-content/70 transition-colors duration-200 hover:bg-base-200 hover:text-base-content"
+          class="btn btn-square btn-ghost btn-sm"
           onclick={onClose}
-          aria-label="Close"
+          aria-label="閉じる"
         >
-          ×
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
         </button>
       {/if}
     </div>
   </div>
 
   <!-- Content -->
-  <div class="flex-1 overflow-y-auto p-4">
+  <div class="flex-1 overflow-y-auto">
     <!-- Location Status -->
     {#if locationError}
-      <div class="alert alert-warning mb-4 flex-col items-start gap-2">
-        <div class="flex items-center gap-2">
-          <span>📍</span>
-          <span class="font-medium">位置情報エラー</span>
+      <div class="m-4 rounded-xl border border-warning/30 bg-warning/5 p-4">
+        <div class="flex items-start gap-3">
+          <svg
+            class="mt-0.5 h-5 w-5 shrink-0 text-warning"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+          <div class="flex-1">
+            <p class="text-sm font-medium text-warning">位置情報エラー</p>
+            <p class="mt-1 text-xs text-base-content/60">{locationError}</p>
+            <div class="mt-3 space-y-1 text-xs text-base-content/50">
+              <p>• アドレスバーの🔒アイコンをクリック</p>
+              <p>• 「位置情報」を「許可」に変更</p>
+              <p>• ページを再読み込み</p>
+            </div>
+            <button class="btn mt-3 btn-ghost btn-xs" onclick={handleRefresh}>
+              再試行
+            </button>
+          </div>
         </div>
-        <span class="text-sm">{locationError}</span>
-        <div class="mt-2 text-xs opacity-70">
-          <p>• ブラウザのアドレスバーで🔒アイコンをクリック</p>
-          <p>• 「位置情報」を「許可」に変更</p>
-          <p>• ページを再読み込み</p>
-        </div>
-        <button class="btn btn-sm btn-ghost mt-2" onclick={handleRefresh}>
-          🔄 再試行
-        </button>
       </div>
     {:else if userLocation}
-      <div class="mb-4 flex items-center gap-2 text-xs text-base-content/50">
-        <span>📍</span>
+      <div
+        class="flex items-center gap-2 px-5 py-2 text-xs text-base-content/40"
+      >
+        <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+          <path
+            d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+          />
+        </svg>
         <span>現在地取得済み</span>
-        <span class="text-base-content/30">
-          (精度: {userLocation.accuracy ? `${Math.round(userLocation.accuracy)}m` : "不明"})
-        </span>
+        {#if userLocation.accuracy}
+          <span class="text-base-content/30"
+            >精度 {Math.round(userLocation.accuracy)}m</span
+          >
+        {/if}
       </div>
     {/if}
 
     <!-- Loading State -->
     {#if !isInitialized || isLoadingRoutes}
-      <div class="flex flex-col items-center justify-center py-12">
-        <span class="loading loading-spinner loading-lg text-primary"></span>
-        <p class="mt-4 text-sm text-base-content/70">
+      <div class="flex flex-col items-center justify-center py-16">
+        <span class="loading loading-md loading-spinner text-primary"></span>
+        <p class="mt-4 text-sm text-base-content/50">
           {isLoadingLocation ? "現在地を取得中..." : "経路を検索中..."}
         </p>
       </div>
     {:else if routeError}
       <!-- Error State -->
-      <div class="alert alert-error mb-4">
-        <span>⚠️</span>
-        <span>{routeError}</span>
+      <div class="m-4 rounded-xl border border-error/30 bg-error/5 p-4">
+        <div class="flex items-center gap-3">
+          <svg
+            class="h-5 w-5 shrink-0 text-error"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+          <span class="text-sm text-error">{routeError}</span>
+        </div>
       </div>
     {:else if !transitInfo}
       <!-- No Event State -->
-      <div class="rounded-xl border border-dashed border-base-300 bg-base-200 p-6 text-center">
-        <span class="text-4xl">📅</span>
-        <p class="mt-4 text-base-content/70">
+      <div
+        class="flex flex-col items-center justify-center px-6 py-16 text-center"
+      >
+        <div
+          class="flex h-16 w-16 items-center justify-center rounded-2xl bg-base-200"
+        >
+          <svg
+            class="h-8 w-8 text-base-content/40"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+        </div>
+        <p class="mt-4 text-sm text-base-content/70">
           場所が設定された予定がありません
         </p>
-        <p class="mt-1 text-sm text-base-content/50">
+        <p class="mt-1 text-xs text-base-content/40">
           カレンダーで予定に住所を追加してください
         </p>
       </div>
     {:else}
       <!-- Next Event Info -->
-      <section class="mb-6">
-        <div class="rounded-xl border border-base-300 bg-base-100 p-4">
-          <div class="mb-2 flex items-start justify-between">
-            <div class="flex-1">
-              <div class="flex items-center gap-2">
-                <h3 class="text-lg font-medium text-base-content">
-                  {transitInfo.event.title}
-                </h3>
-                <span class="text-xs {getImportanceColor(transitInfo.importance)}">
-                  {getImportanceLabel(transitInfo.importance)}
-                </span>
-              </div>
-              <p class="mt-1 text-sm text-base-content/70">
-                📍 {transitInfo.eventLocation}
-              </p>
+      <section class="border-b border-base-200 px-5 py-4">
+        <div class="flex items-start justify-between gap-4">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-2">
+              <h3 class="truncate text-base font-medium text-base-content">
+                {transitInfo.event.title}
+              </h3>
+              <span
+                class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium {getImportanceClass(
+                  transitInfo.importance,
+                )}"
+              >
+                {getImportanceLabel(transitInfo.importance)}
+              </span>
             </div>
-            <div class="text-right">
-              <div class="text-sm font-medium text-primary">
-                {formatEventTime(transitInfo.eventStart)}
-              </div>
-              <div class="text-xs text-base-content/50">
-                {getTimeUntilEvent(transitInfo.eventStart)}
-              </div>
+            <p class="mt-1 truncate text-sm text-base-content/60">
+              {transitInfo.eventLocation}
+            </p>
+          </div>
+          <div class="shrink-0 text-right">
+            <div class="text-sm font-medium text-base-content">
+              {formatEventTime(transitInfo.eventStart)}
+            </div>
+            <div class="text-xs text-base-content/40">
+              {getTimeUntilEvent(transitInfo.eventStart)}
             </div>
           </div>
-          <div class="mt-2 rounded-lg bg-base-200 p-2 text-xs text-base-content/70">
-            ⏰ {transitInfo.bufferMinutes}分前到着を推奨（{transitInfo.importance === "high" ? "重要な予定" : transitInfo.importance === "low" ? "余裕のある予定" : "通常の予定"}）
-          </div>
+        </div>
+        <div
+          class="mt-3 rounded-lg bg-base-200/60 px-3 py-2 text-xs text-base-content/60"
+        >
+          {transitInfo.bufferMinutes}分前到着を推奨
         </div>
       </section>
 
       <!-- Route Selection Tabs -->
-      <section class="mb-4">
-        <div class="flex gap-2">
-          <button
-            class="btn btn-sm flex-1 {!showLeaveNowRoute && transitInfo.recommendedDeparture ? 'btn-primary' : 'btn-ghost'}"
-            onclick={selectRecommendedRoute}
-            disabled={!transitInfo.recommendedDeparture}
-          >
-            🎯 推奨出発
-          </button>
-          <button
-            class="btn btn-sm flex-1 {showLeaveNowRoute ? 'btn-primary' : 'btn-ghost'}"
-            onclick={handleLeaveNow}
-            disabled={isLoadingRoutes}
-          >
-            🚀 今すぐ出発
-          </button>
-        </div>
+      <section class="flex gap-2 border-b border-base-200 px-5 py-3">
+        <button
+          class="flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors
+            {!showLeaveNowRoute && transitInfo.recommendedDeparture
+            ? 'bg-primary/10 text-primary'
+            : 'text-base-content/60 hover:bg-base-200'}"
+          onclick={selectRecommendedRoute}
+          disabled={!transitInfo.recommendedDeparture}
+        >
+          推奨出発
+        </button>
+        <button
+          class="flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors
+            {showLeaveNowRoute
+            ? 'bg-success/10 text-success'
+            : 'text-base-content/60 hover:bg-base-200'}"
+          onclick={handleLeaveNow}
+          disabled={isLoadingRoutes}
+        >
+          今すぐ出発
+        </button>
       </section>
 
       <!-- Recommended Departure Info -->
       {#if !showLeaveNowRoute && transitInfo.recommendedDeparture?.route}
         {@const dep = transitInfo.recommendedDeparture}
-        <section class="mb-6">
-          <div class="rounded-xl border-2 border-primary bg-primary/10 p-4">
-            <div class="flex items-center justify-between">
+        <section class="border-b border-base-200 px-5 py-4">
+          <div class="flex items-center gap-3">
+            <div class="flex items-baseline gap-2">
               <div>
-                <div class="text-sm text-base-content/70">出発時刻</div>
-                <div class="text-2xl font-bold text-primary">
+                <div
+                  class="text-[10px] tracking-wide text-base-content/40 uppercase"
+                >
+                  出発
+                </div>
+                <div class="text-xl font-semibold text-primary tabular-nums">
                   {formatTime(dep.departureTime)}
                 </div>
               </div>
-              <div class="text-center">
-                <div class="text-sm text-base-content/50">→</div>
-                <div class="text-lg font-medium">{dep.route.summary.move.time}分</div>
-              </div>
-              <div class="text-right">
-                <div class="text-sm text-base-content/70">到着時刻</div>
-                <div class="text-xl font-semibold">
+              <svg
+                class="h-4 w-4 text-base-content/30"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M14 5l7 7m0 0l-7 7m7-7H3"
+                />
+              </svg>
+              <div>
+                <div
+                  class="text-[10px] tracking-wide text-base-content/40 uppercase"
+                >
+                  到着
+                </div>
+                <div class="text-xl font-semibold text-primary tabular-nums">
                   {formatTime(dep.arrivalTime)}
                 </div>
               </div>
             </div>
-            <div class="mt-3 flex flex-wrap gap-3 border-t border-primary/30 pt-3 text-sm">
-              <span>🚶 {dep.route.summary.move.walk_distance}m</span>
-              <span>🔄 {dep.route.summary.move.transit_count}回乗換</span>
+            <div class="flex flex-1 flex-wrap items-center justify-end gap-1.5">
+              <span
+                class="rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content/70"
+              >
+                {dep.route.summary.move.time}分
+              </span>
+              <span
+                class="rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content/70"
+              >
+                乗換{dep.route.summary.move.transit_count}回
+              </span>
               {#if dep.route.summary.move.fare?.unit_48}
-                <span>💳 ¥{dep.route.summary.move.fare.unit_48}</span>
+                <span
+                  class="rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content/70"
+                >
+                  ¥{dep.route.summary.move.fare.unit_48}
+                </span>
               {:else if dep.route.summary.move.fare?.unit_0}
-                <span>💴 ¥{dep.route.summary.move.fare.unit_0}</span>
+                <span
+                  class="rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content/70"
+                >
+                  ¥{dep.route.summary.move.fare.unit_0}
+                </span>
               {/if}
             </div>
           </div>
         </section>
       {:else if !showLeaveNowRoute}
-        <section class="mb-6">
-          <div class="rounded-xl border border-warning bg-warning/10 p-4 text-sm text-warning">
+        <section class="border-b border-base-200 px-5 py-4">
+          <div class="rounded-lg bg-warning/5 px-3 py-2 text-sm text-warning">
             推奨出発時刻は既に過ぎています
           </div>
         </section>
@@ -348,40 +480,73 @@
       <!-- Leave Now Info -->
       {#if showLeaveNowRoute && transitInfo.leaveNowRoute}
         {@const route = transitInfo.leaveNowRoute}
-        <section class="mb-6">
-          <div class="rounded-xl border-2 border-success bg-success/10 p-4">
-            <div class="flex items-center justify-between">
+        <section class="border-b border-base-200 px-5 py-4">
+          <div class="flex items-center gap-3">
+            <div class="flex items-baseline gap-2">
               <div>
-                <div class="text-sm text-base-content/70">今すぐ出発</div>
-                <div class="text-2xl font-bold text-success">
+                <div
+                  class="text-[10px] tracking-wide text-base-content/40 uppercase"
+                >
+                  出発
+                </div>
+                <div class="text-xl font-semibold text-success tabular-nums">
                   {formatTime(new Date(route.summary.move.from_time))}
                 </div>
               </div>
-              <div class="text-center">
-                <div class="text-sm text-base-content/50">→</div>
-                <div class="text-lg font-medium">{route.summary.move.time}分</div>
-              </div>
-              <div class="text-right">
-                <div class="text-sm text-base-content/70">到着予定</div>
-                <div class="text-xl font-semibold">
+              <svg
+                class="h-4 w-4 text-base-content/30"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M14 5l7 7m0 0l-7 7m7-7H3"
+                />
+              </svg>
+              <div>
+                <div
+                  class="text-[10px] tracking-wide text-base-content/40 uppercase"
+                >
+                  到着
+                </div>
+                <div class="text-xl font-semibold text-success tabular-nums">
                   {formatTime(new Date(route.summary.move.to_time))}
                 </div>
               </div>
             </div>
-            <div class="mt-3 flex flex-wrap gap-3 border-t border-success/30 pt-3 text-sm">
-              <span>🚶 {route.summary.move.walk_distance}m</span>
-              <span>🔄 {route.summary.move.transit_count}回乗換</span>
+            <div class="flex flex-1 flex-wrap items-center justify-end gap-1.5">
+              <span
+                class="rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content/70"
+              >
+                {route.summary.move.time}分
+              </span>
+              <span
+                class="rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content/70"
+              >
+                乗換{route.summary.move.transit_count}回
+              </span>
               {#if route.summary.move.fare?.unit_48}
-                <span>💳 ¥{route.summary.move.fare.unit_48}</span>
+                <span
+                  class="rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content/70"
+                >
+                  ¥{route.summary.move.fare.unit_48}
+                </span>
               {:else if route.summary.move.fare?.unit_0}
-                <span>💴 ¥{route.summary.move.fare.unit_0}</span>
+                <span
+                  class="rounded-full bg-base-200 px-2 py-0.5 text-xs text-base-content/70"
+                >
+                  ¥{route.summary.move.fare.unit_0}
+                </span>
               {/if}
             </div>
           </div>
         </section>
       {:else if showLeaveNowRoute}
-        <section class="mb-6">
-          <div class="rounded-xl border border-warning bg-warning/10 p-4 text-sm text-warning">
+        <section class="border-b border-base-200 px-5 py-4">
+          <div class="rounded-lg bg-warning/5 px-3 py-2 text-sm text-warning">
             経路が見つかりませんでした
           </div>
         </section>
@@ -389,65 +554,168 @@
 
       <!-- Detailed Route Sections -->
       {#if selectedRoute}
-        <section class="mb-6">
-          <h3 class="mb-3 text-sm font-medium text-base-content/70">
+        <section class="px-5 py-4">
+          <h3
+            class="mb-3 text-xs font-medium tracking-wide text-base-content/40 uppercase"
+          >
             経路詳細
           </h3>
-          <div class="rounded-xl border border-base-300 bg-base-100 overflow-hidden">
+          <div class="space-y-0">
             {#each selectedRoute.sections as section, index (index)}
               {#if isPointSection(section)}
+                {@const prev =
+                  index > 0 ? selectedRoute.sections[index - 1] : null}
+                {@const next =
+                  index < selectedRoute.sections.length - 1
+                    ? selectedRoute.sections[index + 1]
+                    : null}
                 <!-- Station/Point -->
-                <div class="flex items-center gap-3 px-4 py-3 {index > 0 ? 'border-t border-base-200' : ''}">
-                  <div class="flex h-8 w-8 items-center justify-center rounded-full bg-base-200 text-sm">
-                    {index === 0 ? "🚩" : index === selectedRoute.sections.length - 1 ? "🏁" : "📍"}
-                  </div>
-                  <div class="flex-1">
-                    <div class="font-medium text-base-content">
-                      {section.name === "start" ? "現在地" : section.name === "goal" ? "目的地" : section.name}
-                    </div>
-                    {#if section.gateway}
-                      <div class="text-xs text-base-content/50">
-                        {section.gateway}
-                      </div>
-                    {/if}
-                  </div>
-                  {#if section.from_time}
-                    <div class="text-sm text-base-content/70">
-                      {formatTime(new Date(section.from_time))}
-                    </div>
-                  {/if}
-                </div>
-              {:else if isMoveSection(section)}
-                <!-- Movement Segment -->
-                <div class="flex items-stretch border-t border-base-200">
-                  <!-- Timeline line -->
-                  <div class="flex w-12 flex-col items-center py-2">
+                <div class="flex items-stretch">
+                  <!-- Timeline -->
+                  <div class="flex w-10 flex-col items-center">
                     <div
-                      class="h-full w-1 rounded-full"
-                      style="background-color: {section.transport?.color ?? '#64748b'}"
+                      class="h-2 w-0.5 bg-base-300"
+                      class:invisible={index === 0}
+                    ></div>
+                    <div
+                      class="flex h-3 w-3 items-center justify-center rounded-full border-2 border-base-content/30 bg-base-100"
+                    ></div>
+                    <div
+                      class="w-0.5 flex-1 bg-base-300"
+                      class:invisible={index ===
+                        selectedRoute.sections.length - 1}
                     ></div>
                   </div>
-                  <!-- Move details -->
-                  <div class="flex-1 py-3 pr-4">
+                  <!-- Content -->
+                  <div class="flex min-w-0 flex-1 items-center gap-3 py-2">
+                    <!-- Time -->
+                    <div class="w-14 shrink-0">
+                      {#if prev && prev.type === "move" && prev.to_time}
+                        <div class="flex items-baseline gap-0.5">
+                          <span
+                            class="text-sm font-medium text-base-content tabular-nums"
+                          >
+                            {formatTime(new Date(prev.to_time))}
+                          </span>
+                          <span class="text-[10px] text-base-content/50"
+                            >着</span
+                          >
+                        </div>
+                      {/if}
+                      {#if next && next.type === "move" && next.from_time}
+                        <div class="flex items-baseline gap-0.5">
+                          <span
+                            class="text-sm font-medium text-base-content tabular-nums"
+                          >
+                            {formatTime(new Date(next.from_time))}
+                          </span>
+                          <span class="text-[10px] text-base-content/50"
+                            >発</span
+                          >
+                        </div>
+                      {/if}
+                    </div>
+                    <!-- Station name -->
+                    <div class="flex min-w-0 flex-1 items-center gap-2">
+                      <span
+                        class="truncate text-sm font-medium text-base-content"
+                      >
+                        {section.name === "start"
+                          ? "現在地"
+                          : section.name === "goal"
+                            ? "目的地"
+                            : section.name}
+                      </span>
+                      {#if section.gateway}
+                        <span
+                          class="shrink-0 rounded bg-base-200 px-1.5 py-0.5 text-[10px] text-base-content/60"
+                        >
+                          {section.gateway}
+                        </span>
+                      {/if}
+                    </div>
+                  </div>
+                </div>
+              {:else if isMoveSection(section)}
+                {@const prevPoint =
+                  index > 0 ? selectedRoute.sections[index - 1] : null}
+                {@const nextPoint =
+                  index < selectedRoute.sections.length - 1
+                    ? selectedRoute.sections[index + 1]
+                    : null}
+                {@const boardingPlatform = prevPoint?.numbering?.departure?.[0]}
+                {@const alightingPlatform = nextPoint?.numbering?.arrival?.[0]}
+                <!-- Movement Segment -->
+                <div class="flex items-stretch">
+                  <!-- Timeline -->
+                  <div class="flex w-10 flex-col items-center">
+                    <div
+                      class="w-1 flex-1 rounded-full"
+                      style="background-color: {section.transport?.color ??
+                        '#cbd5e1'}"
+                    ></div>
+                  </div>
+                  <!-- Content -->
+                  <div class="flex-1 py-2 pl-1">
+                    {#if boardingPlatform}
+                      <div class="mb-1.5 flex items-center gap-1">
+                        <span
+                          class="flex h-5 min-w-5 items-center justify-center rounded bg-base-200 px-1 text-xs font-bold text-base-content"
+                        >
+                          {boardingPlatform.number}
+                        </span>
+                        <span class="text-[10px] text-base-content/50"
+                          >番線</span
+                        >
+                      </div>
+                    {/if}
                     <div class="flex items-center gap-2">
-                      <span class="text-lg">{getMoveIcon(section.move)}</span>
-                      <span class="font-medium" style="color: {section.transport?.color ?? 'inherit'}">
+                      <span class="text-base">{getMoveIcon(section.move)}</span>
+                      <span
+                        class="text-sm font-medium"
+                        style="color: {section.transport?.color ?? 'inherit'}"
+                      >
                         {getMoveLabel(section)}
                       </span>
+                      {#if section.transport?.links && section.transport.links.length > 0}
+                        {@const destination =
+                          section.transport.links[0].destination}
+                        <span class="text-xs text-base-content/50">
+                          {destination.name}行き
+                        </span>
+                      {/if}
                       {#if section.transport?.type && section.transport.type !== "普通"}
-                        <span class="rounded bg-base-200 px-1.5 py-0.5 text-xs">
+                        <span
+                          class="rounded bg-base-200 px-1.5 py-0.5 text-[10px] text-base-content/60"
+                        >
                           {section.transport.type}
                         </span>
                       {/if}
                     </div>
-                    <div class="mt-1 flex flex-wrap gap-2 text-xs text-base-content/50">
+                    <div
+                      class="mt-1 flex items-center gap-3 text-xs text-base-content/40"
+                    >
                       {#if section.time}
-                        <span>⏱️ {section.time}分</span>
+                        <span>{section.time}分</span>
                       {/if}
-                      {#if section.distance}
-                        <span>📏 {section.distance}m</span>
+                      {#if section.transport?.fare?.unit_48}
+                        <span>¥{section.transport.fare.unit_48}</span>
+                      {:else if section.transport?.fare?.unit_0}
+                        <span>¥{section.transport.fare.unit_0}</span>
                       {/if}
                     </div>
+                    {#if alightingPlatform}
+                      <div class="mt-1.5 flex items-center gap-1">
+                        <span
+                          class="flex h-5 min-w-5 items-center justify-center rounded bg-base-200 px-1 text-xs font-bold text-base-content"
+                        >
+                          {alightingPlatform.number}
+                        </span>
+                        <span class="text-[10px] text-base-content/50"
+                          >番線</span
+                        >
+                      </div>
+                    {/if}
                   </div>
                 </div>
               {/if}

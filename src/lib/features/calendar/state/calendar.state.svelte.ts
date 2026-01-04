@@ -37,11 +37,11 @@ import {
 
 /**
  * Format date for iCalendar (YYYYMMDD or YYYYMMDDTHHmmss)
- * 
- * For all-day events: Uses UTC date components since all-day events 
+ *
+ * For all-day events: Uses UTC date components since all-day events
  * are stored as UTC midnight (00:00:00.000Z). This ensures consistent
  * behavior regardless of local timezone.
- * 
+ *
  * For timed events: Uses local time since timed events have specific times.
  */
 function formatDateForIcal(date: Date, isAllDay: boolean): string {

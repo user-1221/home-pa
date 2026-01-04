@@ -10,7 +10,10 @@
     adjustDuration,
     calculateNewEndTime,
   } from "../services/suggestion-drag.ts";
-  import { calculateMinDurationForDots, MIN_DOTS_FOR_DRAG } from "../services/suggestions/suggestion-scheduler.ts";
+  import {
+    calculateMinDurationForDots,
+    MIN_DOTS_FOR_DRAG,
+  } from "../services/suggestions/suggestion-scheduler.ts";
 
   interface Props {
     selectedItem:
@@ -51,7 +54,11 @@
     complete: { suggestionId: string; memoId: string; duration: number };
     missed: { suggestionId: string };
     delete: { suggestionId: string };
-    durationChange: { suggestionId: string; newDuration: number; newEndTime: string };
+    durationChange: {
+      suggestionId: string;
+      newDuration: number;
+      newEndTime: string;
+    };
   }>();
 
   // Minimum duration for suggestions (5 dots = 45 min)
@@ -60,7 +67,10 @@
   // Calculate max and current duration for pending suggestions
   let maxDuration = $derived.by(() => {
     if (selectedItem?.type === "pending-suggestion") {
-      return calculateMaxDuration(selectedItem.data.startTime, selectedItem.gapEnd);
+      return calculateMaxDuration(
+        selectedItem.data.startTime,
+        selectedItem.gapEnd,
+      );
     }
     return 0;
   });
@@ -83,11 +93,14 @@
     if (selectedItem?.type === "pending-suggestion" && canExtend) {
       const newDuration = adjustDuration(
         selectedItem.data.duration,
-        'extend',
+        "extend",
         maxDuration,
         MIN_DURATION,
       );
-      const newEndTime = calculateNewEndTime(selectedItem.data.startTime, newDuration);
+      const newEndTime = calculateNewEndTime(
+        selectedItem.data.startTime,
+        newDuration,
+      );
       dispatch("durationChange", {
         suggestionId: selectedItem.data.suggestionId,
         newDuration,
@@ -100,11 +113,14 @@
     if (selectedItem?.type === "pending-suggestion" && canShrink) {
       const newDuration = adjustDuration(
         selectedItem.data.duration,
-        'shrink',
+        "shrink",
         maxDuration,
         MIN_DURATION,
       );
-      const newEndTime = calculateNewEndTime(selectedItem.data.startTime, newDuration);
+      const newEndTime = calculateNewEndTime(
+        selectedItem.data.startTime,
+        newDuration,
+      );
       dispatch("durationChange", {
         suggestionId: selectedItem.data.suggestionId,
         newDuration,
@@ -212,7 +228,7 @@
           <!-- Duration adjustment buttons -->
           <div class="flex items-center gap-1">
             <button
-              class="btn btn-square btn-xs btn-ghost"
+              class="btn btn-square btn-ghost btn-xs"
               onclick={handleShrink}
               disabled={!canShrink}
               title="10分短く (最小: {formatDuration(MIN_DURATION)})"
@@ -223,7 +239,7 @@
               {formatDuration(selectedItem.data.duration)}
             </span>
             <button
-              class="btn btn-square btn-xs btn-ghost"
+              class="btn btn-square btn-ghost btn-xs"
               onclick={handleExtend}
               disabled={!canExtend}
               title="10分長く (最大: {formatDuration(maxDuration)})"
