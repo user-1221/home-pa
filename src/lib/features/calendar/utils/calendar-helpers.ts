@@ -223,14 +223,69 @@ export function isFirstDayOfEvent(event: Event, targetDate: Date): boolean {
 }
 
 /**
- * Get event color based on importance
+ * Event color palette - available colors for user selection
+ * Each entry has a key for storage and a CSS value for display
+ */
+export const EVENT_COLOR_PALETTE = [
+  { key: "primary", value: "var(--color-primary)", label: "Primary" },
+  {
+    key: "primary-400",
+    value: "var(--color-primary-400)",
+    label: "Primary Light",
+  },
+  {
+    key: "primary-800",
+    value: "var(--color-primary-800)",
+    label: "Primary Dark",
+  },
+  { key: "success", value: "var(--color-success-500)", label: "Green" },
+  { key: "warning", value: "var(--color-warning-500)", label: "Yellow" },
+  { key: "error", value: "var(--color-error-500)", label: "Red" },
+  { key: "sky", value: "#38bdf8", label: "Sky" },
+  { key: "violet", value: "#8b5cf6", label: "Violet" },
+  { key: "pink", value: "#ec4899", label: "Pink" },
+  { key: "orange", value: "#f97316", label: "Orange" },
+  { key: "teal", value: "#14b8a6", label: "Teal" },
+  { key: "slate", value: "#64748b", label: "Gray" },
+] as const;
+
+/**
+ * Get CSS color value from a color key or return the value as-is
+ */
+export function getColorValue(colorKeyOrValue: string): string {
+  const paletteEntry = EVENT_COLOR_PALETTE.find(
+    (c) => c.key === colorKeyOrValue,
+  );
+  return paletteEntry?.value ?? colorKeyOrValue;
+}
+
+/**
+ * Get event color based on user selection or auto-assign based on title/id
+ *
+ * Priority:
+ * 1. User-selected color (event.color)
+ * 2. Auto-generated color based on event id/title hash
  *
  * Uses only event.id and event.title for consistent colors across:
  * - Recurring event occurrences (same master event = same color)
  * - Multi-day events (same event across different days = same color)
  */
 export function getEventColor(event: Event): string {
-  const palette: readonly string[] = [
+  // If user has selected a color, use it
+  if (event.color) {
+    const baseColor = getColorValue(event.color);
+    const importance = event.importance || "medium";
+    if (importance === "high") {
+      return `color-mix(in srgb, ${baseColor} 85%, black)`;
+    }
+    if (importance === "low") {
+      return `color-mix(in srgb, ${baseColor} 85%, white)`;
+    }
+    return baseColor;
+  }
+
+  // Auto-assign color based on hash
+  const autoColors: readonly string[] = [
     "var(--color-primary)",
     "var(--color-primary-400)",
     "var(--color-primary-800)",
@@ -273,7 +328,7 @@ export function getEventColor(event: Event): string {
     }, 0);
 
   const base =
-    palette[Math.abs(hash) % palette.length] ?? "var(--color-primary)";
+    autoColors[Math.abs(hash) % autoColors.length] ?? "var(--color-primary)";
 
   const importance = event.importance || "medium";
   if (importance === "high") {

@@ -103,6 +103,7 @@ model CalendarEvent {
   // Optional metadata
   description   String?
   location      String?
+  color         String?           // User-selected color (CSS color value)
   
   // Sync metadata (for future CalDAV integration)
   calendarId    String?           // External calendar ID
@@ -274,4 +275,38 @@ model RejectedMemo {
   @@unique([userId, memoId])
   @@index([userId])
   @@map("rejected_memo")
+}
+
+// ============================================================================
+// Event Templates (for autocomplete suggestions based on past events)
+// ============================================================================
+
+// Stores unique event patterns for autocomplete suggestions
+model EventTemplate {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String
+  
+  // Template identification (unique per user + title + importance)
+  title           String   // Event title (primary matching key)
+  importance      String   // low | medium | high
+  
+  // Template data to pre-fill
+  color           String?  // User-selected color
+  address         String?  // Default location
+  timeLabel       String   // all-day | some-timing | timed
+  defaultStartTime String? // For timed events: default start time (HH:mm)
+  defaultEndTime   String? // For timed events: default end time (HH:mm)
+  defaultDuration  Int?    // Duration in minutes (alternative to end time)
+  
+  // Usage tracking
+  useCount        Int      @default(1) // How many times this template was used
+  lastUsedAt      DateTime @default(now())
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, title, importance])
+  @@index([userId])
+  @@index([userId, title]) // For prefix search
+  @@map("event_template")
 }

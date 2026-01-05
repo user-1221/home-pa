@@ -48,6 +48,7 @@ const EventInputSchema = v.object({
   timeLabel: v.picklist(["all-day", "some-timing", "timed"]),
   tzid: v.optional(v.string()),
   recurrence: v.optional(v.any()),
+  color: v.optional(v.string()),
 });
 
 const EventUpdateSchema = v.object({
@@ -63,6 +64,7 @@ const EventUpdateSchema = v.object({
     tzid: v.optional(v.string()),
     recurrence: v.optional(v.any()),
     icalData: v.optional(v.string()), // For EXDATE updates
+    color: v.optional(v.string()),
   }),
 });
 
@@ -135,6 +137,7 @@ export const createEvent = command(EventInputSchema, async (input) => {
     timeLabel: input.timeLabel,
     tzid: input.tzid,
     recurrence: input.recurrence,
+    color: input.color,
   };
 
   // Convert to database format

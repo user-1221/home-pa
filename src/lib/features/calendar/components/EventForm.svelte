@@ -13,6 +13,14 @@
   import { browser } from "$app/environment";
   import { onMount, tick } from "svelte";
   import { slide } from "svelte/transition";
+  import {
+    searchTemplates,
+    type EventTemplateData,
+  } from "../state/eventTemplate.remote.ts";
+  import {
+    EVENT_COLOR_PALETTE,
+    getColorValue,
+  } from "../utils/calendar-helpers.ts";
 
   // Form state
   let eventTitle = $state("");
@@ -23,6 +31,13 @@
   let eventAddress = $state("");
   let eventImportance = $state<"low" | "medium" | "high">("medium");
   let eventTimeLabel = $state<"all-day" | "some-timing" | "timed">("all-day");
+  let eventColor = $state<string | undefined>(undefined);
+
+  // Template suggestions state
+  let templateSuggestions = $state<EventTemplateData[]>([]);
+  let showTemplateSuggestions = $state(false);
+  let titleInputFocused = $state(false);
+  let templateSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Tri-state for clarity
   type TimeMode = "default" | "all-day" | "some-timing";
@@ -80,6 +95,7 @@
   let lastStoreStart = $state("");
   let lastStoreEnd = $state("");
   let lastStoreRecurrence = $state<string>("");
+  let lastStoreColor = $state<string | undefined>(undefined);
 
   // Sync from store
   $effect(() => {
@@ -122,6 +138,8 @@
     lastStoreImportance = form.importance || "medium";
     eventTimeLabel = form.timeLabel || "all-day";
     lastStoreTimeLabel = form.timeLabel || "all-day";
+    eventColor = form.color;
+    lastStoreColor = form.color;
     isEventEditing = form.isEditing;
 
     // Track start/end for sync guards
@@ -259,6 +277,88 @@
       lastStoreEnd = endDateTime;
     }
   });
+
+  // Sync color to store
+  $effect(() => {
+    if (eventColor !== lastStoreColor) {
+      eventFormState.updateField("color", eventColor);
+      lastStoreColor = eventColor;
+    }
+  });
+
+  // Template search when title changes
+  $effect(() => {
+    if (!titleInputFocused || !eventTitle || eventTitle.length < 1) {
+      templateSuggestions = [];
+      showTemplateSuggestions = false;
+      return;
+    }
+
+    // Debounce search
+    if (templateSearchDebounceTimer) {
+      clearTimeout(templateSearchDebounceTimer);
+    }
+
+    templateSearchDebounceTimer = setTimeout(async () => {
+      try {
+        const results = await searchTemplates({
+          titlePrefix: eventTitle,
+          limit: 5,
+        });
+        templateSuggestions = results;
+        showTemplateSuggestions = results.length > 0 && titleInputFocused;
+      } catch (err) {
+        console.warn("[EventForm] Template search failed:", err);
+        templateSuggestions = [];
+        showTemplateSuggestions = false;
+      }
+    }, 200);
+  });
+
+  /**
+   * Apply a template to the current form
+   */
+  function applyTemplate(template: EventTemplateData): void {
+    eventTitle = template.title;
+    eventImportance = template.importance;
+    eventColor = template.color;
+    if (template.address) {
+      eventAddress = template.address;
+    }
+    eventTimeLabel = template.timeLabel;
+
+    // Apply default times for timed events
+    if (template.timeLabel === "timed" && template.defaultStartTime) {
+      eventStartTime = template.defaultStartTime;
+      if (template.defaultEndTime) {
+        eventEndTime = template.defaultEndTime;
+      } else if (template.defaultDuration) {
+        // Calculate end time from duration
+        const [h, m] = template.defaultStartTime.split(":").map(Number);
+        const startMinutes = h * 60 + m;
+        const endMinutes = startMinutes + template.defaultDuration;
+        const endH = Math.floor(endMinutes / 60) % 24;
+        const endM = endMinutes % 60;
+        eventEndTime = `${String(endH).padStart(2, "0")}:${String(endM).padStart(2, "0")}`;
+      }
+      timeMode = "default";
+      isManualDateOrTimeEdit = true;
+      eventFormState.switchTimeLabel("timed");
+    }
+
+    // Sync to store
+    eventFormState.updateFields({
+      title: template.title,
+      importance: template.importance,
+      color: template.color,
+      address: template.address,
+      timeLabel: template.timeLabel,
+    });
+
+    // Hide suggestions
+    showTemplateSuggestions = false;
+    templateSuggestions = [];
+  }
 
   function buildRecurrenceObject(): Recurrence {
     if (!isRecurring) {
@@ -567,8 +667,8 @@
     </div>
 
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-      <!-- Title -->
-      <div class="form-control">
+      <!-- Title with Template Suggestions -->
+      <div class="form-control relative">
         <input
           id="event-title"
           type="text"
@@ -578,6 +678,14 @@
             : ''}"
           bind:value={eventTitle}
           placeholder="タイトル"
+          onfocus={() => (titleInputFocused = true)}
+          onblur={() => {
+            // Delay hiding to allow clicking on suggestions
+            setTimeout(() => {
+              titleInputFocused = false;
+              showTemplateSuggestions = false;
+            }, 150);
+          }}
         />
         {#if eventFormState.errors.title}
           <p class="label">
@@ -585,6 +693,57 @@
               >{eventFormState.errors.title}</span
             >
           </p>
+        {/if}
+
+        <!-- Template Suggestions Dropdown -->
+        {#if showTemplateSuggestions && templateSuggestions.length > 0}
+          <div
+            class="absolute top-full right-0 left-0 z-50 mt-1 rounded-lg border border-base-300 bg-base-100 shadow-lg"
+          >
+            {#each templateSuggestions as template (template.id)}
+              <button
+                type="button"
+                class="flex w-full items-center gap-3 px-3 py-2 text-left first:rounded-t-lg last:rounded-b-lg hover:bg-base-200"
+                onclick={() => applyTemplate(template)}
+              >
+                <!-- Color indicator -->
+                <div
+                  class="h-3 w-3 shrink-0 rounded-full"
+                  style="background-color: {template.color
+                    ? getColorValue(template.color)
+                    : 'var(--color-primary)'};"
+                ></div>
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-sm font-medium">
+                    {template.title}
+                  </div>
+                  <div
+                    class="flex items-center gap-2 text-xs text-base-content/60"
+                  >
+                    <span
+                      >{template.timeLabel === "all-day"
+                        ? "終日"
+                        : template.timeLabel === "some-timing"
+                          ? "時間未定"
+                          : (template.defaultStartTime ?? "時間あり")}</span
+                    >
+                    {#if template.address}
+                      <span>• {template.address}</span>
+                    {/if}
+                  </div>
+                </div>
+                <span class="text-xs text-base-content/40">
+                  {"⭐".repeat(
+                    template.importance === "high"
+                      ? 3
+                      : template.importance === "medium"
+                        ? 2
+                        : 1,
+                  )}
+                </span>
+              </button>
+            {/each}
+          </div>
         {/if}
       </div>
 
@@ -639,6 +798,42 @@
           >
             ⭐⭐⭐
           </button>
+        </div>
+      </div>
+
+      <!-- Color Picker -->
+      <div class="form-control">
+        <span class="label">
+          <span class="label-text text-sm text-[var(--color-text-secondary)]"
+            >カラー</span
+          >
+        </span>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="カラー選択">
+          <!-- Auto color option -->
+          <button
+            type="button"
+            class="flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 {eventColor ===
+            undefined
+              ? 'ring-opacity-30 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
+              : 'border-base-300 hover:border-base-content/30'}"
+            onclick={() => (eventColor = undefined)}
+            title="自動"
+          >
+            <span class="text-xs text-base-content/60">自動</span>
+          </button>
+          {#each EVENT_COLOR_PALETTE as color (color.key)}
+            <button
+              type="button"
+              class="h-8 w-8 rounded-full border-2 transition-all duration-200 {eventColor ===
+              color.key
+                ? 'ring-opacity-30 scale-110 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
+                : 'border-transparent hover:scale-105'}"
+              style="background-color: {color.value};"
+              onclick={() => (eventColor = color.key)}
+              title={color.label}
+              aria-label={color.label}
+            ></button>
+          {/each}
         </div>
       </div>
 

@@ -25,6 +25,7 @@ export interface EventFormData {
   address: string;
   importance: "low" | "medium" | "high";
   timeLabel: "all-day" | "some-timing" | "timed";
+  color?: string;
   isEditing: boolean;
   editingId: string | null;
   recurrence?: Recurrence;
@@ -64,6 +65,7 @@ class EventFormState {
   address = $state("");
   importance = $state<"low" | "medium" | "high">("medium");
   timeLabel = $state<"all-day" | "some-timing" | "timed">("all-day");
+  color = $state<string | undefined>(undefined);
   isEditing = $state(false);
   editingId = $state<string | null>(null);
   recurrence = $state<Recurrence | undefined>(undefined);
@@ -127,6 +129,7 @@ class EventFormState {
       address: this.address,
       importance: this.importance,
       timeLabel: this.timeLabel,
+      color: this.color,
       isEditing: this.isEditing,
       editingId: this.editingId,
       recurrence: this.recurrence,
@@ -226,6 +229,9 @@ class EventFormState {
       case "occurrenceDate":
         this.occurrenceDate = value as Date | undefined;
         break;
+      case "color":
+        this.color = value as string | undefined;
+        break;
     }
 
     // Clear field-specific error on change
@@ -260,6 +266,7 @@ class EventFormState {
     this.address = event.address || "";
     this.importance = event.importance || "medium";
     this.timeLabel = timeLabel;
+    this.color = event.color;
     this.isEditing = true;
     this.editingId = event.id;
     this.recurrence = event.recurrence;
@@ -278,6 +285,7 @@ class EventFormState {
     this.address = "";
     this.importance = "medium";
     this.timeLabel = "all-day";
+    this.color = undefined;
     this.isEditing = false;
     this.editingId = null;
     this.recurrence = undefined;

@@ -27,6 +27,7 @@ export interface Event {
   recurrence?: Recurrence;
   rdateUtc?: Date[]; // Additional occurrence dates
   exdateUtc?: Date[]; // Excluded occurrence dates
+  color?: string; // User-selected color (CSS color value or palette key)
 
   // New sliding window fields
   recurrenceGroupId?: string; // Links events across time windows
