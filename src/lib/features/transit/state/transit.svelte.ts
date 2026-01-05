@@ -24,6 +24,7 @@ import {
   clearCachedTransit,
   type SyncedCachedTransit,
 } from "$lib/features/assistant/services/sync.remote.ts";
+import { waitForSync } from "$lib/features/assistant/state/schedule.ts";
 
 // ============================================================================
 // Types
@@ -418,6 +419,9 @@ class TransitState {
    * Load transit info for the next event with location
    */
   async loadNextEventTransit(): Promise<void> {
+    // Wait for sync to complete before loading transit (to use cached data if available)
+    await waitForSync();
+
     const event = getNextEventWithLocation();
     if (!event) {
       console.log("[Transit] No upcoming event with location");
@@ -724,12 +728,16 @@ class TransitState {
   /**
    * Load synced transit cache from server
    * Should be called once on app initialization
+   * Waits for schedule sync to complete first
    */
   async loadSyncedTransit(): Promise<void> {
     if (this.isSyncLoaded) {
       console.log("[Transit] Sync data already loaded");
       return;
     }
+
+    // Wait for schedule sync to complete first
+    await waitForSync();
 
     try {
       console.log("[Transit] Loading synced transit cache...");
@@ -747,8 +755,44 @@ class TransitState {
           try {
             const parsed = JSON.parse(validCached.transitData);
             // Restore transit info (but without loading states)
+            // Convert date strings back to Date objects
+            const restoredEvent = {
+              ...parsed.event,
+              start: new Date(parsed.event.start),
+              end: new Date(parsed.event.end),
+              ...(parsed.event.rdateUtc && Array.isArray(parsed.event.rdateUtc)
+                ? {
+                    rdateUtc: parsed.event.rdateUtc.map(
+                      (d: string) => new Date(d),
+                    ),
+                  }
+                : {}),
+              ...(parsed.event.exdateUtc &&
+              Array.isArray(parsed.event.exdateUtc)
+                ? {
+                    exdateUtc: parsed.event.exdateUtc.map(
+                      (d: string) => new Date(d),
+                    ),
+                  }
+                : {}),
+            };
+
             this.transitInfo = {
               ...parsed,
+              event: restoredEvent,
+              eventStart: new Date(parsed.eventStart),
+              recommendedDeparture: parsed.recommendedDeparture
+                ? {
+                    ...parsed.recommendedDeparture,
+                    departureTime: new Date(
+                      parsed.recommendedDeparture.departureTime,
+                    ),
+                    arrivalTime: new Date(
+                      parsed.recommendedDeparture.arrivalTime,
+                    ),
+                  }
+                : null,
+              leaveNowRoute: parsed.leaveNowRoute || null,
               isLoading: false,
               error: null,
             };

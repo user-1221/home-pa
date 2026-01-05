@@ -149,6 +149,53 @@ export const isSyncLoaded = writable<boolean>(false);
  */
 export const isSyncing = writable<boolean>(false);
 
+/**
+ * Promise that resolves when sync is complete (or fails)
+ * Used to wait for sync before regenerating or calling transit API
+ */
+let syncCompleteResolve: (() => void) | null = null;
+let syncCompletePromise: Promise<void> | null = null;
+
+/**
+ * Wait for sync to complete before proceeding
+ * Resolves immediately if sync is already complete
+ * Also resolves on network errors (to allow proceeding without sync)
+ */
+export async function waitForSync(): Promise<void> {
+  if (get(isSyncLoaded)) {
+    return; // Already synced
+  }
+
+  if (!syncCompletePromise) {
+    // Create a new promise if one doesn't exist
+    syncCompletePromise = new Promise((resolve) => {
+      syncCompleteResolve = resolve;
+    });
+
+    // Also set a timeout to prevent indefinite waiting (10 seconds)
+    setTimeout(() => {
+      if (syncCompleteResolve) {
+        console.warn("[Schedule] Sync timeout - proceeding without sync");
+        syncCompleteResolve();
+        syncCompleteResolve = null;
+      }
+    }, 10000);
+  }
+
+  return syncCompletePromise;
+}
+
+/**
+ * Signal that sync is complete (call this after sync finishes)
+ */
+function signalSyncComplete(): void {
+  if (syncCompleteResolve) {
+    syncCompleteResolve();
+    syncCompleteResolve = null;
+  }
+  syncCompletePromise = null;
+}
+
 // ============================================================================
 // Derived Stores
 // ============================================================================
@@ -390,6 +437,9 @@ export const scheduleActions = {
       skipLLMEnrichment?: boolean;
     } = {},
   ): Promise<ScheduleResult | null> {
+    // Wait for sync to complete before generating (unless it times out or errors)
+    await waitForSync();
+
     // Set loading state
     isScheduleLoading.set(true);
     scheduleError.set(null);
@@ -1158,6 +1208,7 @@ export const scheduleActions = {
   async loadSyncedData(): Promise<void> {
     if (get(isSyncLoaded)) {
       console.log("[Schedule] Sync data already loaded");
+      signalSyncComplete();
       return;
     }
 
@@ -1168,16 +1219,16 @@ export const scheduleActions = {
       const data = await loadSyncData({});
 
       // Convert synced accepted suggestions to local format
-      // Filter for today's suggestions only (additional local cleanup)
+      // Include today's past suggestions so users can mark them as complete/missed
       const today = new Date();
       const todayStart = new Date(
         today.getFullYear(),
         today.getMonth(),
         today.getDate(),
-      ).toISOString();
+      );
 
       const validSuggestions: AcceptedSuggestion[] = data.acceptedSuggestions
-        .filter((s) => s.date >= todayStart)
+        .filter((s) => new Date(s.date) >= todayStart)
         .map((s) => ({
           suggestionId: s.suggestionId,
           memoId: s.memoId,
@@ -1204,8 +1255,11 @@ export const scheduleActions = {
     } catch (error) {
       console.error("[Schedule] Failed to load synced data:", error);
       // Continue without synced data - will work with fresh state
+      // Mark as loaded anyway to prevent waiting forever
+      isSyncLoaded.set(true);
     } finally {
       isSyncing.set(false);
+      signalSyncComplete();
     }
   },
 
