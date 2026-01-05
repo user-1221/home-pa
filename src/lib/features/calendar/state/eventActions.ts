@@ -20,6 +20,7 @@ import {
   createMultiDayAllDayUTCRange,
 } from "../../../utils/date-utils.ts";
 import ICAL from "ical.js";
+import { saveTemplate } from "./eventTemplate.remote.ts";
 
 /**
  * Event Actions
@@ -70,12 +71,18 @@ export const eventActions = {
         address: formData.address?.trim() || undefined,
         importance: formData.importance || "medium",
         timeLabel: formData.timeLabel || "all-day",
+        color: formData.color,
         recurrence: formData.recurrence,
       });
 
       if (!newEvent) {
         throw new Error("Failed to create event");
       }
+
+      // Save template for future suggestions (fire and forget)
+      saveEventTemplate(formData).catch((err) => {
+        console.warn("[eventActions.create] Failed to save template:", err);
+      });
 
       // Reset form and hide it
       eventFormState.reset();
@@ -131,6 +138,7 @@ export const eventActions = {
         address: formData.address?.trim() || undefined,
         importance: formData.importance || "medium",
         timeLabel: formData.timeLabel || "all-day",
+        color: formData.color,
         recurrence: formData.recurrence,
       });
 
@@ -517,4 +525,50 @@ function createEventDates(formData: EventFormData): {
       return { startDate, endDate };
     }
   }
+}
+
+/**
+ * Save event data as a template for future autocomplete suggestions
+ */
+async function saveEventTemplate(formData: EventFormData): Promise<void> {
+  // Don't save templates for very short titles
+  if (!formData.title || formData.title.trim().length < 2) {
+    return;
+  }
+
+  // Extract time info for timed events
+  let defaultStartTime: string | undefined;
+  let defaultEndTime: string | undefined;
+  let defaultDuration: number | undefined;
+
+  if (formData.timeLabel === "timed" && formData.start && formData.end) {
+    // Extract time portion from datetime strings
+    const startParts = formData.start.split("T");
+    const endParts = formData.end.split("T");
+
+    if (startParts[1]) {
+      defaultStartTime = startParts[1].substring(0, 5); // HH:mm
+    }
+    if (endParts[1]) {
+      defaultEndTime = endParts[1].substring(0, 5); // HH:mm
+    }
+
+    // Calculate duration in minutes
+    const startDate = new Date(formData.start);
+    const endDate = new Date(formData.end);
+    defaultDuration = Math.round(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60),
+    );
+  }
+
+  await saveTemplate({
+    title: formData.title.trim(),
+    importance: formData.importance || "medium",
+    color: formData.color,
+    address: formData.address?.trim() || undefined,
+    timeLabel: formData.timeLabel || "all-day",
+    defaultStartTime,
+    defaultEndTime,
+    defaultDuration,
+  });
 }

@@ -95,6 +95,7 @@ export function dbEventToAppEvent(dbEvent: CalendarEvent): Event {
     timeLabel,
     tzid: dbEvent.dtstartTzid || undefined,
     recurrence,
+    color: dbEvent.color || undefined,
     // Store the icalData for recurrence expansion
     icalData: dbEvent.icalData || undefined,
     // Recurrence group ID for linking occurrences
@@ -142,6 +143,7 @@ export function appEventToDbCreate(
   hasRecurrence: boolean;
   description: string | null;
   location: string | null;
+  color: string | null;
   icalData: string;
 } {
   const uid = crypto.randomUUID();
@@ -224,6 +226,7 @@ export function appEventToDbCreate(
     hasRecurrence: !!rrule,
     description: event.description || null,
     location: event.address || null,
+    color: event.color || null,
     icalData,
   };
 }
@@ -249,6 +252,7 @@ export function appEventToDbUpdate(
   hasRecurrence: boolean;
   description: string | null;
   location: string | null;
+  color: string | null;
   icalData: string;
 }> {
   const result: ReturnType<typeof appEventToDbUpdate> = {};
@@ -387,6 +391,11 @@ export function appEventToDbUpdate(
   if (updates.address !== undefined) {
     result.location = updates.address || null;
     needsIcalRegen = true;
+  }
+
+  if (updates.color !== undefined) {
+    result.color = updates.color || null;
+    // color doesn't affect icalData
   }
 
   // Regenerate icalData if needed
