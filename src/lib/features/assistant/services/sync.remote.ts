@@ -116,17 +116,18 @@ export const loadSyncData = query(
       };
     }
     const now = new Date();
-    const todayStart = new Date(
+    const yesterdayStart = new Date(
       now.getFullYear(),
       now.getMonth(),
-      now.getDate(),
+      now.getDate() - 1,
     );
 
-    // Cleanup expired accepted suggestions (date < today)
+    // Cleanup expired accepted suggestions (date < yesterday)
+    // We keep today's past suggestions so users can mark them as complete/missed
     const deletedSuggestions = await prisma.acceptedSuggestion.deleteMany({
       where: {
         userId,
-        date: { lt: todayStart },
+        date: { lt: yesterdayStart },
       },
     });
 
