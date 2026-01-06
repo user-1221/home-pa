@@ -172,6 +172,20 @@
   function isMoveSection(section: RouteSection): boolean {
     return section.type === "move";
   }
+
+  /**
+   * Get platform badge component data
+   * Returns symbol and number from platform numbering data
+   */
+  function getPlatformBadge(
+    platform: { number: string; symbol: string } | undefined,
+  ): { symbol: string; number: string } | null {
+    if (!platform) return null;
+    return {
+      symbol: platform.symbol || "",
+      number: platform.number || "",
+    };
+  }
 </script>
 
 <div class="flex h-full min-h-0 flex-col bg-base-100">
@@ -645,6 +659,9 @@
                     : null}
                 {@const boardingPlatform = prevPoint?.numbering?.departure?.[0]}
                 {@const alightingPlatform = nextPoint?.numbering?.arrival?.[0]}
+                {@const moveSectionAny = section as any}
+                {@const startPlatform = moveSectionAny.start_platform}
+                {@const goalPlatform = moveSectionAny.goal_platform}
                 <!-- Movement Segment -->
                 <div class="flex items-stretch">
                   <!-- Timeline -->
@@ -657,17 +674,46 @@
                   </div>
                   <!-- Content -->
                   <div class="flex-1 py-2 pl-1">
-                    {#if boardingPlatform}
-                      <div class="mb-1.5 flex items-center gap-1">
-                        <span
-                          class="flex h-5 min-w-5 items-center justify-center rounded bg-base-200 px-1 text-xs font-bold text-base-content"
-                        >
-                          {boardingPlatform.number}
-                        </span>
-                        <span class="text-[10px] text-base-content/50"
-                          >番線</span
-                        >
-                      </div>
+                    {#if boardingPlatform || startPlatform}
+                      {@const platformData =
+                        boardingPlatform ||
+                        (typeof startPlatform === "object"
+                          ? startPlatform
+                          : null)}
+                      {@const badge = platformData
+                        ? getPlatformBadge(platformData)
+                        : startPlatform
+                          ? {
+                              symbol: startPlatform.split(/\d/)[0] || "",
+                              number: startPlatform.replace(/^\D+/, "") || "",
+                            }
+                          : null}
+                      {#if badge && (badge.symbol || badge.number)}
+                        <div class="mb-1.5 flex items-center">
+                          <div
+                            class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white"
+                            style="border: 2px solid {section.transport
+                              ?.color ?? '#cbd5e1'};"
+                          >
+                            <div
+                              class="flex flex-col items-center justify-center"
+                            >
+                              {#if badge.symbol}
+                                <span
+                                  class="text-xs leading-none font-bold text-base-content"
+                                  >{badge.symbol}</span
+                                >
+                              {/if}
+                              {#if badge.number}
+                                <span
+                                  class="text-[10px] leading-tight font-medium text-base-content/70"
+                                  >{badge.number}</span
+                                >
+                              {/if}
+                            </div>
+                          </div>
+                        </div>
+                      {/if}
                     {/if}
                     <div class="flex items-center gap-2">
                       <span class="text-base">{getMoveIcon(section.move)}</span>
@@ -704,17 +750,46 @@
                         <span>¥{section.transport.fare.unit_0}</span>
                       {/if}
                     </div>
-                    {#if alightingPlatform}
-                      <div class="mt-1.5 flex items-center gap-1">
-                        <span
-                          class="flex h-5 min-w-5 items-center justify-center rounded bg-base-200 px-1 text-xs font-bold text-base-content"
-                        >
-                          {alightingPlatform.number}
-                        </span>
-                        <span class="text-[10px] text-base-content/50"
-                          >番線</span
-                        >
-                      </div>
+                    {#if alightingPlatform || goalPlatform}
+                      {@const platformData =
+                        alightingPlatform ||
+                        (typeof goalPlatform === "object"
+                          ? goalPlatform
+                          : null)}
+                      {@const badge = platformData
+                        ? getPlatformBadge(platformData)
+                        : goalPlatform
+                          ? {
+                              symbol: goalPlatform.split(/\d/)[0] || "",
+                              number: goalPlatform.replace(/^\D+/, "") || "",
+                            }
+                          : null}
+                      {#if badge && (badge.symbol || badge.number)}
+                        <div class="mt-1.5 flex items-center">
+                          <div
+                            class="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white"
+                            style="border: 2px solid {section.transport
+                              ?.color ?? '#cbd5e1'};"
+                          >
+                            <div
+                              class="flex flex-col items-center justify-center"
+                            >
+                              {#if badge.symbol}
+                                <span
+                                  class="text-xs leading-none font-bold text-base-content"
+                                  >{badge.symbol}</span
+                                >
+                              {/if}
+                              {#if badge.number}
+                                <span
+                                  class="text-[10px] leading-tight font-medium text-base-content/70"
+                                  >{badge.number}</span
+                                >
+                              {/if}
+                            </div>
+                          </div>
+                        </div>
+                      {/if}
                     {/if}
                   </div>
                 </div>

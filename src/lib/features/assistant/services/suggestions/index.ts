@@ -45,9 +45,22 @@ export {
   memoToSuggestion,
   createSuggestionFromMemo,
   isMandatory,
+  isHidden,
   calculatePriority,
-  NEED_RANGES,
   MANDATORY_THRESHOLD,
+  DISPLAY_THRESHOLD,
+  // State update functions
+  initializeRoutineState,
+  initializeDeadlineState,
+  initializeBacklogState,
+  markRoutineAccepted,
+  markRoutineCompleted,
+  markBacklogAccepted,
+  markBacklogCompleted,
+  resetBacklogAcceptance,
+  recordDeadlineSession,
+  resetRoutineAcceptance,
+  calculateDeadlineDuration,
 } from "./suggestion-scoring.ts";
 
 export type { ScoreInput, ScoreOutput } from "./suggestion-scoring.ts";
@@ -113,6 +126,9 @@ export {
   filterActiveMemos,
   resetMemoPeriodsIfNeeded,
   memosToSuggestions,
+  filterVisibleSuggestions,
+  handleAcceptedSuggestions,
+  reduceScoresForAccepted,
   isMemoComplete,
   isRoutineGoalReached,
 } from "./suggestion-engine.ts";

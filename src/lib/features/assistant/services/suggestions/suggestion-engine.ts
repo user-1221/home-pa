@@ -27,8 +27,23 @@ import {
   enrichMemos,
   type LLMEnrichmentConfig,
 } from "./llm-enrichment.ts";
-import { resetPeriodIfNeeded, incrementCompletion } from "./period-utils.ts";
-import { createSuggestionFromMemo } from "./suggestion-scoring.ts";
+import {
+  resetPeriodIfNeeded,
+  incrementCompletion,
+  isSameDay,
+} from "./period-utils.ts";
+import {
+  createSuggestionFromMemo,
+  isHidden,
+  DISPLAY_THRESHOLD,
+  markRoutineAccepted,
+  markRoutineCompleted,
+  markBacklogAccepted,
+  markBacklogCompleted,
+  resetBacklogAcceptance,
+  recordDeadlineSession,
+  resetRoutineAcceptance,
+} from "./suggestion-scoring.ts";
 import {
   scheduleSuggestions,
   type ScheduleResult,
@@ -209,22 +224,83 @@ export function memosToSuggestions(
 }
 
 /**
- * Score reduction factor for accepted memos
+ * Filter out hidden suggestions (need < 0.5)
+ * NEW: Tasks below display threshold should not be shown
+ *
+ * @param suggestions - All suggestions
+ * @returns Only suggestions that should be displayed
+ */
+export function filterVisibleSuggestions(
+  suggestions: Suggestion[],
+): Suggestion[] {
+  return suggestions.filter((s) => !isHidden(s));
+}
+
+/**
+ * Score reduction factor for accepted memos (non-routine types)
  * Ensures their duplicates are always lower priority than mandatory (need >= 1.0)
  */
 const ACCEPTED_SCORE_REDUCTION = 0.5;
 const ACCEPTED_MAX_NEED = 0.85; // Always below mandatory threshold (1.0)
 
 /**
- * Reduce scores for suggestions whose memos are already accepted
+ * Handle accepted-today logic for routine and backlog tasks, score reduction for deadlines
  *
- * When a suggestion is accepted, the same memo may reappear in future
- * repopulation, but with reduced scores so it's always lower priority
- * than mandatory suggestions.
+ * LOGIC:
+ * - Routine tasks: The scoring function (calculateRoutineNeed) already handles
+ *   acceptedToday by treating it as just completed (daysSinceCompletion = 0)
+ *   within the same day. So we don't need special handling here.
+ * - Backlog tasks: The scoring function (calculateBacklogNeed) now handles
+ *   acceptedToday similarly - treating it as just completed within the same day.
+ * - Deadline tasks: Reduce score to lower priority than mandatory
  *
  * @param suggestions - All generated suggestions
- * @param acceptedMemoIds - Set of memo IDs that are already accepted
- * @returns Suggestions with reduced scores for accepted memos
+ * @param acceptedMemoIds - Set of memo IDs that are already accepted today
+ * @param memos - Source memos (to check task state)
+ * @param _currentTime - Current time (unused, kept for API compatibility)
+ * @returns Suggestions with appropriate score adjustments
+ */
+export function handleAcceptedSuggestions(
+  suggestions: Suggestion[],
+  acceptedMemoIds: Set<string>,
+  memos: Memo[],
+  _currentTime: Date,
+): Suggestion[] {
+  // Build memo lookup
+  const memoMap = new Map(memos.map((m) => [m.id, m]));
+
+  return suggestions.map((s) => {
+    if (!acceptedMemoIds.has(s.memoId)) {
+      return s;
+    }
+
+    const memo = memoMap.get(s.memoId);
+
+    // For routine and backlog tasks, the scoring function already handles acceptedToday
+    // by treating it as just completed (daysSinceCompletion = 0) within the same day
+    // So we return the suggestion as-is (with its already-calculated low score)
+    if (memo?.type === "ルーティン" || memo?.type === "バックログ") {
+      return s;
+    }
+
+    // For deadline tasks: reduce scores like before
+    const reducedNeed = Math.min(
+      s.need * ACCEPTED_SCORE_REDUCTION,
+      ACCEPTED_MAX_NEED,
+    );
+    const reducedImportance = s.importance * ACCEPTED_SCORE_REDUCTION;
+
+    return {
+      ...s,
+      need: reducedNeed,
+      importance: reducedImportance,
+    };
+  });
+}
+
+/**
+ * @deprecated Use handleAcceptedSuggestions instead
+ * Kept for backward compatibility
  */
 export function reduceScoresForAccepted(
   suggestions: Suggestion[],
@@ -307,8 +383,10 @@ export class SuggestionEngine {
    * 2. Reset period counters
    * 3. Enrich with LLM (if enabled)
    * 4. Score memos → Suggestions
-   * 5. Enrich gaps with location
-   * 6. Schedule suggestions into gaps
+   * 5. Handle accepted-today logic
+   * 6. Filter hidden suggestions (need < 0.5)
+   * 7. Enrich gaps with location
+   * 8. Schedule suggestions into gaps
    *
    * @param memos - All memos (will filter active ones)
    * @param gaps - Available time gaps
@@ -343,16 +421,22 @@ export class SuggestionEngine {
     // Step 4: Score memos → Suggestions
     let suggestions = memosToSuggestions(enrichedMemos, currentTime);
 
-    // Step 4.5: Reduce scores for already-accepted memos
-    // This allows duplicates but ensures they're always lower priority than mandatory
+    // Step 5: Handle accepted-today logic
+    // NEW: Routine tasks accepted today are treated as done for the day
     if (options.acceptedMemoIds && options.acceptedMemoIds.size > 0) {
-      suggestions = reduceScoresForAccepted(
+      suggestions = handleAcceptedSuggestions(
         suggestions,
         options.acceptedMemoIds,
+        enrichedMemos,
+        currentTime,
       );
     }
 
-    // Step 5: Enrich gaps with location (if events provided)
+    // Step 6: Filter hidden suggestions (need < 0.5)
+    // NEW: Tasks below display threshold are not shown
+    suggestions = filterVisibleSuggestions(suggestions);
+
+    // Step 7: Enrich gaps with location (if events provided)
     let enrichedGaps: Gap[];
     if (options.events && options.events.length > 0) {
       // Merge partial config with defaults
@@ -365,7 +449,7 @@ export class SuggestionEngine {
       enrichedGaps = gaps;
     }
 
-    // Step 6: Schedule suggestions into gaps
+    // Step 8: Schedule suggestions into gaps
     const schedule = scheduleSuggestions(suggestions, enrichedGaps, {
       ...this.config.scheduler,
       durationExtension: this.config.durationExtension,
@@ -391,7 +475,7 @@ export class SuggestionEngine {
    * Updates:
    * - timeSpentMinutes += minutesSpent
    * - lastActivity = now
-   * - completionsThisPeriod++ (for routines)
+   * - Type-specific state updates (new explicit state flags)
    * - completionState = "completed" if done
    *
    * @param memo - The memo that was worked on
@@ -404,7 +488,7 @@ export class SuggestionEngine {
   ): SessionCompleteResult {
     const currentTime = input.currentTime ?? this.config.getCurrentTime();
 
-    // Update time spent
+    // Update time spent and basic status
     let updatedMemo: Memo = {
       ...memo,
       lastActivity: currentTime,
@@ -418,9 +502,28 @@ export class SuggestionEngine {
       },
     };
 
-    // For routines: increment completion count
-    if (updatedMemo.type === "ルーティン") {
-      updatedMemo = incrementCompletion(updatedMemo, currentTime);
+    // Type-specific state updates using new explicit state functions
+    switch (updatedMemo.type) {
+      case "ルーティン":
+        // Update routine state with completion
+        updatedMemo = markRoutineCompleted(updatedMemo, currentTime);
+        // Also use legacy period tracking for backward compatibility
+        updatedMemo = incrementCompletion(updatedMemo, currentTime);
+        break;
+
+      case "期限付き":
+        // Record actual session duration for adaptive curve
+        updatedMemo = recordDeadlineSession(
+          updatedMemo,
+          currentTime,
+          input.minutesSpent,
+        );
+        break;
+
+      case "バックログ":
+        // Update backlog state with completion (also sets acceptedToday)
+        updatedMemo = markBacklogCompleted(updatedMemo, currentTime);
+        break;
     }
 
     // Check if now complete
@@ -467,16 +570,73 @@ export class SuggestionEngine {
    * Generate suggestions without scheduling
    *
    * Useful for previewing what suggestions would be generated.
+   * NEW: Filters out hidden suggestions (need < 0.5)
    *
    * @param memos - Memos to score
    * @param currentTime - Optional time override
-   * @returns Suggestions sorted by priority
+   * @returns Visible suggestions sorted by priority
    */
   generateSuggestions(memos: Memo[], currentTime?: Date): Suggestion[] {
     const time = currentTime ?? this.config.getCurrentTime();
     const activeMemos = filterActiveMemos(memos);
     const withResetPeriods = resetMemoPeriodsIfNeeded(activeMemos, time);
-    return memosToSuggestions(withResetPeriods, time);
+    const suggestions = memosToSuggestions(withResetPeriods, time);
+    // Filter hidden suggestions
+    return filterVisibleSuggestions(suggestions);
+  }
+
+  /**
+   * Mark a suggestion as accepted (without full completion)
+   *
+   * NEW: For routine and backlog tasks, this marks acceptedToday = true
+   * which treats the task as just completed for that day (low score, still visible)
+   *
+   * @param memo - The memo that was accepted
+   * @param currentTime - Optional time override
+   * @returns Updated memo with acceptance state
+   */
+  markAccepted(memo: Memo, currentTime?: Date): Memo {
+    const time = currentTime ?? this.config.getCurrentTime();
+
+    // For routine tasks, use the explicit acceptance tracking
+    if (memo.type === "ルーティン") {
+      return markRoutineAccepted(memo, time);
+    }
+
+    // For backlog tasks, use the explicit acceptance tracking
+    if (memo.type === "バックログ") {
+      return markBacklogAccepted(memo, time);
+    }
+
+    // For other types, just update lastActivity
+    return {
+      ...memo,
+      lastActivity: time,
+    };
+  }
+
+  /**
+   * Mark a routine or backlog task as "missed" - resets acceptedToday flag
+   *
+   * This allows a task that was accepted but not completed
+   * to be suggested again.
+   *
+   * @param memo - The memo that was missed
+   * @param currentTime - Optional time override
+   * @returns Updated memo with reset acceptance state
+   */
+  markMissed(memo: Memo, currentTime?: Date): Memo {
+    const time = currentTime ?? this.config.getCurrentTime();
+
+    if (memo.type === "ルーティン") {
+      return resetRoutineAcceptance(memo, time);
+    }
+
+    if (memo.type === "バックログ") {
+      return resetBacklogAcceptance(memo, time);
+    }
+
+    return memo;
   }
 
   /**
@@ -528,3 +688,18 @@ export function createEngine(
 
 // Re-export commonly used types for convenience
 export type { ScheduleResult, ScheduledBlock } from "./suggestion-scheduler.ts";
+
+// Re-export scoring constants and functions
+export {
+  DISPLAY_THRESHOLD,
+  MANDATORY_THRESHOLD,
+  isHidden,
+  markRoutineAccepted,
+  markRoutineCompleted,
+  markBacklogAccepted,
+  markBacklogCompleted,
+  resetBacklogAcceptance,
+  recordDeadlineSession,
+  resetRoutineAcceptance,
+  importanceToNumber,
+} from "./suggestion-scoring.ts";

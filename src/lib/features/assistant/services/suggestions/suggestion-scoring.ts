@@ -1,26 +1,41 @@
 /**
- * @fileoverview Suggestion Scoring Module
+ * @fileoverview Suggestion Scoring Module (Revised)
  *
  * Calculates need/importance/duration scores for each memo to produce Suggestions.
  * Core of the suggestion engine that determines what tasks to prioritize.
  *
- * Need Score Ranges by Type:
- * - 期限付き (Deadline):  0.1 – 1.0+ (can become mandatory)
- * - ルーティン (Routine): 0.3 – 0.8 (never conflicts with deadlines)
- * - バックログ (Backlog): 0.25 – 0.7 (never conflicts with deadlines)
+ * === NEW SCORING SYSTEM ===
  *
- * Design Principle:
- * - Routine/Backlog have HIGHER minimums → prioritized when no urgent deadlines
- * - Routine/Backlog have LOWER maximums → never override mandatory deadlines
- * - Only Deadline tasks can reach mandatory status (need >= 1.0)
+ * Need Score Thresholds:
+ * - Need < 0.5 → Task NOT displayed
+ * - Need ≥ 1.0 → Task is MANDATORY
+ *
+ * Need Score Ranges by Type:
+ * - ルーティン (Routine):  0.0 – 0.9 (never mandatory)
+ * - 期限付き (Deadline):   0.1 – 1.0 (can become mandatory)
+ * - バックログ (Backlog):  0.5 – 0.7 (never mandatory, slow ramp)
+ *
+ * Importance Score:
+ * - Discrete values only: 0.0, 0.2, 0.4
+ *
+ * Key Design Principles:
+ * - Explicit state flags required (no inference from floats)
+ * - Total-time budgeting removed from Routine and Deadline
+ * - Routine: display cap at 0.49 when weekly goal met
+ * - Deadline: adaptive duration with smoothing
+ * - Backlog: slow saturation (0.02/day over 10 days)
  */
 
-import type { Memo, Suggestion, ImportanceLevel } from "$lib/types.ts";
-import {
-  resetPeriodIfNeeded,
-  getPeriodProgress,
-  isSameDay,
-} from "./period-utils.ts";
+import type {
+  Memo,
+  Suggestion,
+  ImportanceLevel,
+  RoutineState,
+  DeadlineState,
+  BacklogState,
+  DurationPoint,
+} from "$lib/types.ts";
+import { isSameDay, isSameWeek } from "./period-utils.ts";
 
 // ============================================================================
 // TYPES
@@ -29,224 +44,402 @@ import {
 export interface ScoreInput {
   memo: Memo;
   currentTime: Date;
-  userPreferences?: {
-    prioritizeDeadlines?: boolean;
-    routineWeight?: number;
-  };
 }
 
 export interface ScoreOutput {
-  need: number; // 0.0–1.0+ (≥1.0 = mandatory)
-  importance: number; // 0.0–1.0
-  duration: number; // Minutes
+  need: number; // 0.0–1.0 (≥1.0 = mandatory, <0.5 = hidden)
+  importance: number; // Discrete: 0.0, 0.2, 0.4
+  duration: number; // Ideal duration (minutes)
+  minDuration: number; // Minimum acceptable duration
+  isHidden: boolean; // True if need < 0.5
 }
 
 // ============================================================================
 // CONSTANTS
 // ============================================================================
 
-const DAYS_IN_MS = 24 * 60 * 60 * 1000;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/**
- * Need score ranges by memo type
- *
- * Higher minimums for Routine/Backlog = they get priority when no urgent deadlines
- * Lower maximums for Routine/Backlog = they never block mandatory deadlines
- */
-export const NEED_RANGES = {
-  deadline: { min: 0.1, max: 1.0 }, // Can exceed 1.0 when overdue
-  routine: { min: 0.3, max: 0.8 }, // Higher floor, capped ceiling
-  backlog: { min: 0.25, max: 0.7 }, // Higher floor, capped ceiling
-} as const;
+/** Display threshold - tasks below this are hidden */
+export const DISPLAY_THRESHOLD = 0.5;
 
-/** When need >= this value, task is mandatory */
+/** Mandatory threshold - tasks at or above this must be scheduled */
 export const MANDATORY_THRESHOLD = 1.0;
 
 /** Duration bounds */
-const DEFAULT_SESSION_MINUTES = 30;
-const MIN_SESSION_MINUTES = 10;
-const MAX_SESSION_MINUTES = 240;
+const DEFAULT_MIN_DURATION = 15; // minutes
+const DEFAULT_SESSION_DURATION = 30; // minutes
+const MIN_DURATION_FLOOR = 10; // absolute minimum
 
 // ============================================================================
-// NEED CALCULATION - DEADLINE
+// IMPORTANCE CALCULATION (Discrete Values)
 // ============================================================================
 
 /**
- * Calculate need for 期限付き (Deadline) tasks
- *
- * Uses gradient from creation date to deadline:
- * - At creation: need = 0.1 (MIN)
- * - At deadline: need = 1.0 (mandatory)
- * - Overdue: need > 1.0 (escalating)
- *
- * Adjusts by remaining work - mostly done tasks have slightly reduced need
+ * Convert importance level string to discrete numeric value
+ * NEW: Only 0.0, 0.2, 0.4 allowed
  */
-export function calculateDeadlineNeed(memo: Memo, currentTime: Date): number {
-  if (!memo.deadline) return 0.5;
-
-  const MIN_NEED = NEED_RANGES.deadline.min;
-  const MAX_NEED = NEED_RANGES.deadline.max;
-
-  const created = new Date(memo.createdAt);
-  const deadline = new Date(memo.deadline);
-  const now = currentTime;
-
-  // Total time span from creation to deadline
-  const totalSpanMs = deadline.getTime() - created.getTime();
-
-  // Time elapsed since creation
-  const elapsedMs = now.getTime() - created.getTime();
-
-  // Progress factor: more work remaining = higher need multiplier
-  const progressRatio =
-    memo.status.timeSpentMinutes / (memo.totalDurationExpected || 60);
-  const remainingWork = 1 - Math.min(progressRatio, 1);
-
-  // Check if overdue
-  if (now >= deadline) {
-    // Overdue: mandatory, escalating based on days overdue
-    const daysOverdue = (now.getTime() - deadline.getTime()) / DAYS_IN_MS;
-    return MAX_NEED + Math.min(daysOverdue * 0.1, 0.5); // Cap at 1.5
+export function importanceToNumber(importance: ImportanceLevel): number {
+  switch (importance) {
+    case "low":
+      return 0.0;
+    case "medium":
+      return 0.2;
+    case "high":
+      return 0.4;
+    default:
+      return 0.2; // Default to medium
   }
+}
 
-  // Check if due today (same calendar day)
-  if (isSameDay(now, deadline)) {
-    return MAX_NEED; // Due today = mandatory
-  }
-
-  // Handle edge case: deadline is same as or before creation
-  if (totalSpanMs <= 0) {
-    return MAX_NEED; // Treat as due immediately
-  }
-
-  // Calculate gradient position (0.0 at creation, 1.0 at deadline)
-  const gradientPosition = Math.max(0, Math.min(1, elapsedMs / totalSpanMs));
-
-  // Linear interpolation: MIN_NEED → MAX_NEED based on position
-  const baseNeed = MIN_NEED + (MAX_NEED - MIN_NEED) * gradientPosition;
-
-  // Adjust by remaining work (if mostly done, reduce need)
-  // But minimum is still based on time pressure
-  const adjustedNeed = baseNeed * (0.3 + 0.7 * remainingWork);
-
-  return Math.max(MIN_NEED, adjustedNeed);
+/**
+ * Calculate importance score for a memo
+ */
+export function calculateImportance(memo: Memo): number {
+  return importanceToNumber(memo.importance ?? "medium");
 }
 
 // ============================================================================
-// NEED CALCULATION - BACKLOG
+// ROUTINE SCORING (0.0 - 0.9)
 // ============================================================================
 
 /**
- * Calculate need for バックログ (Backlog) tasks
- *
- * Based on time since last activity:
- * - Longer neglect = higher need
- * - Range: 0.25 (min) to 0.7 (max) — never conflicts with mandatory deadlines
- * - Higher minimum than deadline tasks = prioritized when no urgent deadlines
+ * Initialize routine state if not present
  */
-export function calculateBacklogNeed(memo: Memo, currentTime: Date): number {
-  const { min, max } = NEED_RANGES.backlog;
-  const range = max - min;
-
-  const lastActivity = memo.lastActivity ? new Date(memo.lastActivity) : null;
-
-  // Progress factor: more work remaining = higher need multiplier
-  const progressRatio =
-    memo.status.timeSpentMinutes / (memo.totalDurationExpected || 60);
-  const remainingWork = 1 - Math.min(progressRatio, 1);
-
-  // If never worked on, use high-end of range
-  if (!lastActivity) {
-    return min + range * 0.8 * remainingWork; // ~0.61 if no progress
-  }
-
-  const daysSinceActivity =
-    (currentTime.getTime() - lastActivity.getTime()) / DAYS_IN_MS;
-
-  // Neglect factor: 0.0 (just worked on) to 1.0 (very neglected)
-  let neglectFactor: number;
-  if (daysSinceActivity < 1) {
-    neglectFactor = 0.0; // Worked on today
-  } else if (daysSinceActivity < 3) {
-    neglectFactor = 0.3; // Recent activity
-  } else if (daysSinceActivity < 7) {
-    neglectFactor = 0.6; // Week old
-  } else if (daysSinceActivity < 14) {
-    neglectFactor = 0.85; // Two weeks
-  } else {
-    neglectFactor = 1.0; // Very neglected
-  }
-
-  // Combine neglect and remaining work
-  const combinedFactor = neglectFactor * (0.3 + 0.7 * remainingWork);
-
-  return min + range * combinedFactor;
+export function initializeRoutineState(
+  memo: Memo,
+  currentTime: Date,
+): RoutineState {
+  return (
+    memo.routineState ?? {
+      acceptedToday: false,
+      completedToday: false,
+      completedCountThisWeek: 0,
+      lastCompletedDay: null,
+      wasCappedThisWeek: false,
+      weekStartDate: getWeekStart(currentTime),
+    }
+  );
 }
 
-// ============================================================================
-// NEED CALCULATION - ROUTINE
-// ============================================================================
-
-/** Minimum hours between routine task suggestions after completion */
-const ROUTINE_COOLDOWN_HOURS = 4;
+/**
+ * Get the start of the week (Monday) for a given date
+ */
+function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Monday start
+  return new Date(d.setDate(diff));
+}
 
 /**
- * Calculate need for ルーティン (Routine) tasks
+ * Check if routine state needs week reset
+ */
+function shouldResetRoutineWeek(
+  state: RoutineState,
+  currentTime: Date,
+): boolean {
+  if (!state.weekStartDate) return true;
+  return !isSameWeek(state.weekStartDate, currentTime);
+}
+
+/**
+ * Calculate need score for ルーティン (Routine) tasks
  *
- * Based on recurrence goal fulfillment:
- * - { count: 3, period: "week" } with 1 done = behind schedule
- * - Range: 0.3 (min) to 0.8 (max) — never conflicts with mandatory deadlines
- * - Routines can NEVER become mandatory (capped at 0.8)
- * - Recently completed routines get reduced priority (cooldown period)
+ * Frequency-based growth model:
+ * - Growth rate: Δ = 0.9 / (7 / goal_count) per day
+ * - Score reaches 0.9 at each ideal interval
+ * - Display capped at 0.49 when weekly goal met
+ *
+ * Range: 0.0 – 0.9 (never mandatory)
  */
 export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
-  const { min, max } = NEED_RANGES.routine;
-  const range = max - min;
+  const state = initializeRoutineState(memo, currentTime);
+  const goal = memo.recurrenceGoal;
 
-  // No recurrence goal? Use mid-range default
-  if (!memo.recurrenceGoal) {
-    return min + range * 0.4;
+  // Default goal: 3 times per week
+  const goalCount = goal?.count ?? 3;
+
+  // Calculate ideal interval and growth rate
+  const idealIntervalDays = 7 / goalCount;
+  const dailyGrowth = 0.9 / idealIntervalDays;
+
+  // Days since last completion
+  let daysSinceCompletion: number;
+
+  // Check if accepted today (within same day) - treat as if just completed
+  if (state.acceptedToday && state.lastCompletedDay) {
+    const lastCompleted = new Date(state.lastCompletedDay);
+    // Only apply "accepted today" logic if it's still the same day
+    if (isSameDay(lastCompleted, currentTime)) {
+      // Accepted today - treat as if just completed (daysSinceCompletion = 0)
+      daysSinceCompletion = 0;
+    } else {
+      // New day - use normal calculation
+      daysSinceCompletion =
+        (currentTime.getTime() - lastCompleted.getTime()) / MS_PER_DAY;
+    }
+  } else if (state.lastCompletedDay) {
+    // Normal case: use last completion date
+    const lastCompleted = new Date(state.lastCompletedDay);
+    daysSinceCompletion =
+      (currentTime.getTime() - lastCompleted.getTime()) / MS_PER_DAY;
+  } else {
+    // Never completed - use days since creation
+    daysSinceCompletion =
+      (currentTime.getTime() - new Date(memo.createdAt).getTime()) / MS_PER_DAY;
   }
 
-  const { count, period } = memo.recurrenceGoal;
-  const completions = memo.status.completionsThisPeriod ?? 0;
-  const remaining = count - completions;
+  // Calculate base score
+  let score = daysSinceCompletion * dailyGrowth;
 
-  // Goal met for this period — use minimum
-  if (remaining <= 0) {
-    return min;
+  // Handle week boundary
+  if (shouldResetRoutineWeek(state, currentTime)) {
+    // New week - check if was capped last week
+    if (state.wasCappedThisWeek) {
+      // Case A: Was capped - resume from 0.49 + growth since last completion
+      score = 0.49 + daysSinceCompletion * dailyGrowth;
+    }
+    // Case B: Was not capped - continue uninterrupted (already calculated)
   }
 
-  // Check if recently completed (cooldown period)
-  // If lastActivity is within ROUTINE_COOLDOWN_HOURS, reduce priority significantly
-  const lastActivity = memo.lastActivity ? new Date(memo.lastActivity) : null;
-  if (lastActivity) {
-    const hoursSinceActivity =
-      (currentTime.getTime() - lastActivity.getTime()) / (1000 * 60 * 60);
-    if (hoursSinceActivity < ROUTINE_COOLDOWN_HOURS) {
-      // Very low priority during cooldown (but not zero, in case it's urgent)
-      return min * 0.5;
+  // Cap at 0.9 (routine never mandatory)
+  score = Math.min(score, 0.9);
+
+  // Weekly goal display cap
+  if (state.completedCountThisWeek >= goalCount) {
+    // Cap displayed score at 0.49
+    score = Math.min(score, 0.49);
+  }
+
+  return Math.max(0, score);
+}
+
+// ============================================================================
+// DEADLINE SCORING (0.1 - 1.0)
+// ============================================================================
+
+/**
+ * Initialize deadline state if not present
+ */
+export function initializeDeadlineState(
+  memo: Memo,
+  _currentTime: Date,
+): DeadlineState {
+  if (memo.deadlineState) {
+    return memo.deadlineState;
+  }
+
+  const createdDay = new Date(memo.createdAt);
+  const deadlineDay = memo.deadline ? new Date(memo.deadline) : createdDay;
+  const minDuration = memo.sessionDuration ?? DEFAULT_MIN_DURATION;
+
+  // Generate expected duration curve (linear from min to 5x min)
+  const expectedDurationPoints = generateExpectedDurationCurve(
+    createdDay,
+    deadlineDay,
+    minDuration,
+  );
+
+  return {
+    createdDay,
+    deadlineDay,
+    lastCompletedDay: null,
+    actualDurationPoints: [],
+    expectedDurationPoints,
+    smoothedMultiplier: 1.0,
+  };
+}
+
+/**
+ * Generate expected duration curve from creation to deadline
+ * Duration scales from min_duration to 5 × min_duration
+ */
+function generateExpectedDurationCurve(
+  createdDay: Date,
+  deadlineDay: Date,
+  minDuration: number,
+): DurationPoint[] {
+  const points: DurationPoint[] = [];
+  const totalDays = Math.max(
+    1,
+    Math.ceil((deadlineDay.getTime() - createdDay.getTime()) / MS_PER_DAY),
+  );
+
+  for (let i = 0; i <= totalDays; i++) {
+    const day = new Date(createdDay.getTime() + i * MS_PER_DAY);
+    // Linear interpolation: min_duration → 5 × min_duration
+    const progress = totalDays > 0 ? i / totalDays : 1;
+    const duration = minDuration * (1 + 4 * progress);
+    points.push({ day, duration: Math.round(duration) });
+  }
+
+  return points;
+}
+
+/**
+ * Calculate need score for 期限付き (Deadline) tasks
+ *
+ * Linear growth from creation to deadline:
+ * - At creation: 0.1
+ * - Day before deadline: 1.0 (mandatory)
+ * - At/after deadline: 1.0 (stays mandatory)
+ *
+ * Range: 0.1 – 1.0
+ */
+export function calculateDeadlineNeed(memo: Memo, currentTime: Date): number {
+  const state = initializeDeadlineState(memo, currentTime);
+
+  const created = new Date(state.createdDay);
+  const deadline = new Date(state.deadlineDay);
+  const now = currentTime;
+
+  // Total days from creation to deadline
+  const totalDays = Math.max(
+    1,
+    (deadline.getTime() - created.getTime()) / MS_PER_DAY,
+  );
+
+  // Days elapsed since creation
+  const elapsedDays = (now.getTime() - created.getTime()) / MS_PER_DAY;
+
+  // Progress ratio (0 at creation, 1 at deadline)
+  const progress = Math.max(0, elapsedDays / totalDays);
+
+  // Linear interpolation: 0.1 → 1.0
+  // Reaches 1.0 on day before deadline (progress = 1 - 1/totalDays approx)
+  let score: number;
+
+  if (totalDays <= 1) {
+    // Very short deadline - immediately approach 1.0
+    score = 1.0;
+  } else if (progress >= 1) {
+    // At or past deadline - mandatory
+    score = 1.0;
+  } else {
+    // Linear growth: reaches 1.0 at progress = (totalDays - 1) / totalDays
+    const effectiveProgress = progress * (totalDays / (totalDays - 1));
+    score = 0.1 + 0.9 * Math.min(effectiveProgress, 1);
+  }
+
+  // Cap at 1.0 (no escalation beyond mandatory)
+  return Math.min(score, 1.0);
+}
+
+/**
+ * Calculate suggested duration for deadline task using adaptive model
+ *
+ * Uses smoothed duration curve with constraints:
+ * - min_duration ≤ duration ≤ 5 × min_duration
+ * - Smoothing factor α ≤ 0.3 to prevent instability
+ */
+export function calculateDeadlineDuration(
+  memo: Memo,
+  currentTime: Date,
+): { duration: number; minDuration: number } {
+  const state = initializeDeadlineState(memo, currentTime);
+  const minDuration = memo.sessionDuration ?? DEFAULT_MIN_DURATION;
+  const maxDuration = minDuration * 5;
+
+  // Find expected duration for today
+  const today = currentTime;
+  let expectedDuration = minDuration;
+
+  for (const point of state.expectedDurationPoints) {
+    if (isSameDay(new Date(point.day), today)) {
+      expectedDuration = point.duration;
+      break;
+    }
+    // Use closest previous point
+    if (new Date(point.day) < today) {
+      expectedDuration = point.duration;
     }
   }
 
-  // Calculate how much of the period is left
-  const periodProgress = getPeriodProgress(currentTime, period);
-  const timeRemainingRatio = 1 - periodProgress;
-  const completionsNeededRatio = remaining / count;
+  // Apply smoothed multiplier from actual data
+  let adjustedDuration = expectedDuration * state.smoothedMultiplier;
 
-  // Urgency factor: how behind schedule are we?
-  // 1.0 = on track, >1.0 = behind schedule
-  const urgencyFactor =
-    completionsNeededRatio / Math.max(timeRemainingRatio, 0.1);
+  // Apply constraints
+  adjustedDuration = Math.max(
+    minDuration,
+    Math.min(maxDuration, adjustedDuration),
+  );
 
-  // Map urgency to need within our range
-  // urgencyFactor 0.5 (ahead) → low end of range
-  // urgencyFactor 1.0 (on track) → middle of range
-  // urgencyFactor 2.0+ (very behind) → high end of range (but capped at max)
-  const normalizedUrgency = Math.min((urgencyFactor - 0.5) / 1.5, 1.0);
-  const clampedUrgency = Math.max(0, normalizedUrgency);
+  return {
+    duration: Math.round(adjustedDuration),
+    minDuration: Math.max(MIN_DURATION_FLOOR, minDuration),
+  };
+}
 
-  return min + range * clampedUrgency;
+// ============================================================================
+// BACKLOG SCORING (0.5 - 0.7)
+// ============================================================================
+
+/**
+ * Initialize backlog state if not present
+ */
+export function initializeBacklogState(memo: Memo): BacklogState {
+  return (
+    memo.backlogState ?? {
+      acceptedToday: false,
+      lastCompletedDay: memo.lastActivity ? new Date(memo.lastActivity) : null,
+    }
+  );
+}
+
+/**
+ * Calculate need score for バックログ (Backlog) tasks
+ *
+ * Slow ramp model:
+ * - Base score: 0.5
+ * - Growth: +0.02 per day since last completion
+ * - Saturates at 0.7 after 10 days
+ * - Resets to 0.5 on completion
+ *
+ * Range: 0.5 – 0.7 (never mandatory, always visible)
+ */
+export function calculateBacklogNeed(memo: Memo, currentTime: Date): number {
+  const state = initializeBacklogState(memo);
+
+  const BASE_SCORE = 0.5;
+  const MAX_SCORE = 0.7;
+  const DAILY_GROWTH = 0.02;
+  const SATURATION_DAYS = 10; // (0.7 - 0.5) / 0.02 = 10
+
+  // Days since last completion
+  let daysSinceCompletion: number;
+
+  // Check if accepted today (within same day) - treat as if just completed
+  if (state.acceptedToday && state.lastCompletedDay) {
+    const lastCompleted = new Date(state.lastCompletedDay);
+    // Only apply "accepted today" logic if it's still the same day
+    if (isSameDay(lastCompleted, currentTime)) {
+      // Accepted today - treat as if just completed (daysSinceCompletion = 0)
+      daysSinceCompletion = 0;
+    } else {
+      // New day - use normal calculation
+      daysSinceCompletion =
+        (currentTime.getTime() - lastCompleted.getTime()) / MS_PER_DAY;
+    }
+  } else if (state.lastCompletedDay) {
+    // Normal case: use last completion date
+    const lastCompleted = new Date(state.lastCompletedDay);
+    daysSinceCompletion =
+      (currentTime.getTime() - lastCompleted.getTime()) / MS_PER_DAY;
+  } else {
+    // Never completed - use days since creation
+    daysSinceCompletion =
+      (currentTime.getTime() - new Date(memo.createdAt).getTime()) / MS_PER_DAY;
+    // Cap at saturation days for new tasks
+    daysSinceCompletion = Math.min(daysSinceCompletion, SATURATION_DAYS);
+  }
+
+  // Calculate score with saturation
+  const score =
+    BASE_SCORE +
+    Math.min(daysSinceCompletion * DAILY_GROWTH, MAX_SCORE - BASE_SCORE);
+
+  return Math.min(score, MAX_SCORE);
 }
 
 // ============================================================================
@@ -259,51 +452,15 @@ export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
  */
 export function calculateNeed(memo: Memo, currentTime: Date): number {
   switch (memo.type) {
+    case "ルーティン":
+      return calculateRoutineNeed(memo, currentTime);
     case "期限付き":
       return calculateDeadlineNeed(memo, currentTime);
     case "バックログ":
       return calculateBacklogNeed(memo, currentTime);
-    case "ルーティン":
-      return calculateRoutineNeed(memo, currentTime);
     default:
-      return 0.5; // Default medium need
+      return 0.5; // Default to display threshold
   }
-}
-
-// ============================================================================
-// IMPORTANCE CALCULATION
-// ============================================================================
-
-/**
- * Convert importance level string to numeric value
- */
-export function importanceToNumber(importance: ImportanceLevel): number {
-  switch (importance) {
-    case "low":
-      return 0.3;
-    case "medium":
-      return 0.6;
-    case "high":
-      return 0.9;
-    default:
-      return 0.6;
-  }
-}
-
-/**
- * Calculate importance score for a memo
- * Currently uses direct conversion; can add modifiers later
- * (e.g., streak bonuses, reaction history adjustments)
- */
-export function calculateImportance(memo: Memo): number {
-  const base = importanceToNumber(memo.importance || "medium");
-
-  // Future: Add modifiers here based on:
-  // - User reaction history (frequently rejected = lower)
-  // - Streak bonuses
-  // - Time-sensitive adjustments
-
-  return base;
 }
 
 // ============================================================================
@@ -319,32 +476,28 @@ export function clamp(value: number, min: number, max: number): number {
 
 /**
  * Select session duration for a memo
- *
- * Priority:
- * 1. Use explicit sessionDuration if set
- * 2. Fallback: totalDurationExpected / 4
- * 3. Default: 30 minutes
- *
- * Always clamped to 15-120 minutes
+ * Returns both ideal duration and minimum acceptable duration
  */
-export function selectDuration(memo: Memo): number {
-  // Use explicit session duration if set
-  if (memo.sessionDuration && memo.sessionDuration > 0) {
-    return clamp(
-      memo.sessionDuration,
-      MIN_SESSION_MINUTES,
-      MAX_SESSION_MINUTES,
-    );
+export function selectDuration(
+  memo: Memo,
+  currentTime: Date,
+): { duration: number; minDuration: number } {
+  // Deadline tasks use adaptive duration
+  if (memo.type === "期限付き") {
+    return calculateDeadlineDuration(memo, currentTime);
   }
 
-  // Fallback: estimate from total expected
-  if (memo.totalDurationExpected && memo.totalDurationExpected > 0) {
-    // Divide into ~4 sessions
-    const estimated = Math.ceil(memo.totalDurationExpected / 4);
-    return clamp(estimated, MIN_SESSION_MINUTES, MAX_SESSION_MINUTES);
-  }
+  // Other types use sessionDuration or defaults
+  const baseDuration = memo.sessionDuration ?? DEFAULT_SESSION_DURATION;
+  const minDuration = Math.max(
+    MIN_DURATION_FLOOR,
+    Math.min(baseDuration, DEFAULT_MIN_DURATION),
+  );
 
-  return DEFAULT_SESSION_MINUTES;
+  return {
+    duration: baseDuration,
+    minDuration,
+  };
 }
 
 // ============================================================================
@@ -358,13 +511,17 @@ export function selectDuration(memo: Memo): number {
 export function scoreMemo(input: ScoreInput): ScoreOutput {
   const { memo, currentTime } = input;
 
-  // Reset period counter if needed (for ルーティン)
-  const normalizedMemo = resetPeriodIfNeeded(memo, currentTime);
+  const need = calculateNeed(memo, currentTime);
+  const importance = calculateImportance(memo);
+  const { duration, minDuration } = selectDuration(memo, currentTime);
+  const isHidden = need < DISPLAY_THRESHOLD;
 
   return {
-    need: calculateNeed(normalizedMemo, currentTime),
-    importance: calculateImportance(normalizedMemo),
-    duration: selectDuration(normalizedMemo),
+    need,
+    importance,
+    duration,
+    minDuration,
+    isHidden,
   };
 }
 
@@ -379,7 +536,9 @@ export function memoToSuggestion(memo: Memo, score: ScoreOutput): Suggestion {
     need: score.need,
     importance: score.importance,
     duration: score.duration,
+    minDuration: score.minDuration,
     locationPreference: memo.locationPreference,
+    isHidden: score.isHidden,
   };
 }
 
@@ -403,9 +562,202 @@ export function isMandatory(suggestion: Suggestion): boolean {
 }
 
 /**
+ * Check if a suggestion should be hidden (below display threshold)
+ */
+export function isHidden(suggestion: Suggestion): boolean {
+  return suggestion.need < DISPLAY_THRESHOLD || suggestion.isHidden === true;
+}
+
+/**
  * Calculate priority for sorting suggestions
  * Higher priority = scheduled first
  */
 export function calculatePriority(suggestion: Suggestion): number {
-  return suggestion.need * suggestion.importance;
+  return suggestion.need + suggestion.importance;
+}
+
+// ============================================================================
+// STATE UPDATE FUNCTIONS
+// ============================================================================
+
+/**
+ * Update routine state when task is accepted
+ */
+export function markRoutineAccepted(memo: Memo, currentTime: Date): Memo {
+  if (memo.type !== "ルーティン") return memo;
+
+  const state = initializeRoutineState(memo, currentTime);
+
+  // Check for week reset
+  const needsWeekReset = shouldResetRoutineWeek(state, currentTime);
+
+  return {
+    ...memo,
+    routineState: {
+      ...state,
+      acceptedToday: true,
+      // Reset week state if needed
+      completedCountThisWeek: needsWeekReset ? 0 : state.completedCountThisWeek,
+      wasCappedThisWeek: needsWeekReset ? false : state.wasCappedThisWeek,
+      weekStartDate: needsWeekReset
+        ? getWeekStart(currentTime)
+        : state.weekStartDate,
+    },
+    lastActivity: currentTime,
+  };
+}
+
+/**
+ * Update routine state when task is completed
+ */
+export function markRoutineCompleted(memo: Memo, currentTime: Date): Memo {
+  if (memo.type !== "ルーティン") return memo;
+
+  const state = initializeRoutineState(memo, currentTime);
+  const goal = memo.recurrenceGoal;
+  const goalCount = goal?.count ?? 3;
+
+  // Check for week reset
+  const needsWeekReset = shouldResetRoutineWeek(state, currentTime);
+  const baseCount = needsWeekReset ? 0 : state.completedCountThisWeek;
+  const newCount = baseCount + 1;
+
+  // Check if cap should be applied
+  const wasCapped = needsWeekReset ? false : state.wasCappedThisWeek;
+  const shouldCap = newCount >= goalCount;
+
+  return {
+    ...memo,
+    routineState: {
+      ...state,
+      acceptedToday: true,
+      completedToday: true,
+      completedCountThisWeek: newCount,
+      lastCompletedDay: currentTime,
+      wasCappedThisWeek: wasCapped || shouldCap,
+      weekStartDate: needsWeekReset
+        ? getWeekStart(currentTime)
+        : state.weekStartDate,
+    },
+    lastActivity: currentTime,
+  };
+}
+
+/**
+ * Update deadline state when task session is completed
+ * Records actual duration and updates smoothed curve
+ */
+export function recordDeadlineSession(
+  memo: Memo,
+  currentTime: Date,
+  actualDuration: number,
+): Memo {
+  if (memo.type !== "期限付き") return memo;
+
+  const state = initializeDeadlineState(memo, currentTime);
+  const SMOOTHING_ALPHA = 0.3;
+
+  // Add actual duration point
+  const newActualPoints: DurationPoint[] = [
+    ...state.actualDurationPoints,
+    { day: currentTime, duration: actualDuration },
+  ];
+
+  // Calculate new smoothed multiplier
+  // Compare actual duration to expected duration for today
+  const minDuration = memo.sessionDuration ?? DEFAULT_MIN_DURATION;
+  let expectedToday = minDuration;
+  for (const point of state.expectedDurationPoints) {
+    if (isSameDay(new Date(point.day), currentTime)) {
+      expectedToday = point.duration;
+      break;
+    }
+  }
+
+  const actualRatio = actualDuration / expectedToday;
+  const newMultiplier =
+    SMOOTHING_ALPHA * actualRatio +
+    (1 - SMOOTHING_ALPHA) * state.smoothedMultiplier;
+
+  return {
+    ...memo,
+    deadlineState: {
+      ...state,
+      lastCompletedDay: currentTime,
+      actualDurationPoints: newActualPoints,
+      smoothedMultiplier: newMultiplier,
+    },
+    lastActivity: currentTime,
+  };
+}
+
+/**
+ * Update backlog state when task is accepted (not fully completed)
+ */
+export function markBacklogAccepted(memo: Memo, currentTime: Date): Memo {
+  if (memo.type !== "バックログ") return memo;
+
+  const state = initializeBacklogState(memo);
+
+  return {
+    ...memo,
+    backlogState: {
+      acceptedToday: true,
+      lastCompletedDay: currentTime, // Set as if completed today
+    },
+    lastActivity: currentTime,
+  };
+}
+
+/**
+ * Update backlog state when task is completed
+ */
+export function markBacklogCompleted(memo: Memo, currentTime: Date): Memo {
+  if (memo.type !== "バックログ") return memo;
+
+  return {
+    ...memo,
+    backlogState: {
+      acceptedToday: true,
+      lastCompletedDay: currentTime,
+    },
+    lastActivity: currentTime,
+  };
+}
+
+/**
+ * Reset backlog acceptance for a new day
+ * Call this when day changes or when task is marked as "missed"
+ */
+export function resetBacklogAcceptance(memo: Memo, currentTime: Date): Memo {
+  if (memo.type !== "バックログ") return memo;
+
+  const state = initializeBacklogState(memo);
+
+  return {
+    ...memo,
+    backlogState: {
+      ...state,
+      acceptedToday: false,
+    },
+  };
+}
+
+/**
+ * Reset routine acceptance for a new day
+ * Call this when day changes or when task is marked as "missed"
+ */
+export function resetRoutineAcceptance(memo: Memo, currentTime: Date): Memo {
+  if (memo.type !== "ルーティン") return memo;
+
+  const state = initializeRoutineState(memo, currentTime);
+
+  return {
+    ...memo,
+    routineState: {
+      ...state,
+      acceptedToday: false,
+      completedToday: false,
+    },
+  };
 }

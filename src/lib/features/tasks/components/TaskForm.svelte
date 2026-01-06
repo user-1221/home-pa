@@ -77,11 +77,12 @@
   $effect(() => {
     if ($isTaskFormEditing) {
       // Open advanced settings if there are any LLM-enriched values to edit
+      // Note: totalDurationExpected only applies to backlog tasks now
       const hasEnrichedValues =
         $taskForm.genre ||
         $taskForm.importance ||
         $taskForm.sessionDuration ||
-        $taskForm.totalDurationExpected;
+        ($taskForm.type === "バックログ" && $taskForm.totalDurationExpected);
       if (hasEnrichedValues) {
         showAdvancedSettings = true;
       }
@@ -422,30 +423,33 @@
                     />
                   </div>
 
-                  <div class="form-control">
-                    <label class="label" for="totalDuration">
-                      <span
-                        class="label-text text-sm text-[var(--color-text-secondary)]"
-                        >合計所要時間（分）</span
-                      >
-                    </label>
-                    <input
-                      id="totalDuration"
-                      type="number"
-                      min="5"
-                      max="9999"
-                      placeholder="例: 120"
-                      class="input-bordered input w-full"
-                      value={$taskForm.totalDurationExpected ?? ""}
-                      onchange={(e) => {
-                        const val = e.currentTarget.value;
-                        taskFormActions.updateField(
-                          "totalDurationExpected",
-                          val ? parseInt(val, 10) : null,
-                        );
-                      }}
-                    />
-                  </div>
+                  <!-- Total Duration: Only show for backlog tasks (removed from routine and deadline) -->
+                  {#if $taskForm.type === "バックログ"}
+                    <div class="form-control">
+                      <label class="label" for="totalDuration">
+                        <span
+                          class="label-text text-sm text-[var(--color-text-secondary)]"
+                          >合計所要時間（分）</span
+                        >
+                      </label>
+                      <input
+                        id="totalDuration"
+                        type="number"
+                        min="5"
+                        max="9999"
+                        placeholder="例: 120"
+                        class="input-bordered input w-full"
+                        value={$taskForm.totalDurationExpected ?? ""}
+                        onchange={(e) => {
+                          const val = e.currentTarget.value;
+                          taskFormActions.updateField(
+                            "totalDurationExpected",
+                            val ? parseInt(val, 10) : null,
+                          );
+                        }}
+                      />
+                    </div>
+                  {/if}
                 {/if}
               </div>
             {/if}

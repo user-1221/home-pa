@@ -72,6 +72,54 @@ export interface MemoStatus {
   periodStartDate?: Date; // When current tracking period started
 }
 
+// ============================================================================
+// EXPLICIT STATE FLAGS (Required for new scoring system)
+// ============================================================================
+
+/**
+ * Explicit state flags for Routine tasks
+ * No inference from floating values allowed
+ */
+export interface RoutineState {
+  acceptedToday: boolean; // If true, task is done for the day (unless missed)
+  completedToday: boolean; // Actually completed (not just accepted)
+  completedCountThisWeek: number; // Count of completions this week
+  lastCompletedDay: Date | null; // Date of last completion
+  wasCappedThisWeek: boolean; // True if 0.5 display cap was ever active this week
+  weekStartDate: Date | null; // Start of current tracking week
+}
+
+/**
+ * Duration data point for adaptive deadline duration curve
+ */
+export interface DurationPoint {
+  day: Date;
+  duration: number; // minutes
+}
+
+/**
+ * Explicit state flags for Deadline tasks
+ * Includes adaptive duration curve state
+ */
+export interface DeadlineState {
+  createdDay: Date;
+  deadlineDay: Date;
+  lastCompletedDay: Date | null;
+  actualDurationPoints: DurationPoint[]; // User-completed durations
+  // Curves stored as coefficients or serializable form
+  // For simplicity: store as array of expected points
+  expectedDurationPoints: DurationPoint[]; // Baseline expected durations
+  smoothedMultiplier: number; // Smoothed adjustment factor (default 1.0)
+}
+
+/**
+ * Explicit state flags for Backlog tasks
+ */
+export interface BacklogState {
+  acceptedToday: boolean; // If true, task is treated as done for the day (unless missed)
+  lastCompletedDay: Date | null;
+}
+
 /**
  * Location preference for where a memo/task can be done
  */
@@ -109,10 +157,17 @@ export interface Memo {
   recurrenceGoal?: RecurrenceGoal; // For ルーティン, structured goal
   locationPreference: LocationPreference;
   status: MemoStatus;
-  sessionDuration?: number; // 1回のセッションの時間 (minutes) - LLM-suggested
+  sessionDuration?: number; // 1回のセッションの時間 (minutes) - LLM-suggested (min_duration)
   totalDurationExpected?: number; // Total expected time (minutes) - LLM-suggested
   lastActivity?: Date;
   importance?: ImportanceLevel; // LLM-suggested if not provided
+
+  // ============================================================================
+  // EXPLICIT STATE FLAGS (New scoring system - type-specific)
+  // ============================================================================
+  routineState?: RoutineState; // Only for ルーティン type
+  deadlineState?: DeadlineState; // Only for 期限付き type
+  backlogState?: BacklogState; // Only for バックログ type
 }
 
 /**
@@ -122,10 +177,12 @@ export interface Memo {
 export interface Suggestion {
   id: string;
   memoId: string; // Reference to source memo
-  need: number; // 0.0–1.0+ (≥1.0 = mandatory)
-  importance: number; // 0.0–1.0
-  duration: number; // Minutes for this session
+  need: number; // 0.0–1.0 (≥1.0 = mandatory, <0.5 = hidden)
+  importance: number; // Discrete: 0.0, 0.2, or 0.4
+  duration: number; // Ideal duration (minutes) - can be shortened for mandatory
+  minDuration: number; // Minimum acceptable duration (minutes)
   locationPreference: LocationPreference;
+  isHidden?: boolean; // True if need < 0.5 (should not be displayed)
 }
 
 /**
