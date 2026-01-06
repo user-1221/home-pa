@@ -1,6 +1,5 @@
 <git>
-Push to `fork dev` by default: `git push fork dev`
-Use `fork` remote for personal development, `origin` only when requested.
+Push to `origin dev` by default: `git push origin dev`
 </git>
 
 <stack>
