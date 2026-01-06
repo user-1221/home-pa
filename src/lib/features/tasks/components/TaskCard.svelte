@@ -236,93 +236,170 @@
     {/if}
 
     <div class="card-body gap-2 p-4">
-      <!-- Title row -->
-      <div class="flex items-center justify-between gap-2">
-        <h3
-          class="card-title flex-1 text-base"
-          class:line-through={task.status.completionState === "completed"}
-        >
-          {task.title}
-        </h3>
-        <div class="flex flex-wrap items-center gap-1.5">
-          <span
-            class="badge badge-outline badge-sm text-[0.7rem] tracking-wider uppercase"
-            >{typeLabel}</span
-          >
-          {#if genreLabel()}
-            <span
-              class="badge bg-[var(--color-surface-100)] badge-sm text-[var(--color-text-primary)]"
-              >{genreLabel()}</span
+      <div class="flex items-center gap-4">
+        <!-- Left column: Content -->
+        <div class="min-w-0 flex-1">
+          <!-- Title + badges in a single column so title can use full width up to the progress ring -->
+          <div class="flex flex-col gap-1">
+            <h3
+              class="card-title text-base"
+              class:line-through={task.status.completionState === "completed"}
             >
-          {/if}
-          {#if sessionDurationLabel()}
-            <span
-              class="badge bg-[var(--color-primary-100)] badge-sm text-[var(--color-primary-800)]"
-              >{sessionDurationLabel()}</span
-            >
-          {/if}
-        </div>
-      </div>
-
-      <!-- Meta info -->
-      <div class="flex items-center justify-between gap-1.5 text-sm">
-        <div class="flex flex-wrap items-center gap-1.5">
-          {#if task.type === "期限付き" && task.deadline}
-            <div
-              class="flex items-center gap-1"
-              class:text-error={isUrgent()}
-              class:font-medium={isUrgent()}
-            >
-              <span>{deadlineText()}</span>
+              {task.title}
+            </h3>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span
+                class="badge badge-outline badge-sm text-[0.7rem] tracking-wider uppercase"
+                >{typeLabel}</span
+              >
+              {#if genreLabel()}
+                <span
+                  class="badge bg-[var(--color-surface-100)] badge-sm text-[var(--color-text-primary)]"
+                  >{genreLabel()}</span
+                >
+              {/if}
+              {#if sessionDurationLabel()}
+                <span
+                  class="badge bg-[var(--color-primary-100)] badge-sm text-[var(--color-primary-800)]"
+                  >{sessionDurationLabel()}</span
+                >
+              {/if}
             </div>
-          {/if}
+          </div>
 
-          {#if task.type === "ルーティン" && routineProgress()}
-            {@const prog = routineProgress()}
+          <!-- Meta info -->
+          <div class="mt-1 flex items-center justify-between gap-1.5 text-sm">
+            <div class="flex flex-wrap items-center gap-1.5">
+              {#if task.type === "期限付き" && task.deadline}
+                <div
+                  class="flex items-center gap-1"
+                  class:text-error={isUrgent()}
+                  class:font-medium={isUrgent()}
+                >
+                  <span>{deadlineText()}</span>
+                </div>
+              {/if}
+
+              {#if task.type === "ルーティン" && routineProgress()}
+                {@const prog = routineProgress()}
+                <div
+                  class="flex items-center gap-1 text-[var(--color-text-secondary)]"
+                >
+                  <span
+                    >{prog?.done}/{prog?.goal} this {task.recurrenceGoal
+                      ?.period}</span
+                  >
+                </div>
+              {/if}
+            </div>
+
             <div
               class="flex items-center gap-1 text-[var(--color-text-secondary)]"
             >
-              <span
-                >{prog?.done}/{prog?.goal} this {task.recurrenceGoal
-                  ?.period}</span
-              >
+              <span>{locationLabel}</span>
             </div>
-          {/if}
+          </div>
         </div>
 
-        <div class="flex items-center gap-1 text-[var(--color-text-secondary)]">
-          <span>{locationLabel}</span>
-        </div>
-      </div>
-
-      <!-- Progress bar, Time text and Desktop Action buttons -->
-      <div class="flex items-center gap-2">
-        {#if task.type === "ルーティン" && routineProgress()}
-          {@const prog = routineProgress()}
-          <progress
-            class="progress flex-1 progress-primary"
-            value={prog?.percent}
-            max="100"
-          ></progress>
-        {:else}
-          {@const prog = timeProgress()}
-          <progress
-            class="progress flex-1 progress-primary"
-            value={prog.percent}
-            max="100"
-          ></progress>
-        {/if}
-        <div class="flex items-center gap-2">
+        <!-- Right column: Circular Progress Indicator and Desktop Action buttons -->
+        <div class="flex shrink-0 flex-col items-center justify-center gap-2">
+          <!-- Circular Progress Indicator -->
           {#if task.type === "ルーティン" && routineProgress()}
             {@const prog = routineProgress()}
-            <span class="text-xs text-[var(--color-text-secondary)]">
-              {prog?.done}/{prog?.goal}
-            </span>
+            {@const percent = prog?.percent ?? 0}
+            {@const outerRadius = 32}
+            {@const innerRadius = 26}
+            {@const innerCircumference = 2 * Math.PI * innerRadius}
+            {@const offset =
+              innerCircumference - (percent / 100) * innerCircumference}
+            <div class="relative h-20 w-20 shrink-0">
+              <svg class="h-20 w-20 -rotate-90 transform" viewBox="0 0 80 80">
+                <!-- Background ring (outer, 4px border) -->
+                <circle
+                  cx="40"
+                  cy="40"
+                  r={outerRadius}
+                  fill="none"
+                  stroke="rgba(204, 204, 204, 0.35)"
+                  stroke-width="4"
+                />
+                <!-- Progress ring (inner, 12px border) -->
+                <circle
+                  cx="40"
+                  cy="40"
+                  r={innerRadius}
+                  fill="none"
+                  stroke="#DEDEDE"
+                  stroke-width="12"
+                  stroke-dasharray={innerCircumference}
+                  stroke-dashoffset={offset}
+                  stroke-linecap="round"
+                  class="transition-all duration-300"
+                />
+              </svg>
+              <!-- Center text -->
+              <div
+                class="absolute inset-0 flex flex-col items-center justify-center"
+              >
+                <span
+                  class="text-sm leading-[18px] font-normal text-base-content"
+                  style="font-family: 'Source Code Pro', monospace;"
+                >
+                  {prog?.done}/{prog?.goal}
+                </span>
+              </div>
+            </div>
           {:else}
             {@const prog = timeProgress()}
-            <span class="text-xs text-[var(--color-text-secondary)]">
-              {prog.spent}/{prog.total} min
-            </span>
+            {@const percent = prog.percent}
+            {@const outerRadius = 32}
+            {@const innerRadius = 26}
+            {@const innerCircumference = 2 * Math.PI * innerRadius}
+            {@const offset =
+              innerCircumference - (percent / 100) * innerCircumference}
+            <div class="relative h-20 w-20 shrink-0">
+              <svg class="h-20 w-20 -rotate-90 transform" viewBox="0 0 80 80">
+                <!-- Background ring (outer, 4px border) -->
+                <circle
+                  cx="40"
+                  cy="40"
+                  r={outerRadius}
+                  fill="none"
+                  stroke="rgba(204, 204, 204, 0.35)"
+                  stroke-width="4"
+                />
+                <!-- Progress ring (inner, 12px border) -->
+                <circle
+                  cx="40"
+                  cy="40"
+                  r={innerRadius}
+                  fill="none"
+                  stroke="#DEDEDE"
+                  stroke-width="12"
+                  stroke-dasharray={innerCircumference}
+                  stroke-dashoffset={offset}
+                  stroke-linecap="round"
+                  class="transition-all duration-300"
+                />
+              </svg>
+              <!-- Center text -->
+              <div
+                class="absolute inset-0 flex flex-col items-center justify-center"
+              >
+                <span
+                  class="text-sm leading-[18px] font-normal text-base-content"
+                  style="font-family: 'Source Code Pro', monospace;"
+                >
+                  {prog.spent}/{prog.total}
+                </span>
+                <span
+                  class="text-[10px] leading-tight font-normal text-base-content/70"
+                  style="font-family: 'Source Code Pro', monospace;"
+                >
+                  min
+                </span>
+              </div>
+            </div>
           {/if}
           <!-- Desktop-only action buttons (hidden on mobile, always visible on desktop) -->
           <div class="card-actions hidden justify-end md:flex">
