@@ -129,12 +129,49 @@
     return { spent, total, percent: Math.min(100, (spent / total) * 100) };
   });
 
-  // Enriched per-session time (minutes)
+  // Enriched per-session time (minutes) label, e.g. "60 min session"
   let sessionDurationLabel = $derived(() => {
-    if (task.sessionDuration && task.sessionDuration > 0) {
-      return `${task.sessionDuration} min session`;
+    const dur = task.sessionDuration;
+    if (!dur || dur <= 0) return "";
+    return `${dur} min session`;
+  });
+
+  // Routine period label (Daily / Weekly / Monthly)
+  const recurrencePeriodLabels: Record<"day" | "week" | "month", string> = {
+    day: "Daily",
+    week: "Weekly",
+    month: "Monthly",
+  };
+
+  let routinePeriodLabel = $derived(() => {
+    const period = task.recurrenceGoal?.period;
+    if (!period) return "";
+    return recurrencePeriodLabels[period];
+  });
+
+  // Deadline progress (0–100% between createdAt and deadline)
+  let deadlineProgress = $derived(() => {
+    if (task.type !== "期限付き") return null;
+
+    const created = task.deadlineState?.createdDay ?? task.createdAt;
+    const deadline = task.deadlineState?.deadlineDay ?? task.deadline;
+
+    if (!deadline) return null;
+
+    const startTime = created.getTime();
+    const endTime = deadline.getTime();
+
+    if (endTime <= startTime) {
+      return { percent: 100 };
     }
-    return null;
+
+    const nowTime = new Date().getTime();
+    const clampedNow = Math.min(Math.max(nowTime, startTime), endTime);
+    const elapsed = clampedNow - startTime;
+    const total = endTime - startTime;
+    const percent = Math.min(100, Math.max(0, (elapsed / total) * 100));
+
+    return { percent };
   });
 
   // Genre/category label
@@ -144,13 +181,11 @@
   });
 
   // Location label (UI in Japanese, internal values unchanged)
-  let locationLabel = $derived(
-    task.locationPreference === "home/near_home"
-      ? "🏠 自宅/自宅付近"
-      : task.locationPreference === "workplace/near_workplace"
-        ? "🏢 勤務地"
-        : "どこでも",
-  );
+  let locationLabel = $derived(() => {
+    if (task.locationPreference === "home/near_home") return "自宅/自宅付近";
+    if (task.locationPreference === "workplace/near_workplace") return "勤務地";
+    return "どこでも";
+  });
 
   // Handlers
   function handleEdit() {
@@ -206,12 +241,12 @@
 
   <!-- Main card content (swipeable on mobile only) -->
   <div
-    class="card relative border-l-4 bg-base-100 shadow-sm transition-all duration-200 card-sm {task.type ===
+    class="card relative rounded-l-none rounded-r-xl border border-l-4 border-base-300 bg-base-100 shadow-md transition-all duration-200 card-sm hover:shadow-lg {task.type ===
     '期限付き'
-      ? 'border-l-warning'
+      ? 'border-l-[var(--color-warning-100)]'
       : task.type === 'ルーティン'
-        ? 'border-l-primary'
-        : 'border-l-base-300'}"
+        ? 'border-l-[var(--color-primary-400)]'
+        : 'border-l-base-400'}"
     class:opacity-60={task.status.completionState === "completed"}
     class:bg-base-200={task.status.completionState === "completed"}
     class:shadow-md={translateX < 0}
@@ -235,68 +270,49 @@
       </div>
     {/if}
 
-    <div class="card-body gap-2 p-4">
+    <div class="card-body gap-2 p-3">
       <div class="flex items-center gap-4">
         <!-- Left column: Content -->
-        <div class="min-w-0 flex-1">
-          <!-- Title + badges in a single column so title can use full width up to the progress ring -->
-          <div class="flex flex-col gap-1">
+        <div class="min-w-0 flex-1 self-stretch">
+          <!-- Title, meta, badges stacked and vertically centered -->
+          <div class="flex h-full flex-col justify-center gap-2">
+            <!-- Top: title -->
             <h3
-              class="card-title text-base"
+              class="card-title truncate text-base"
               class:line-through={task.status.completionState === "completed"}
             >
               {task.title}
             </h3>
-            <div class="flex flex-wrap items-center gap-1.5">
-              <span
-                class="badge badge-outline badge-sm text-[0.7rem] tracking-wider uppercase"
-                >{typeLabel}</span
-              >
+
+            <!-- Middle: meta tags row (single line, no wrapping inside badges) -->
+            <div
+              class="flex flex-nowrap items-center gap-1.5 overflow-hidden text-sm"
+            >
+              {#if task.type === "ルーティン" && routineProgress()}
+                {@const periodLabel = routinePeriodLabel()}
+                {#if periodLabel}
+                  <span
+                    class="badge bg-[var(--color-primary-100)] badge-sm text-[0.7rem] whitespace-nowrap text-[var(--color-primary-800)]"
+                    >{periodLabel}</span
+                  >
+                {/if}
+              {/if}
               {#if genreLabel()}
                 <span
-                  class="badge bg-[var(--color-surface-100)] badge-sm text-[var(--color-text-primary)]"
+                  class="badge bg-[var(--color-surface-100)] badge-sm text-[0.7rem] whitespace-nowrap text-[var(--color-text-primary)]"
                   >{genreLabel()}</span
                 >
               {/if}
+              <span
+                class="badge border border-base-300 bg-base-100 badge-sm text-[0.7rem] whitespace-nowrap text-[var(--color-text-secondary)]"
+                >{locationLabel()}</span
+              >
               {#if sessionDurationLabel()}
                 <span
-                  class="badge bg-[var(--color-primary-100)] badge-sm text-[var(--color-primary-800)]"
+                  class="badge border border-base-300 bg-base-100 badge-sm text-[0.7rem] whitespace-nowrap text-[var(--color-text-secondary)]"
                   >{sessionDurationLabel()}</span
                 >
               {/if}
-            </div>
-          </div>
-
-          <!-- Meta info -->
-          <div class="mt-1 flex items-center justify-between gap-1.5 text-sm">
-            <div class="flex flex-wrap items-center gap-1.5">
-              {#if task.type === "期限付き" && task.deadline}
-                <div
-                  class="flex items-center gap-1"
-                  class:text-error={isUrgent()}
-                  class:font-medium={isUrgent()}
-                >
-                  <span>{deadlineText()}</span>
-                </div>
-              {/if}
-
-              {#if task.type === "ルーティン" && routineProgress()}
-                {@const prog = routineProgress()}
-                <div
-                  class="flex items-center gap-1 text-[var(--color-text-secondary)]"
-                >
-                  <span
-                    >{prog?.done}/{prog?.goal} this {task.recurrenceGoal
-                      ?.period}</span
-                  >
-                </div>
-              {/if}
-            </div>
-
-            <div
-              class="flex items-center gap-1 text-[var(--color-text-secondary)]"
-            >
-              <span>{locationLabel}</span>
             </div>
           </div>
         </div>
@@ -323,14 +339,14 @@
                   stroke="rgba(204, 204, 204, 0.35)"
                   stroke-width="4"
                 />
-                <!-- Progress ring (inner, 12px border) -->
+                <!-- Progress ring (inner, thicker border, colored for routine) -->
                 <circle
                   cx="40"
                   cy="40"
                   r={innerRadius}
                   fill="none"
-                  stroke="#DEDEDE"
-                  stroke-width="12"
+                  stroke="var(--color-primary-400)"
+                  stroke-width="16"
                   stroke-dasharray={innerCircumference}
                   stroke-dashoffset={offset}
                   stroke-linecap="round"
@@ -339,13 +355,66 @@
               </svg>
               <!-- Center text -->
               <div
-                class="absolute inset-0 flex flex-col items-center justify-center"
+                class="absolute inset-0 flex w-full flex-col items-center justify-center text-center font-semibold text-[var(--color-primary-800)]"
               >
                 <span
-                  class="text-sm leading-[18px] font-normal text-base-content"
+                  class="text-sm leading-[18px]"
                   style="font-family: 'Source Code Pro', monospace;"
                 >
                   {prog?.done}/{prog?.goal}
+                </span>
+              </div>
+            </div>
+          {:else if task.type === "期限付き" && task.deadline}
+            {@const deadlineProg = deadlineProgress()}
+            {@const percent = deadlineProg ? deadlineProg.percent : 0}
+            {@const outerRadius = 32}
+            {@const innerRadius = 26}
+            {@const innerCircumference = 2 * Math.PI * innerRadius}
+            {@const offset =
+              innerCircumference - (percent / 100) * innerCircumference}
+            <div class="relative h-20 w-20 shrink-0">
+              <svg class="h-20 w-20 -rotate-90 transform" viewBox="0 0 80 80">
+                <!-- Background ring (outer, 4px border) -->
+                <circle
+                  cx="40"
+                  cy="40"
+                  r={outerRadius}
+                  fill="none"
+                  stroke="rgba(204, 204, 204, 0.35)"
+                  stroke-width="4"
+                />
+                <!-- Progress ring (inner, thicker border, colored for deadline) -->
+                <circle
+                  cx="40"
+                  cy="40"
+                  r={innerRadius}
+                  fill="none"
+                  stroke="var(--color-warning-500)"
+                  stroke-width="16"
+                  stroke-dasharray={innerCircumference}
+                  stroke-dashoffset={offset}
+                  stroke-linecap="round"
+                  class="transition-all duration-300"
+                />
+              </svg>
+              <!-- Center text: small "あと" label and large remaining days -->
+              <div
+                class="absolute inset-0 flex w-full flex-col items-center justify-center text-center text-[var(--color-primary-800)]"
+              >
+                <span
+                  class="text-[10px] leading-tight font-normal text-base-content/70"
+                  style="font-family: 'Source Code Pro', monospace;"
+                >
+                  あと
+                </span>
+                <span
+                  class="text-lg leading-tight font-semibold"
+                  style="font-family: 'Source Code Pro', monospace;"
+                >
+                  {daysUntilDeadline() !== null
+                    ? Math.abs(daysUntilDeadline() ?? 0)
+                    : "?"}日
                 </span>
               </div>
             </div>
@@ -368,14 +437,14 @@
                   stroke="rgba(204, 204, 204, 0.35)"
                   stroke-width="4"
                 />
-                <!-- Progress ring (inner, 12px border) -->
+                <!-- Progress ring (inner, thicker border, colored for time progress) -->
                 <circle
                   cx="40"
                   cy="40"
                   r={innerRadius}
                   fill="none"
-                  stroke="#DEDEDE"
-                  stroke-width="12"
+                  stroke="var(--color-primary-400)"
+                  stroke-width="16"
                   stroke-dasharray={innerCircumference}
                   stroke-dashoffset={offset}
                   stroke-linecap="round"
@@ -384,10 +453,10 @@
               </svg>
               <!-- Center text -->
               <div
-                class="absolute inset-0 flex flex-col items-center justify-center"
+                class="absolute inset-0 flex w-full flex-col items-center justify-center text-center font-semibold text-[var(--color-primary-800)]"
               >
                 <span
-                  class="text-sm leading-[18px] font-normal text-base-content"
+                  class="text-sm leading-[18px]"
                   style="font-family: 'Source Code Pro', monospace;"
                 >
                   {prog.spent}/{prog.total}
