@@ -22,6 +22,19 @@
   // Task list (synced from store via subscription)
   let taskList = $state(get(tasks));
 
+  // ============================================================================
+  // INITIALIZATION STATE
+  // ============================================================================
+
+  /**
+   * Whether the assistant view is fully initialized
+   * Initialization sequence:
+   * 1. Load blocking items (timetable) → compute unified gaps
+   * 2. Load sync data (accepted/rejected from DB)
+   * 3. Ready for schedule generation
+   */
+  let isInitialized = $state(false);
+
   // Subscribe to tasks store to keep local state in sync
   $effect(() => {
     const unsubscribe = tasks.subscribe((newTasks) => {
@@ -30,20 +43,24 @@
     return unsubscribe;
   });
 
-  // Mark that we're on the assistant tab and load timetable events
+  // Mark that we're on the assistant tab
   $effect(() => {
     unifiedGapState.setOnAssistantTab(true);
-    unifiedGapState.loadTimetableEvents();
-
     return () => {
       unifiedGapState.setOnAssistantTab(false);
     };
   });
 
-  // Load timetable events when date changes
+  // Load timetable events when date changes (after initial load)
   $effect(() => {
     const _date = dataState.selectedDate; // Track dependency
-    unifiedGapState.loadTimetableEvents();
+    if (isInitialized) {
+      // Date changed after initialization - reload timetable
+      console.log(
+        "[PersonalAssistantView] Date changed, reloading timetable...",
+      );
+      unifiedGapState.loadTimetableEvents();
+    }
   });
 
   // Selected items for details display - track all separately
@@ -108,12 +125,40 @@
 
   let unsubscribeTasks: (() => void) | undefined;
 
-  onMount(() => {
+  onMount(async () => {
     const now = new Date(Date.now());
     dataState.setSelectedDate(startOfDay(now));
 
     // Subscribe to tasks store
     unsubscribeTasks = tasks.subscribe((value) => (taskList = value));
+
+    // ========================================================================
+    // INITIALIZATION SEQUENCE
+    // ========================================================================
+    // 1. Load blocking items (timetable) - creates unified gaps
+    // 2. Load sync data (accepted/rejected from DB)
+    // 3. Mark as initialized - allows schedule generation
+    // ========================================================================
+
+    console.log("[PersonalAssistantView] Starting initialization...");
+
+    try {
+      // Step 1: Load timetable data (affects gap computation)
+      await unifiedGapState.initialize();
+      console.log("[PersonalAssistantView] Timetable loaded");
+
+      // Step 2: Load sync data (accepted/rejected suggestions)
+      await scheduleActions.loadSyncedData();
+      console.log("[PersonalAssistantView] Sync data loaded");
+
+      // Step 3: Mark as initialized - this triggers schedule generation
+      isInitialized = true;
+      console.log("[PersonalAssistantView] Initialization complete");
+    } catch (error) {
+      console.error("[PersonalAssistantView] Initialization failed:", error);
+      // Still mark as initialized to allow operation with degraded state
+      isInitialized = true;
+    }
   });
 
   onDestroy(() => {
@@ -269,8 +314,8 @@
   // Reactively compute schedule signature for auto-generation
   // Includes enriched gaps to ensure regeneration when gaps change
   let scheduleSignature = $derived.by(() => {
-    // Only generate schedule for today
-    if (!isTodaySelected) return null;
+    // Only generate schedule for today AND after initialization
+    if (!isTodaySelected || !isInitialized) return null;
 
     // Include gap details in signature to detect changes from:
     // - Active time settings changes
@@ -284,10 +329,13 @@
   let lastScheduleSignature: string | null = null;
 
   // Auto-generate schedule when signature changes
-  // Always passes enriched gaps to ensure consistent computation
+  // Only runs after initialization is complete
   $effect(() => {
     if (scheduleSignature && scheduleSignature !== lastScheduleSignature) {
       lastScheduleSignature = scheduleSignature;
+      console.log(
+        "[PersonalAssistantView] Schedule signature changed, regenerating...",
+      );
       // Pass enriched gaps from unified state for consistent pipeline
       scheduleActions.regenerate(taskList, { gaps: enrichedGaps });
     }

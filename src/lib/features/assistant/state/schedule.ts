@@ -401,15 +401,20 @@ export const scheduleActions = {
         (m) => !rejected.has(m.id) && !movedMemoIds.has(m.id),
       );
 
-      // Subtract accepted time slots from gaps
-      const availableGaps = subtractAcceptedFromGaps(gaps, accepted);
+      // Subtract accepted AND moved time slots from gaps
+      // This ensures new suggestions only fill truly available gaps
+      const availableGaps = subtractBlockersFromGaps(
+        gaps,
+        accepted,
+        currentMoved,
+      );
 
       console.log("[Schedule] Generating schedule:", {
         memos: memos.length,
         filteredMemos: filteredMemos.length,
         gaps: gaps.length,
         availableGaps: availableGaps.length,
-        movedMemoIds: movedMemoIds.size,
+        movedSuggestions: currentMoved.length,
         acceptedMemos: accepted.size,
         rejectedMemos: rejected.size,
       });
@@ -432,8 +437,8 @@ export const scheduleActions = {
       // Extend summary with additional info
       const extendedSummary = {
         ...summary,
-        movedFixed: currentMoved.length,
-        acceptedFixed: accepted.size,
+        movedBlockers: currentMoved.length,
+        acceptedBlockers: accepted.size,
         rejectedMemos: rejected.size,
         executionMs: Math.round(endTime - startTime),
       };
@@ -443,8 +448,8 @@ export const scheduleActions = {
         scheduled: result.scheduled.length,
         dropped: result.dropped.length,
         mandatoryDropped: result.mandatoryDropped.length,
-        movedFixed: currentMoved.length,
-        acceptedFixed: accepted.size,
+        movedBlockers: currentMoved.length,
+        acceptedBlockers: accepted.size,
         rejectedMemos: rejected.size,
         executionMs: Math.round(endTime - startTime),
       });
@@ -835,10 +840,9 @@ export const scheduleActions = {
         newDuration,
       );
 
-      // Trigger regeneration to fill gaps left by removed suggestions
-      if (hadOverlaps) {
-        await scheduleActions.regenerate(memos, { gaps });
-      }
+      // Always regenerate when duration changes (even without overlaps)
+      // Shortening a suggestion frees up gap space for new suggestions
+      await scheduleActions.regenerate(memos, { gaps });
       return;
     }
 
@@ -927,10 +931,9 @@ export const scheduleActions = {
       newDuration,
     );
 
-    // Trigger regeneration to fill gaps left by removed suggestions
-    if (hadOverlaps) {
-      await scheduleActions.regenerate(memos, { gaps });
-    }
+    // Always regenerate when duration changes (even without overlaps)
+    // Shortening a suggestion frees up gap space for new suggestions
+    await scheduleActions.regenerate(memos, { gaps });
   },
 
   /**
@@ -1299,14 +1302,34 @@ export const scheduleActions = {
 // ============================================================================
 
 /**
- * Subtract accepted time slots from gaps
- * Returns new gaps with accepted slots removed
+ * A time blocker with start/end times
  */
-function subtractAcceptedFromGaps(
+interface TimeBlocker {
+  startTime: string;
+  endTime: string;
+}
+
+/**
+ * Subtract accepted AND moved time slots from gaps
+ * Returns new gaps with all occupied slots removed
+ *
+ * This ensures:
+ * - Accepted suggestions block their time slots
+ * - Moved suggestions block their new positions
+ * - New suggestions only fill truly available gaps
+ */
+function subtractBlockersFromGaps(
   gaps: Gap[],
   accepted: Map<string, AcceptedMemoInfo>,
+  moved: MovedSuggestion[],
 ): Gap[] {
-  if (accepted.size === 0) return gaps;
+  // Combine all blockers into a single array
+  const allBlockers: TimeBlocker[] = [
+    ...Array.from(accepted.values()),
+    ...moved.map((m) => ({ startTime: m.startTime, endTime: m.endTime })),
+  ];
+
+  if (allBlockers.length === 0) return gaps;
 
   const result: Gap[] = [];
   let gapCounter = 0;
@@ -1316,9 +1339,9 @@ function subtractAcceptedFromGaps(
     const gapEnd = timeToMinutes(gap.end);
 
     // Find blockers that overlap with this gap
-    const overlappingBlockers = Array.from(accepted.values()).filter((a) => {
-      const blockerStart = timeToMinutes(a.startTime);
-      const blockerEnd = timeToMinutes(a.endTime);
+    const overlappingBlockers = allBlockers.filter((b) => {
+      const blockerStart = timeToMinutes(b.startTime);
+      const blockerEnd = timeToMinutes(b.endTime);
       return blockerStart < gapEnd && blockerEnd > gapStart;
     });
 

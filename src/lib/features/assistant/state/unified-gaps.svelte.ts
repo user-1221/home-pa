@@ -105,10 +105,28 @@ let timetableBlockingEvents = $state<TimetableEvent[]>([]);
 let lastLoadedDateKey: string | null = null;
 
 /**
+ * Whether timetable data is currently loading
+ */
+let isTimetableLoading = $state(false);
+
+/**
+ * Whether timetable has been loaded at least once for the current date
+ */
+let isTimetableLoaded = $state(false);
+
+/**
+ * Promise that resolves when timetable loading completes
+ * Used to wait for timetable before computing gaps
+ */
+let timetableLoadPromise: Promise<void> | null = null;
+let timetableLoadResolve: (() => void) | null = null;
+
+/**
  * Clear the last loaded date key to force a reload
  */
 function clearTimetableDateCache(): void {
   lastLoadedDateKey = null;
+  isTimetableLoaded = false;
 }
 
 /**
@@ -122,14 +140,50 @@ async function loadTimetableForDate(
   const key = dateKey(date);
   if (!forceReload && key === lastLoadedDateKey) return;
 
+  // Reset loaded state when loading new date
+  if (key !== lastLoadedDateKey) {
+    isTimetableLoaded = false;
+  }
+
   lastLoadedDateKey = key;
+  isTimetableLoading = true;
+
+  // Create a new promise for waiting
+  timetableLoadPromise = new Promise((resolve) => {
+    timetableLoadResolve = resolve;
+  });
+
   try {
     const { config, cells } = await loadTimetableData();
     const allEvents = getTimetableEventsForDate(date, config, cells);
     timetableBlockingEvents = getBlockingTimetableEvents(allEvents);
+    console.log(
+      `[unified-gaps] Loaded ${timetableBlockingEvents.length} blocking timetable events for ${key}`,
+    );
   } catch (err) {
     console.error("[unified-gaps] Failed to load timetable:", err);
     timetableBlockingEvents = [];
+  } finally {
+    isTimetableLoading = false;
+    isTimetableLoaded = true;
+
+    // Signal that loading is complete
+    if (timetableLoadResolve) {
+      timetableLoadResolve();
+      timetableLoadResolve = null;
+    }
+    timetableLoadPromise = null;
+  }
+}
+
+/**
+ * Wait for timetable to finish loading
+ * Resolves immediately if already loaded
+ */
+async function waitForTimetable(): Promise<void> {
+  if (isTimetableLoaded && !isTimetableLoading) return;
+  if (timetableLoadPromise) {
+    await timetableLoadPromise;
   }
 }
 
@@ -282,6 +336,32 @@ class UnifiedGapState {
    * Last version that was used for schedule generation
    */
   private lastRegeneratedVersion = $state(0);
+
+  // ============================================================================
+  // Loading State (exposed for consumers)
+  // ============================================================================
+
+  /**
+   * Whether timetable data is currently loading
+   */
+  get isTimetableLoading(): boolean {
+    return isTimetableLoading;
+  }
+
+  /**
+   * Whether timetable has been loaded for the current date
+   */
+  get isTimetableLoaded(): boolean {
+    return isTimetableLoaded;
+  }
+
+  /**
+   * Whether data is ready for schedule generation
+   * True when timetable is loaded (or not loading)
+   */
+  get isReady(): boolean {
+    return isTimetableLoaded && !isTimetableLoading;
+  }
 
   // ============================================================================
   // Derived State
@@ -506,6 +586,23 @@ class UnifiedGapState {
       clearTimetableDateCache();
     }
     await loadTimetableForDate(dataState.selectedDate, forceReload);
+  }
+
+  /**
+   * Wait for timetable data to finish loading
+   * Use this before computing gaps or generating schedules
+   */
+  async waitForTimetable(): Promise<void> {
+    await waitForTimetable();
+  }
+
+  /**
+   * Initialize gap state - loads timetable and waits for it
+   * Call this once when entering the assistant view
+   */
+  async initialize(): Promise<void> {
+    await this.loadTimetableEvents();
+    console.log("[unified-gaps] Initialized, ready:", this.isReady);
   }
 
   // ============================================================================
