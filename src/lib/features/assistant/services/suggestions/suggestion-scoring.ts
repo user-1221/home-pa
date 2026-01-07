@@ -516,6 +516,17 @@ export function scoreMemo(input: ScoreInput): ScoreOutput {
   const { duration, minDuration } = selectDuration(memo, currentTime);
   const isHidden = need < DISPLAY_THRESHOLD;
 
+  // Log scores for each task
+  console.log(`[Task Score] ${memo.title || memo.id}`, {
+    type: memo.type,
+    need: need.toFixed(3),
+    importance: importance.toFixed(3),
+    duration: `${duration}min`,
+    minDuration: `${minDuration}min`,
+    isHidden,
+    threshold: DISPLAY_THRESHOLD,
+  });
+
   return {
     need,
     importance,
