@@ -406,14 +406,15 @@ export function calculateBacklogNeed(memo: Memo, currentTime: Date): number {
   const DAILY_GROWTH = 0.02;
   const SATURATION_DAYS = 10; // (0.7 - 0.5) / 0.02 = 10
 
-  // ACCEPTED TODAY: Return score below threshold to hide the task
-  // This prevents duplicate suggestions after accepting
+  // ACCEPTED TODAY: Return base score (0.5) - still visible but at lowest priority
+  // Unlike routine tasks, backlog tasks should remain visible after acceptance
+  // so user can schedule additional work sessions if desired
   if (state.acceptedToday && state.lastCompletedDay) {
     const lastCompleted = new Date(state.lastCompletedDay);
     // Only apply "accepted today" logic if it's still the same day
     if (isSameDay(lastCompleted, currentTime)) {
-      // Accepted today - return 0 to hide (below DISPLAY_THRESHOLD of 0.5)
-      return 0;
+      // Accepted today - return base score (lowest visible priority)
+      return BASE_SCORE;
     }
   }
 

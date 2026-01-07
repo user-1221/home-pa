@@ -27,11 +27,17 @@
  *
  * When a user accepts a suggestion:
  *
- * Routine/Backlog Tasks:
+ * Routine Tasks:
  *   1. accept() calls markMemoAccepted() → sets routineState.acceptedToday = true
  *   2. This is persisted to DB and local store
  *   3. On regenerate(), scoring function returns 0 → filtered out as hidden
  *   4. Task won't appear again until next day (acceptedToday resets)
+ *
+ * Backlog Tasks:
+ *   1. accept() calls markMemoAccepted() → sets backlogState.acceptedToday = true
+ *   2. This is persisted to DB and local store
+ *   3. On regenerate(), scoring function returns 0.5 (base score, lowest visible)
+ *   4. Task remains visible but at lowest priority for additional sessions
  *
  * Deadline Tasks:
  *   1. accept() adds to acceptedSuggestions store

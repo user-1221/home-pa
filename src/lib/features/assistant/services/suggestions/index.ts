@@ -24,9 +24,6 @@ export {
   incrementCompletion,
   isSameDay,
   isSameWeek,
-  isSameMonth,
-  getWeekNumber,
-  getDaysInMonth,
 } from "./period-utils.ts";
 
 export type { Period } from "./period-utils.ts";
