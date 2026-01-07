@@ -147,7 +147,8 @@ function shouldResetRoutineWeek(
  * Calculate need score for ルーティン (Routine) tasks
  *
  * Frequency-based growth model:
- * - Growth rate: Δ = 0.9 / (7 / goal_count) per day
+ * - Growth rate: Δ = 0.9 / ideal_interval_days per day
+ * - Ideal interval: 1 day (daily), 7/goal_count days (weekly), 30/goal_count days (monthly)
  * - Score reaches 0.9 at each ideal interval
  * - Display capped at 0.49 when weekly goal met
  *
@@ -159,9 +160,23 @@ export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
 
   // Default goal: 3 times per week
   const goalCount = goal?.count ?? 3;
+  const goalPeriod = goal?.period ?? "week";
 
-  // Calculate ideal interval and growth rate
-  const idealIntervalDays = 7 / goalCount;
+  // Calculate ideal interval based on period
+  let idealIntervalDays: number;
+  switch (goalPeriod) {
+    case "day":
+      idealIntervalDays = 1;
+      break;
+    case "week":
+      idealIntervalDays = 7 / goalCount;
+      break;
+    case "month":
+      idealIntervalDays = 30 / goalCount;
+      break;
+    default:
+      idealIntervalDays = 7 / goalCount;
+  }
   const dailyGrowth = 0.9 / idealIntervalDays;
 
   // Days since last completion
