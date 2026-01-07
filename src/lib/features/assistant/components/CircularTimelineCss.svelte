@@ -4,10 +4,15 @@
   import { dataState, calendarState } from "$lib/bootstrap/compat.svelte.ts";
   import { getEventColor } from "$lib/features/calendar/utils/index.ts";
   import type { Event as MyEvent, Gap } from "$lib/types.ts";
-  import type {
-    PendingSuggestion,
-    AcceptedSuggestion,
-  } from "$lib/features/assistant/state/schedule.ts";
+  import type { PendingSuggestion } from "$lib/features/assistant/state/schedule.ts";
+
+  // Accepted memo display format
+  interface AcceptedMemoDisplay {
+    memoId: string;
+    startTime: string;
+    endTime: string;
+    duration: number;
+  }
   import SuggestionCard from "./SuggestionCard.svelte";
   import { startOfDay, endOfDay } from "$lib/utils/date-utils.ts";
   import {
@@ -44,7 +49,7 @@
     }> | null;
     extraEvents?: MyEvent[] | null;
     pendingSuggestions?: PendingSuggestion[];
-    acceptedSuggestions?: AcceptedSuggestion[];
+    acceptedMemos?: AcceptedMemoDisplay[];
     getTaskTitle?: (memoId: string) => string;
   }
 
@@ -53,7 +58,7 @@
     externalGaps = $bindable(null),
     extraEvents = $bindable(null),
     pendingSuggestions = [],
-    acceptedSuggestions = [],
+    acceptedMemos = [],
     getTaskTitle = () => "Task",
   }: Props = $props();
 
@@ -122,7 +127,8 @@
     suggestionDurationChange: { suggestionId: string; newDuration: number };
     suggestionSelected: {
       type: "pending" | "accepted";
-      data: PendingSuggestion | AcceptedSuggestion;
+      memoId: string;
+      data: PendingSuggestion | AcceptedMemoDisplay;
     };
     dragPreview: {
       title: string;
@@ -367,7 +373,8 @@
 
   // Normalize suggestions
   interface NormalizedSuggestion {
-    data: PendingSuggestion | AcceptedSuggestion;
+    memoId: string;
+    data: PendingSuggestion | AcceptedMemoDisplay;
     startAngle: number;
     endAngle: number;
     isAccepted: boolean;
@@ -375,12 +382,14 @@
 
   let normalizedSuggestions = $derived.by((): NormalizedSuggestion[] => {
     const pending = pendingSuggestions.map((s) => ({
+      memoId: s.memoId,
       data: s,
       startAngle: timeToAngle(s.startTime),
       endAngle: timeToAngle(s.endTime),
       isAccepted: false,
     }));
-    const accepted = acceptedSuggestions.map((s) => ({
+    const accepted = acceptedMemos.map((s) => ({
+      memoId: s.memoId,
       data: s,
       startAngle: timeToAngle(s.startTime),
       endAngle: timeToAngle(s.endTime),
@@ -409,12 +418,13 @@
   // Ring radii - NEW LAYOUT:
   // 1. Outermost: Suggestions (annular trapezoids for better touch targets)
   // 2. Middle: Fixed events (annular trapezoids, same color per lane)
-  // 3. Inner: Timetable events (dedicated lane, no labels)
+  // 3. Inner: Timetable events (annular trapezoids, dedicated lane)
   const suggestionOuterRadius = outerRadius - 1; // Outer edge of suggestion trapezoids
   const suggestionInnerRadius = outerRadius - 5; // Inner edge of suggestion trapezoids (thin for visibility)
   const eventBaseRadius = outerRadius - 8; // Events next layer (annular trapezoids)
   const eventInnerRadius = outerRadius - 20; // Inner edge of event trapezoids
-  const timetableRingRadius = outerRadius - 28; // Timetable lane (innermost dedicated lane, smaller radius)
+  const timetableOuterRadius = outerRadius - 23; // Timetable outer edge
+  const timetableInnerRadius = outerRadius - 30; // Timetable inner edge
   // Visual gap between suggestions (in radians)
   // This creates a small space between consecutive suggestions to make them visually distinct
   const suggestionGapAngle = 0.015; // ~0.86 degrees, visible but not too large
@@ -460,7 +470,8 @@
 
   // Suggestion card state
   let selectedSuggestion = $state<{
-    suggestion: PendingSuggestion | AcceptedSuggestion;
+    memoId: string;
+    suggestion: PendingSuggestion | AcceptedMemoDisplay;
     isAccepted: boolean;
     position: { x: number; y: number };
   } | null>(null);
@@ -500,11 +511,13 @@
   }
 
   function onSuggestionClick(
-    s: PendingSuggestion | AcceptedSuggestion,
+    memoId: string,
+    s: PendingSuggestion | AcceptedMemoDisplay,
     isAccepted: boolean,
     e: MouseEvent,
   ) {
     selectedSuggestion = {
+      memoId,
       suggestion: s,
       isAccepted,
       position: { x: e.clientX + 10, y: e.clientY - 50 },
@@ -515,25 +528,32 @@
     selectedSuggestion = null;
   }
   function handleAccept() {
-    if (selectedSuggestion)
-      dispatch("suggestionAccept", selectedSuggestion.suggestion.suggestionId);
+    if (selectedSuggestion && !selectedSuggestion.isAccepted) {
+      const pending = selectedSuggestion.suggestion as PendingSuggestion;
+      dispatch("suggestionAccept", pending.suggestionId);
+    }
     closeSuggestionCard();
   }
   function handleSkip() {
-    if (selectedSuggestion)
-      dispatch("suggestionSkip", selectedSuggestion.suggestion.suggestionId);
+    if (selectedSuggestion && !selectedSuggestion.isAccepted) {
+      const pending = selectedSuggestion.suggestion as PendingSuggestion;
+      dispatch("suggestionSkip", pending.suggestionId);
+    }
     closeSuggestionCard();
   }
   function handleDelete() {
-    if (selectedSuggestion)
-      dispatch("suggestionDelete", selectedSuggestion.suggestion.suggestionId);
+    if (selectedSuggestion && selectedSuggestion.isAccepted) {
+      // For accepted, dispatch memoId
+      dispatch("suggestionDelete", selectedSuggestion.memoId);
+    }
     closeSuggestionCard();
   }
 
   function handleDurationChange(newDuration: number) {
-    if (selectedSuggestion) {
+    if (selectedSuggestion && selectedSuggestion.isAccepted) {
+      // Duration change is for accepted suggestions, use memoId
       dispatch("suggestionDurationChange", {
-        suggestionId: selectedSuggestion.suggestion.suggestionId,
+        suggestionId: selectedSuggestion.memoId,
         newDuration,
       });
     }
@@ -686,12 +706,14 @@
 
       dispatch("suggestionSelected", {
         type: "pending",
+        memoId: updatedSuggestion.memoId,
         data: updatedSuggestion,
       });
     } else if (interactionType === "click" && currentSuggestion) {
       // It was a click - dispatch selection
       dispatch("suggestionSelected", {
         type: "pending",
+        memoId: currentSuggestion.memoId,
         data: currentSuggestion,
       });
     }
@@ -880,7 +902,7 @@
     <circle
       cx={center}
       cy={center}
-      r={timetableRingRadius}
+      r={(timetableOuterRadius + timetableInnerRadius) / 2}
       fill="none"
       stroke="var(--color-border-default)"
       stroke-opacity="0.25"
@@ -929,28 +951,37 @@
       </text>
     {/each}
 
-    <!-- Timetable arcs (dedicated innermost lane, no labels) -->
+    <!-- Timetable events (annular trapezoids, dedicated innermost lane) -->
     {#each normalizedTimetableEvents as tt (tt.event.id)}
       {@const isBlocking = tt.event.workAllowed === "作業不可"}
       <path
-        d={arcPath(tt.startAngle, tt.endAngle, timetableRingRadius)}
-        fill="none"
-        stroke={isBlocking
+        d={annularTrapezoidPath(
+          tt.startAngle,
+          tt.endAngle,
+          timetableOuterRadius,
+          timetableInnerRadius,
+          0.01,
+        )}
+        fill={isBlocking
           ? "var(--color-error-400)"
           : "var(--color-success-400)"}
-        stroke-width="3"
-        stroke-linecap="round"
-        stroke-opacity="0.85"
-        class="timetable-arc"
+        fill-opacity="0.7"
+        stroke={isBlocking
+          ? "var(--color-error-600)"
+          : "var(--color-success-600)"}
+        stroke-width="0.3"
+        class="timetable-trapezoid"
         filter="url(#softGlow)"
       />
     {/each}
 
     <!-- Suggestion arcs as annular trapezoids (for better touch targets) -->
-    {#each normalizedSuggestions as s (s.data.suggestionId)}
+    {#each normalizedSuggestions as s (s.memoId)}
       {@const isPending = !s.isAccepted}
       {@const isBeingDragged =
-        isDraggingMidpoint && draggingSuggestionId === s.data.suggestionId}
+        isDraggingMidpoint &&
+        isPending &&
+        draggingSuggestionId === (s.data as PendingSuggestion).suggestionId}
       {@const shouldHide = isDraggingMidpoint && isPending && !isBeingDragged}
       {@const handlePos = getHandlePos(s.endAngle, suggestionOuterRadius)}
 
@@ -999,11 +1030,11 @@
             fill="transparent"
             stroke="none"
             pointer-events="auto"
-            onpointerdown={(e) => {
+            onpointerdown={(e: PointerEvent) => {
               if (isPending) {
                 startSuggestionDrag(
                   s.data as PendingSuggestion,
-                  s.data.gapId,
+                  (s.data as PendingSuggestion).gapId,
                   e,
                 );
               } else {
@@ -1012,18 +1043,19 @@
                 e.stopPropagation();
                 dispatch("suggestionSelected", {
                   type: "accepted",
-                  data: s.data as AcceptedSuggestion,
+                  memoId: s.memoId,
+                  data: s.data as AcceptedMemoDisplay,
                 });
               }
             }}
-            onkeydown={(e) => {
+            onkeydown={(e: KeyboardEvent) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
                 const mouseEvent = new MouseEvent("click", {
                   bubbles: true,
                   cancelable: true,
                 });
-                onSuggestionClick(s.data, s.isAccepted, mouseEvent);
+                onSuggestionClick(s.memoId, s.data, s.isAccepted, mouseEvent);
               }
             }}
           />
@@ -1073,8 +1105,8 @@
             stroke-opacity="0.9"
             stroke-width="0.3"
             class="resize-handle"
-            onpointerdown={(e) =>
-              startResize(s.data.suggestionId, s.data.duration, e)}
+            onpointerdown={(e: PointerEvent) =>
+              startResize(s.memoId, s.data.duration, e)}
           />
         {/if}
       {/if}
@@ -1106,11 +1138,11 @@
         class="event-arc"
         class:all-day={isAllDay}
         filter="url(#softGlow)"
-        onmouseenter={(e) => hoverEvent(ev.ref, e)}
+        onmouseenter={(e: MouseEvent) => hoverEvent(ev.ref, e)}
         onmousemove={updateMouse}
         onmouseleave={clearHover}
         onclick={() => dispatch("eventSelected", ev.ref)}
-        onkeydown={(e) => {
+        onkeydown={(e: KeyboardEvent) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();
             dispatch("eventSelected", ev.ref);
@@ -1222,7 +1254,8 @@
       class="fixed inset-0 bg-base-content/40 backdrop-blur-sm"
       style="z-index: 2100;"
       onclick={closeSuggestionCard}
-      onkeydown={(e) => e.key === "Escape" && closeSuggestionCard()}
+      onkeydown={(e: KeyboardEvent) =>
+        e.key === "Escape" && closeSuggestionCard()}
       role="button"
       tabindex="-1"
       aria-label="Close"

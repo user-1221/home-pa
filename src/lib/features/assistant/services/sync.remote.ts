@@ -1,13 +1,17 @@
 /**
  * Action Sync Remote Functions
  *
- * Server-side Remote Functions for persisting accepted suggestions,
- * cached transit info, and rejected memos across sessions and devices.
+ * Server-side Remote Functions for persisting suggestion actions
+ * and cached transit info across sessions and devices.
+ *
+ * Suggestion Actions:
+ * - "accepted": User accepted the suggestion (includes time slot info)
+ * - "rejected": User rejected/skipped the suggestion
+ * - "missed": User marked an accepted suggestion as missed
  *
  * Cleanup Logic:
- * - Accepted suggestions: Removed when their date is in the past
+ * - All suggestion actions: Cleared at start of new day (only today's actions persist)
  * - Cached transit: Removed when the event start time is in the past
- * - Rejected memos: Removed when rejectedAt is before today (only today's rejections persist)
  */
 
 import { query, getRequestEvent } from "$app/server";
@@ -31,20 +35,22 @@ function getAuthenticatedUser(): string | null {
 // Schemas
 // ============================================================================
 
-const AcceptedSuggestionSchema = v.object({
-  suggestionId: v.string(),
+const SuggestionActionSchema = v.object({
   memoId: v.string(),
-  gapId: v.string(),
-  date: v.string(), // ISO date string
-  startTime: v.string(), // HH:mm
-  endTime: v.string(), // HH:mm
-  duration: v.number(),
-  originalDuration: v.number(),
-  acceptedAt: v.string(), // ISO datetime string
+  action: v.picklist(["accepted", "rejected", "missed"]),
+  // Time slot info (only for accepted)
+  startTime: v.optional(v.string()), // HH:mm
+  endTime: v.optional(v.string()), // HH:mm
+  duration: v.optional(v.number()),
 });
 
-const SaveAcceptedSuggestionsSchema = v.object({
-  suggestions: v.array(AcceptedSuggestionSchema),
+const SaveSuggestionActionSchema = v.object({
+  actions: v.array(SuggestionActionSchema),
+});
+
+const RemoveSuggestionActionSchema = v.object({
+  memoId: v.string(),
+  action: v.picklist(["accepted", "rejected", "missed"]),
 });
 
 const CachedTransitSchema = v.object({
@@ -61,24 +67,16 @@ const SaveCachedTransitSchema = v.object({
   transitInfo: CachedTransitSchema,
 });
 
-const RejectedMemoSchema = v.object({
-  memoIds: v.array(v.string()),
-});
-
 // ============================================================================
 // Response Types
 // ============================================================================
 
-export interface SyncedAcceptedSuggestion {
-  suggestionId: string;
+export interface SyncedSuggestionAction {
   memoId: string;
-  gapId: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  duration: number;
-  originalDuration: number;
-  acceptedAt: string;
+  action: "accepted" | "rejected" | "missed";
+  startTime?: string;
+  endTime?: string;
+  duration?: number;
 }
 
 export interface SyncedCachedTransit {
@@ -97,22 +95,20 @@ export interface SyncedCachedTransit {
 
 /**
  * Load all synced data for the current user
- * Also performs cleanup of expired data
+ * Also performs cleanup of expired data (previous day's actions)
  */
 export const loadSyncData = query(
   v.object({}),
   async (): Promise<{
-    acceptedSuggestions: SyncedAcceptedSuggestion[];
+    suggestionActions: SyncedSuggestionAction[];
     cachedTransit: SyncedCachedTransit[];
-    rejectedMemoIds: string[];
   }> => {
     const userId = getAuthenticatedUser();
     if (!userId) {
       console.warn("[Sync] No authenticated user");
       return {
-        acceptedSuggestions: [],
+        suggestionActions: [],
         cachedTransit: [],
-        rejectedMemoIds: [],
       };
     }
     const now = new Date();
@@ -121,24 +117,19 @@ export const loadSyncData = query(
       now.getMonth(),
       now.getDate(),
     );
-    const yesterdayStart = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() - 1,
-    );
 
-    // Cleanup expired accepted suggestions (date < yesterday)
-    // We keep today's past suggestions so users can mark them as complete/missed
-    const deletedSuggestions = await prisma.acceptedSuggestion.deleteMany({
+    // Cleanup all suggestion actions from previous days
+    // Only today's actions should persist
+    const deletedActions = await prisma.suggestionAction.deleteMany({
       where: {
         userId,
-        date: { lt: yesterdayStart },
+        createdAt: { lt: todayStart },
       },
     });
 
-    if (deletedSuggestions.count > 0) {
+    if (deletedActions.count > 0) {
       console.log(
-        `[Sync] Cleaned up ${deletedSuggestions.count} expired accepted suggestions`,
+        `[Sync] Cleaned up ${deletedActions.count} expired suggestion actions`,
       );
     }
 
@@ -156,48 +147,24 @@ export const loadSyncData = query(
       );
     }
 
-    // Cleanup expired rejected memos (rejectedAt < todayStart)
-    // Rejected memos only persist for today - anything from previous days is removed
-    const deletedRejectedMemos = await prisma.rejectedMemo.deleteMany({
-      where: {
-        userId,
-        rejectedAt: { lt: todayStart },
-      },
-    });
-
-    if (deletedRejectedMemos.count > 0) {
-      console.log(
-        `[Sync] Cleaned up ${deletedRejectedMemos.count} expired rejected memos`,
-      );
-    }
-
     // Load remaining data
-    const [acceptedSuggestions, cachedTransit, rejectedMemos] =
-      await Promise.all([
-        prisma.acceptedSuggestion.findMany({
-          where: { userId },
-          orderBy: { date: "asc" },
-        }),
-        prisma.cachedTransitInfo.findMany({
-          where: { userId },
-          orderBy: { eventStart: "asc" },
-        }),
-        prisma.rejectedMemo.findMany({
-          where: { userId },
-        }),
-      ]);
+    const [suggestionActions, cachedTransit] = await Promise.all([
+      prisma.suggestionAction.findMany({
+        where: { userId },
+      }),
+      prisma.cachedTransitInfo.findMany({
+        where: { userId },
+        orderBy: { eventStart: "asc" },
+      }),
+    ]);
 
     return {
-      acceptedSuggestions: acceptedSuggestions.map((s) => ({
-        suggestionId: s.suggestionId,
-        memoId: s.memoId,
-        gapId: s.gapId,
-        date: s.date.toISOString(),
-        startTime: s.startTime,
-        endTime: s.endTime,
-        duration: s.duration,
-        originalDuration: s.originalDuration,
-        acceptedAt: s.acceptedAt.toISOString(),
+      suggestionActions: suggestionActions.map((a) => ({
+        memoId: a.memoId,
+        action: a.action as "accepted" | "rejected" | "missed",
+        startTime: a.startTime ?? undefined,
+        endTime: a.endTime ?? undefined,
+        duration: a.duration ?? undefined,
       })),
       cachedTransit: cachedTransit.map((t) => ({
         eventId: t.eventId,
@@ -208,17 +175,16 @@ export const loadSyncData = query(
         transitData: t.transitData,
         cachedAt: t.cachedAt.toISOString(),
       })),
-      rejectedMemoIds: rejectedMemos.map((r) => r.memoId),
     };
   },
 );
 
 /**
- * Save accepted suggestions to database
+ * Save suggestion actions to database
  * Uses upsert to handle updates
  */
-export const saveAcceptedSuggestions = query(
-  SaveAcceptedSuggestionsSchema,
+export const saveSuggestionActions = query(
+  SaveSuggestionActionSchema,
   async (input): Promise<{ success: boolean; count: number }> => {
     const userId = getAuthenticatedUser();
     if (!userId) {
@@ -226,53 +192,44 @@ export const saveAcceptedSuggestions = query(
       return { success: false, count: 0 };
     }
 
-    // Upsert each suggestion
-    const operations = input.suggestions.map((s) =>
-      prisma.acceptedSuggestion.upsert({
+    // Upsert each action
+    const operations = input.actions.map((a) =>
+      prisma.suggestionAction.upsert({
         where: {
-          userId_suggestionId: {
+          userId_memoId_action: {
             userId,
-            suggestionId: s.suggestionId,
+            memoId: a.memoId,
+            action: a.action,
           },
         },
         create: {
           userId,
-          suggestionId: s.suggestionId,
-          memoId: s.memoId,
-          gapId: s.gapId,
-          date: new Date(s.date),
-          startTime: s.startTime,
-          endTime: s.endTime,
-          duration: s.duration,
-          originalDuration: s.originalDuration,
-          acceptedAt: new Date(s.acceptedAt),
+          memoId: a.memoId,
+          action: a.action,
+          startTime: a.startTime,
+          endTime: a.endTime,
+          duration: a.duration,
         },
         update: {
-          memoId: s.memoId,
-          gapId: s.gapId,
-          date: new Date(s.date),
-          startTime: s.startTime,
-          endTime: s.endTime,
-          duration: s.duration,
-          acceptedAt: new Date(s.acceptedAt),
+          startTime: a.startTime,
+          endTime: a.endTime,
+          duration: a.duration,
         },
       }),
     );
 
     await Promise.all(operations);
-    console.log(
-      `[Sync] Saved ${input.suggestions.length} accepted suggestions`,
-    );
+    console.log(`[Sync] Saved ${input.actions.length} suggestion actions`);
 
-    return { success: true, count: input.suggestions.length };
+    return { success: true, count: input.actions.length };
   },
 );
 
 /**
- * Remove an accepted suggestion from database
+ * Remove a suggestion action from database
  */
-export const removeAcceptedSuggestion = query(
-  v.object({ suggestionId: v.string() }),
+export const removeSuggestionAction = query(
+  RemoveSuggestionActionSchema,
   async (input): Promise<{ success: boolean }> => {
     const userId = getAuthenticatedUser();
     if (!userId) {
@@ -280,22 +237,25 @@ export const removeAcceptedSuggestion = query(
       return { success: false };
     }
 
-    await prisma.acceptedSuggestion.deleteMany({
+    await prisma.suggestionAction.deleteMany({
       where: {
         userId,
-        suggestionId: input.suggestionId,
+        memoId: input.memoId,
+        action: input.action,
       },
     });
 
-    console.log(`[Sync] Removed accepted suggestion: ${input.suggestionId}`);
+    console.log(
+      `[Sync] Removed ${input.action} action for memo: ${input.memoId}`,
+    );
     return { success: true };
   },
 );
 
 /**
- * Clear all accepted suggestions for user (for a fresh start)
+ * Clear all suggestion actions for user (for a fresh start)
  */
-export const clearAcceptedSuggestions = query(
+export const clearSuggestionActions = query(
   v.object({}),
   async (): Promise<{ success: boolean; count: number }> => {
     const userId = getAuthenticatedUser();
@@ -304,11 +264,11 @@ export const clearAcceptedSuggestions = query(
       return { success: false, count: 0 };
     }
 
-    const result = await prisma.acceptedSuggestion.deleteMany({
+    const result = await prisma.suggestionAction.deleteMany({
       where: { userId },
     });
 
-    console.log(`[Sync] Cleared ${result.count} accepted suggestions`);
+    console.log(`[Sync] Cleared ${result.count} suggestion actions`);
     return { success: true, count: result.count };
   },
 );
@@ -399,89 +359,6 @@ export const clearCachedTransit = query(
     });
 
     console.log(`[Sync] Cleared ${result.count} cached transit entries`);
-    return { success: true, count: result.count };
-  },
-);
-
-/**
- * Save rejected memo IDs to database
- */
-export const saveRejectedMemos = query(
-  RejectedMemoSchema,
-  async (input): Promise<{ success: boolean; count: number }> => {
-    const userId = getAuthenticatedUser();
-    if (!userId) {
-      console.warn("[Sync] No authenticated user");
-      return { success: false, count: 0 };
-    }
-    const now = new Date();
-
-    // Create rejected memo entries (skip if already exists)
-    const operations = input.memoIds.map((memoId) =>
-      prisma.rejectedMemo.upsert({
-        where: {
-          userId_memoId: {
-            userId,
-            memoId,
-          },
-        },
-        create: {
-          userId,
-          memoId,
-          rejectedAt: now,
-        },
-        update: {}, // No update needed - just skip if exists
-      }),
-    );
-
-    await Promise.all(operations);
-    console.log(`[Sync] Saved ${input.memoIds.length} rejected memos`);
-
-    return { success: true, count: input.memoIds.length };
-  },
-);
-
-/**
- * Remove a rejected memo (restore it to suggestions)
- */
-export const removeRejectedMemo = query(
-  v.object({ memoId: v.string() }),
-  async (input): Promise<{ success: boolean }> => {
-    const userId = getAuthenticatedUser();
-    if (!userId) {
-      console.warn("[Sync] No authenticated user");
-      return { success: false };
-    }
-
-    await prisma.rejectedMemo.deleteMany({
-      where: {
-        userId,
-        memoId: input.memoId,
-      },
-    });
-
-    console.log(`[Sync] Removed rejected memo: ${input.memoId}`);
-    return { success: true };
-  },
-);
-
-/**
- * Clear all rejected memos for user
- */
-export const clearRejectedMemos = query(
-  v.object({}),
-  async (): Promise<{ success: boolean; count: number }> => {
-    const userId = getAuthenticatedUser();
-    if (!userId) {
-      console.warn("[Sync] No authenticated user");
-      return { success: false, count: 0 };
-    }
-
-    const result = await prisma.rejectedMemo.deleteMany({
-      where: { userId },
-    });
-
-    console.log(`[Sync] Cleared ${result.count} rejected memos`);
     return { success: true, count: result.count };
   },
 );

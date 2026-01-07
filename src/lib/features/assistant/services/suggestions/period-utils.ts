@@ -196,9 +196,23 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
     }
 
     // Reset daily flags if it's a new day
-    if (memo.routineState?.lastCompletedDay) {
-      const lastCompleted = new Date(memo.routineState.lastCompletedDay);
-      if (!isSameDay(lastCompleted, currentTime)) {
+    if (memo.routineState) {
+      // Check if we need to reset based on lastCompletedDay
+      const lastCompleted = memo.routineState.lastCompletedDay
+        ? new Date(memo.routineState.lastCompletedDay)
+        : null;
+
+      // Reset if:
+      // 1. lastCompletedDay exists and it's a different day, OR
+      // 2. lastCompletedDay is null but acceptedToday is true (accepted but never completed)
+      const needsReset = lastCompleted
+        ? !isSameDay(lastCompleted, currentTime)
+        : memo.routineState.acceptedToday; // Reset orphaned acceptedToday
+
+      if (
+        needsReset &&
+        (memo.routineState.acceptedToday || memo.routineState.completedToday)
+      ) {
         // New day - reset acceptedToday and completedToday
         updated = {
           ...updated,
@@ -214,9 +228,19 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
   }
 
   // Handle backlog tasks
-  if (memo.type === "バックログ" && memo.backlogState?.lastCompletedDay) {
-    const lastCompleted = new Date(memo.backlogState.lastCompletedDay);
-    if (!isSameDay(lastCompleted, currentTime)) {
+  if (memo.type === "バックログ" && memo.backlogState) {
+    const lastCompleted = memo.backlogState.lastCompletedDay
+      ? new Date(memo.backlogState.lastCompletedDay)
+      : null;
+
+    // Reset if:
+    // 1. lastCompletedDay exists and it's a different day, OR
+    // 2. lastCompletedDay is null but acceptedToday is true (accepted but never completed)
+    const needsReset = lastCompleted
+      ? !isSameDay(lastCompleted, currentTime)
+      : memo.backlogState.acceptedToday; // Reset orphaned acceptedToday
+
+    if (needsReset && memo.backlogState.acceptedToday) {
       // New day - reset acceptedToday
       updated = {
         ...updated,

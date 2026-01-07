@@ -6,8 +6,9 @@
   import {
     scheduleActions,
     pendingSuggestions,
-    acceptedSuggestions,
+    acceptedMemos,
     tasks,
+    type AcceptedMemoInfo,
   } from "$lib/bootstrap/compat.svelte.ts";
   import type { Event, Gap } from "$lib/types.ts";
   import { get } from "svelte/store";
@@ -55,7 +56,8 @@
       }
     | {
         type: "accepted-suggestion";
-        data: import("$lib/features/assistant/state/schedule.ts").AcceptedSuggestion;
+        memoId: string;
+        data: AcceptedMemoInfo;
         title: string;
       }
     | {
@@ -185,11 +187,11 @@
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
   }
 
-  // Gaps with accepted suggestions subtracted (for drag interactions)
+  // Gaps with accepted memos subtracted (for drag interactions)
   // This ensures pending suggestions can't overlap with accepted ones
   let availableGaps = $derived.by((): Gap[] => {
-    const accepted = $acceptedSuggestions;
-    if (accepted.length === 0) return enrichedGaps;
+    const accepted = $acceptedMemos;
+    if (accepted.size === 0) return enrichedGaps;
 
     const result: Gap[] = [];
     let gapCounter = 0;
@@ -199,7 +201,7 @@
       const gapEnd = timeToMinutes(gap.end);
 
       // Find blockers that overlap with this gap
-      const overlappingBlockers = accepted.filter((a) => {
+      const overlappingBlockers = Array.from(accepted.values()).filter((a) => {
         const blockerStart = timeToMinutes(a.startTime);
         const blockerEnd = timeToMinutes(a.endTime);
         return blockerStart < gapEnd && blockerEnd > gapStart;
@@ -303,24 +305,30 @@
     return $pendingSuggestions;
   });
 
-  let filteredAcceptedSuggestions = $derived.by(() => {
+  // Convert accepted memos to display format for CircularTimeline
+  let filteredAcceptedForDisplay = $derived.by(() => {
     if (!isTodaySelected) return [];
-    return $acceptedSuggestions;
+    return Array.from($acceptedMemos.entries()).map(([memoId, info]) => ({
+      memoId,
+      startTime: info.startTime,
+      endTime: info.endTime,
+      duration: info.duration,
+    }));
   });
 
-  // Convert accepted suggestions to Event format for display list
+  // Convert accepted memos to Event format for display list
   let acceptedEvents = $derived.by(() => {
     if (!isTodaySelected) return [];
 
     const base = startOfDay(dataState.selectedDate);
-    return $acceptedSuggestions.map((block) => {
-      const title = getTaskTitle(block.memoId);
+    return Array.from($acceptedMemos.entries()).map(([memoId, info]) => {
+      const title = getTaskTitle(memoId);
 
       return {
-        id: `accepted-${block.suggestionId}`,
+        id: `accepted-${memoId}`,
         title,
-        start: parseTimeOnDate(base, block.startTime),
-        end: parseTimeOnDate(base, block.endTime),
+        start: parseTimeOnDate(base, info.startTime),
+        end: parseTimeOnDate(base, info.endTime),
         description: "Accepted suggestion",
         timeLabel: "timed",
       } as Event;
@@ -395,12 +403,13 @@
   function handleSuggestionSelected(
     event: CustomEvent<{
       type: "pending" | "accepted";
+      memoId: string;
       data:
         | import("$lib/features/assistant/state/schedule.ts").PendingSuggestion
-        | import("$lib/features/assistant/state/schedule.ts").AcceptedSuggestion;
+        | AcceptedMemoInfo;
     }>,
   ) {
-    const { type, data } = event.detail;
+    const { type, memoId, data } = event.detail;
     if (type === "pending") {
       const pendingData =
         data as import("$lib/features/assistant/state/schedule.ts").PendingSuggestion;
@@ -411,14 +420,15 @@
       selectedSuggestion = {
         type: "pending-suggestion",
         data: pendingData,
-        title: getTaskTitle(data.memoId),
+        title: getTaskTitle(memoId),
         gapEnd,
       };
     } else {
       selectedSuggestion = {
         type: "accepted-suggestion",
-        data: data as import("$lib/features/assistant/state/schedule.ts").AcceptedSuggestion,
-        title: getTaskTitle(data.memoId),
+        memoId,
+        data: data as AcceptedMemoInfo,
+        title: getTaskTitle(memoId),
       };
     }
     // Clear lower priority selections
@@ -491,12 +501,11 @@
 
   async function handleInfoPanelComplete(
     event: CustomEvent<{
-      suggestionId: string;
       memoId: string;
       duration: number;
     }>,
   ) {
-    const { suggestionId, memoId, duration } = event.detail;
+    const { memoId, duration } = event.detail;
 
     // Log progress via taskActions (updates DB AND store reactively)
     const { taskActions: actions } = await import(
@@ -505,7 +514,7 @@
     await actions.logProgress(memoId, duration);
 
     // Remove from accepted list
-    await scheduleActions.completeSuggestion(suggestionId, memoId, duration);
+    await scheduleActions.completeSuggestion(memoId, duration);
 
     // Update local taskList from store
     taskList = get(tasks);
@@ -513,19 +522,15 @@
     selectedSuggestion = null;
   }
 
-  async function handleInfoPanelMissed(
-    event: CustomEvent<{ suggestionId: string }>,
-  ) {
-    const { suggestionId } = event.detail;
-    await scheduleActions.missedSuggestion(suggestionId);
+  async function handleInfoPanelMissed(event: CustomEvent<{ memoId: string }>) {
+    const { memoId } = event.detail;
+    await scheduleActions.missedSuggestion(memoId);
     selectedSuggestion = null;
   }
 
-  async function handleInfoPanelDelete(
-    event: CustomEvent<{ suggestionId: string }>,
-  ) {
-    const { suggestionId } = event.detail;
-    await scheduleActions.deleteAccepted(suggestionId, taskList);
+  async function handleInfoPanelDelete(event: CustomEvent<{ memoId: string }>) {
+    const { memoId } = event.detail;
+    await scheduleActions.deleteAccepted(memoId, taskList);
     selectedSuggestion = null;
   }
 
@@ -599,7 +604,7 @@
           <CircularTimelineCss
             externalGaps={availableGaps}
             pendingSuggestions={filteredPendingSuggestions}
-            acceptedSuggestions={filteredAcceptedSuggestions}
+            acceptedMemos={filteredAcceptedForDisplay}
             {getTaskTitle}
             on:eventSelected={handleEventSelected}
             on:gapSelected={handleGapSelected}

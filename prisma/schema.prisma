@@ -219,36 +219,31 @@ model TimetableCell {
 
 // ============================================================================
 // Action Sync Pipeline
-// Persists accepted suggestions and cached transit info across sessions/devices
+// Persists suggestion actions across sessions/devices
+// Cleaned up daily - only today's actions persist
 // ============================================================================
 
-// Accepted suggestion that acts as a fixed event in schedule
-model AcceptedSuggestion {
+// Simple action tracking for suggestions
+// Actions: "accepted" | "rejected" | "missed"
+// No timestamps needed - presence indicates action was taken today
+// Cleanup happens on new day (all records deleted)
+model SuggestionAction {
   id              String   @id @default(auto()) @map("_id") @db.ObjectId
   userId          String
   
-  // Suggestion identification
-  suggestionId    String   // Unique ID for the suggestion
-  memoId          String   // ID of the memo this suggestion is for
-  gapId           String   // ID of the gap this suggestion is in
+  memoId          String   // ID of the memo
+  action          String   // "accepted" | "rejected" | "missed"
   
-  // Time slot (stored for the specific date)
-  date            DateTime // Date this suggestion is scheduled for (YYYY-MM-DD)
-  startTime       String   // Start time in HH:mm format
-  endTime         String   // End time in HH:mm format
-  duration        Int      // Duration in minutes
+  // Time slot info (only for accepted - needed for gap subtraction)
+  startTime       String?  // Start time in HH:mm format
+  endTime         String?  // End time in HH:mm format
+  duration        Int?     // Duration in minutes
   
-  // Original duration before any resizing (for tracking changes)
-  originalDuration Int
-  
-  // Metadata
-  acceptedAt      DateTime
   createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
 
-  @@unique([userId, suggestionId])
-  @@index([userId, date])
-  @@map("accepted_suggestion")
+  @@unique([userId, memoId, action])
+  @@index([userId])
+  @@map("suggestion_action")
 }
 
 // Cached transit route info to avoid redundant API calls
@@ -278,20 +273,7 @@ model CachedTransitInfo {
   @@map("cached_transit_info")
 }
 
-// Rejected memo IDs (memos that should never reappear as suggestions)
-model RejectedMemo {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId          String
-  
-  memoId          String   // ID of the rejected memo
-  
-  rejectedAt      DateTime
-  createdAt       DateTime @default(now())
-
-  @@unique([userId, memoId])
-  @@index([userId])
-  @@map("rejected_memo")
-}
+// NOTE: RejectedMemo model removed - now uses SuggestionAction with action="rejected"
 
 // ============================================================================
 // Event Templates (for autocomplete suggestions based on past events)

@@ -1,12 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type {
-    PendingSuggestion,
-    AcceptedSuggestion,
-  } from "$lib/features/assistant/state/schedule.ts";
+  import type { PendingSuggestion } from "$lib/features/assistant/state/schedule.ts";
+
+  // Common fields for both pending and accepted suggestions
+  interface SuggestionDisplay {
+    startTime: string;
+    endTime: string;
+    duration: number;
+  }
 
   interface Props {
-    suggestion: PendingSuggestion | AcceptedSuggestion;
+    suggestion: SuggestionDisplay;
     taskTitle: string;
     isAccepted: boolean;
     position?: { x: number; y: number };

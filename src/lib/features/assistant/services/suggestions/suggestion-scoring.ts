@@ -16,7 +16,7 @@
  * - バックログ (Backlog):  0.5 – 0.7 (never mandatory, slow ramp)
  *
  * Importance Score:
- * - Discrete values only: 0.0, 0.2, 0.4
+ * - Discrete values only: 0.0, 0.1, 0.2
  *
  * Key Design Principles:
  * - Explicit state flags required (no inference from floats)
@@ -48,7 +48,7 @@ export interface ScoreInput {
 
 export interface ScoreOutput {
   need: number; // 0.0–1.0 (≥1.0 = mandatory, <0.5 = hidden)
-  importance: number; // Discrete: 0.0, 0.2, 0.4
+  importance: number; // Discrete: 0.0, 0.1, 0.2
   duration: number; // Ideal duration (minutes)
   minDuration: number; // Minimum acceptable duration
   isHidden: boolean; // True if need < 0.5
@@ -77,18 +77,18 @@ const MIN_DURATION_FLOOR = 10; // absolute minimum
 
 /**
  * Convert importance level string to discrete numeric value
- * NEW: Only 0.0, 0.2, 0.4 allowed
+ * NEW: Only 0.0, 0.1, 0.2 allowed
  */
 export function importanceToNumber(importance: ImportanceLevel): number {
   switch (importance) {
     case "low":
       return 0.0;
     case "medium":
-      return 0.2;
+      return 0.1;
     case "high":
-      return 0.4;
+      return 0.2;
     default:
-      return 0.2; // Default to medium
+      return 0.1; // Default to medium
   }
 }
 

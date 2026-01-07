@@ -72,8 +72,8 @@ export {
   lastScheduleTime,
   scheduledBlocks,
   pendingSuggestions,
-  acceptedSuggestions,
-  skippedSuggestionIds,
+  acceptedMemos,
+  rejectedMemoIds,
   droppedSuggestions,
   droppedMandatory,
   nextScheduledBlock,
@@ -84,8 +84,9 @@ export {
   findBlockByMemoId,
   isMemoScheduled,
   getBlocksForGap,
-  type AcceptedSuggestion,
+  type AcceptedMemoInfo,
   type PendingSuggestion,
+  type MovedSuggestion,
 } from "../features/assistant/state/schedule.ts";
 
 // Task state

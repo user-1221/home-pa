@@ -2,7 +2,7 @@
   import type { Event as MyEvent, Gap } from "$lib/types.ts";
   import type {
     PendingSuggestion,
-    AcceptedSuggestion,
+    AcceptedMemoInfo,
   } from "$lib/features/assistant/state/schedule.ts";
   import { createEventDispatcher } from "svelte";
   import {
@@ -33,7 +33,8 @@
         }
       | {
           type: "accepted-suggestion";
-          data: AcceptedSuggestion;
+          memoId: string;
+          data: AcceptedMemoInfo;
           title: string;
         }
       | {
@@ -51,9 +52,9 @@
   const dispatch = createEventDispatcher<{
     accept: string;
     reject: string;
-    complete: { suggestionId: string; memoId: string; duration: number };
-    missed: { suggestionId: string };
-    delete: { suggestionId: string };
+    complete: { memoId: string; duration: number };
+    missed: { memoId: string };
+    delete: { memoId: string };
     durationChange: {
       suggestionId: string;
       newDuration: number;
@@ -156,8 +157,7 @@
   function handleComplete() {
     if (selectedItem?.type === "accepted-suggestion") {
       dispatch("complete", {
-        suggestionId: selectedItem.data.suggestionId,
-        memoId: selectedItem.data.memoId,
+        memoId: selectedItem.memoId,
         duration: selectedItem.data.duration,
       });
     }
@@ -165,13 +165,13 @@
 
   function handleMissed() {
     if (selectedItem?.type === "accepted-suggestion") {
-      dispatch("missed", { suggestionId: selectedItem.data.suggestionId });
+      dispatch("missed", { memoId: selectedItem.memoId });
     }
   }
 
   function handleDelete() {
     if (selectedItem?.type === "accepted-suggestion") {
-      dispatch("delete", { suggestionId: selectedItem.data.suggestionId });
+      dispatch("delete", { memoId: selectedItem.memoId });
     }
   }
 
