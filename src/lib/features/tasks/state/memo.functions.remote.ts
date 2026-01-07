@@ -36,6 +36,25 @@ const MemoStatusSchema = v.object({
   periodStartDate: v.optional(v.string()),
 });
 
+// Type-specific state schemas
+const RoutineStateSchema = v.optional(
+  v.object({
+    acceptedToday: v.boolean(),
+    completedToday: v.boolean(),
+    completedCountThisWeek: v.number(),
+    lastCompletedDay: v.nullable(v.string()),
+    wasCappedThisWeek: v.boolean(),
+    weekStartDate: v.nullable(v.string()),
+  }),
+);
+
+const BacklogStateSchema = v.optional(
+  v.object({
+    acceptedToday: v.boolean(),
+    lastCompletedDay: v.nullable(v.string()),
+  }),
+);
+
 const MemoInputSchema = v.object({
   title: v.string(),
   genre: v.optional(v.string()),
@@ -53,6 +72,9 @@ const MemoInputSchema = v.object({
   totalDurationExpected: v.optional(v.number()),
   lastActivity: v.optional(v.string()),
   importance: v.optional(v.picklist(["low", "medium", "high"])),
+  // Type-specific state
+  routineState: RoutineStateSchema,
+  backlogState: BacklogStateSchema,
 });
 
 const MemoUpdateSchema = v.object({
@@ -75,6 +97,9 @@ const MemoUpdateSchema = v.object({
     totalDurationExpected: v.optional(v.number()),
     lastActivity: v.optional(v.string()),
     importance: v.optional(v.picklist(["low", "medium", "high"])),
+    // Type-specific state
+    routineState: RoutineStateSchema,
+    backlogState: BacklogStateSchema,
   }),
 });
 
@@ -126,6 +151,27 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
       totalDurationExpected: memo.totalDurationExpected ?? undefined,
       lastActivity: memo.lastActivity?.toISOString(),
       importance: memo.importance as "low" | "medium" | "high" | undefined,
+      // Type-specific state
+      routineState:
+        memo.type === "ルーティン" && memo.routineWeekStartDate !== null
+          ? {
+              acceptedToday: memo.routineAcceptedToday ?? false,
+              completedToday: memo.routineCompletedToday ?? false,
+              completedCountThisWeek: memo.routineCompletedCountWeek ?? 0,
+              lastCompletedDay:
+                memo.routineLastCompletedDay?.toISOString() ?? null,
+              wasCappedThisWeek: memo.routineWasCappedThisWeek ?? false,
+              weekStartDate: memo.routineWeekStartDate?.toISOString() ?? null,
+            }
+          : undefined,
+      backlogState:
+        memo.type === "バックログ"
+          ? {
+              acceptedToday: memo.backlogAcceptedToday ?? false,
+              lastCompletedDay:
+                memo.backlogLastCompletedDay?.toISOString() ?? null,
+            }
+          : undefined,
     }));
   } catch (err) {
     console.error("[fetchMemos] Error:", err);
@@ -165,6 +211,22 @@ export const createMemo = command(MemoInputSchema, async (input) => {
           ? new Date(input.lastActivity)
           : undefined,
         importance: input.importance,
+        // Routine state
+        routineAcceptedToday: input.routineState?.acceptedToday,
+        routineCompletedToday: input.routineState?.completedToday,
+        routineCompletedCountWeek: input.routineState?.completedCountThisWeek,
+        routineLastCompletedDay: input.routineState?.lastCompletedDay
+          ? new Date(input.routineState.lastCompletedDay)
+          : undefined,
+        routineWasCappedThisWeek: input.routineState?.wasCappedThisWeek,
+        routineWeekStartDate: input.routineState?.weekStartDate
+          ? new Date(input.routineState.weekStartDate)
+          : undefined,
+        // Backlog state
+        backlogAcceptedToday: input.backlogState?.acceptedToday,
+        backlogLastCompletedDay: input.backlogState?.lastCompletedDay
+          ? new Date(input.backlogState.lastCompletedDay)
+          : undefined,
       },
     });
 
@@ -199,6 +261,28 @@ export const createMemo = command(MemoInputSchema, async (input) => {
       totalDurationExpected: created.totalDurationExpected ?? undefined,
       lastActivity: created.lastActivity?.toISOString(),
       importance: created.importance as "low" | "medium" | "high" | undefined,
+      // Type-specific state
+      routineState:
+        created.type === "ルーティン" && created.routineWeekStartDate !== null
+          ? {
+              acceptedToday: created.routineAcceptedToday ?? false,
+              completedToday: created.routineCompletedToday ?? false,
+              completedCountThisWeek: created.routineCompletedCountWeek ?? 0,
+              lastCompletedDay:
+                created.routineLastCompletedDay?.toISOString() ?? null,
+              wasCappedThisWeek: created.routineWasCappedThisWeek ?? false,
+              weekStartDate:
+                created.routineWeekStartDate?.toISOString() ?? null,
+            }
+          : undefined,
+      backlogState:
+        created.type === "バックログ"
+          ? {
+              acceptedToday: created.backlogAcceptedToday ?? false,
+              lastCompletedDay:
+                created.backlogLastCompletedDay?.toISOString() ?? null,
+            }
+          : undefined,
     };
   } catch (err) {
     console.error("[createMemo] Error:", err);
@@ -263,6 +347,33 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
         : null;
     if (input.updates.importance !== undefined)
       updateData.importance = input.updates.importance;
+    // Routine state
+    if (input.updates.routineState !== undefined) {
+      updateData.routineAcceptedToday =
+        input.updates.routineState.acceptedToday;
+      updateData.routineCompletedToday =
+        input.updates.routineState.completedToday;
+      updateData.routineCompletedCountWeek =
+        input.updates.routineState.completedCountThisWeek;
+      updateData.routineLastCompletedDay = input.updates.routineState
+        .lastCompletedDay
+        ? new Date(input.updates.routineState.lastCompletedDay)
+        : null;
+      updateData.routineWasCappedThisWeek =
+        input.updates.routineState.wasCappedThisWeek;
+      updateData.routineWeekStartDate = input.updates.routineState.weekStartDate
+        ? new Date(input.updates.routineState.weekStartDate)
+        : null;
+    }
+    // Backlog state
+    if (input.updates.backlogState !== undefined) {
+      updateData.backlogAcceptedToday =
+        input.updates.backlogState.acceptedToday;
+      updateData.backlogLastCompletedDay = input.updates.backlogState
+        .lastCompletedDay
+        ? new Date(input.updates.backlogState.lastCompletedDay)
+        : null;
+    }
 
     const updated = await prisma.memo.update({
       where: { id: input.id },
@@ -300,6 +411,28 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
       totalDurationExpected: updated.totalDurationExpected ?? undefined,
       lastActivity: updated.lastActivity?.toISOString(),
       importance: updated.importance as "low" | "medium" | "high" | undefined,
+      // Type-specific state
+      routineState:
+        updated.type === "ルーティン" && updated.routineWeekStartDate !== null
+          ? {
+              acceptedToday: updated.routineAcceptedToday ?? false,
+              completedToday: updated.routineCompletedToday ?? false,
+              completedCountThisWeek: updated.routineCompletedCountWeek ?? 0,
+              lastCompletedDay:
+                updated.routineLastCompletedDay?.toISOString() ?? null,
+              wasCappedThisWeek: updated.routineWasCappedThisWeek ?? false,
+              weekStartDate:
+                updated.routineWeekStartDate?.toISOString() ?? null,
+            }
+          : undefined,
+      backlogState:
+        updated.type === "バックログ"
+          ? {
+              acceptedToday: updated.backlogAcceptedToday ?? false,
+              lastCompletedDay:
+                updated.backlogLastCompletedDay?.toISOString() ?? null,
+            }
+          : undefined,
     };
   } catch (err) {
     console.error("[updateMemo] Error:", err);
@@ -343,7 +476,7 @@ export const deleteMemo = command(
 
 /**
  * Log progress for a completed suggestion session
- * Updates timeSpentMinutes, lastActivity, and completionsThisPeriod
+ * Updates timeSpentMinutes, lastActivity, completionsThisPeriod, and type-specific state
  */
 export const logSuggestionComplete = command(
   v.object({
@@ -371,19 +504,58 @@ export const logSuggestionComplete = command(
       const newCompletions = (existing.completionsThisPeriod ?? 0) + 1;
       const now = new Date();
 
+      // Build update data
+      const updateData: Record<string, unknown> = {
+        timeSpentMinutes: newTimeSpent,
+        completionsThisPeriod: newCompletions,
+        lastActivity: now,
+        // Update completionState if significant progress
+        completionState:
+          existing.completionState === "not_started"
+            ? "in_progress"
+            : existing.completionState,
+      };
+
+      // Type-specific state updates
+      if (existing.type === "ルーティン") {
+        // Calculate week start (Monday)
+        const weekStart = getWeekStart(now);
+        const existingWeekStart = existing.routineWeekStartDate
+          ? new Date(existing.routineWeekStartDate)
+          : null;
+
+        // Check if we need to reset week counter
+        const needsWeekReset =
+          !existingWeekStart || !isSameWeek(existingWeekStart, now);
+
+        const baseCount = needsWeekReset
+          ? 0
+          : (existing.routineCompletedCountWeek ?? 0);
+        const newCount = baseCount + 1;
+
+        // Check if goal is now met
+        const goalCount = existing.recurrenceGoalCount ?? 3;
+        const shouldCap = newCount >= goalCount;
+
+        updateData.routineAcceptedToday = true;
+        updateData.routineCompletedToday = true;
+        updateData.routineCompletedCountWeek = newCount;
+        updateData.routineLastCompletedDay = now;
+        updateData.routineWasCappedThisWeek = needsWeekReset
+          ? shouldCap
+          : (existing.routineWasCappedThisWeek ?? false) || shouldCap;
+        updateData.routineWeekStartDate = needsWeekReset
+          ? weekStart
+          : existingWeekStart;
+      } else if (existing.type === "バックログ") {
+        updateData.backlogAcceptedToday = true;
+        updateData.backlogLastCompletedDay = now;
+      }
+
       // Update memo with progress
       const updated = await prisma.memo.update({
         where: { id: input.memoId },
-        data: {
-          timeSpentMinutes: newTimeSpent,
-          completionsThisPeriod: newCompletions,
-          lastActivity: now,
-          // Update completionState if significant progress
-          completionState:
-            existing.completionState === "not_started"
-              ? "in_progress"
-              : existing.completionState,
-        },
+        data: updateData,
       });
 
       console.log(
@@ -395,6 +567,28 @@ export const logSuggestionComplete = command(
         timeSpentMinutes: updated.timeSpentMinutes,
         completionsThisPeriod: updated.completionsThisPeriod ?? 0,
         lastActivity: updated.lastActivity?.toISOString(),
+        // Return routine state if applicable
+        routineState:
+          updated.type === "ルーティン"
+            ? {
+                acceptedToday: updated.routineAcceptedToday ?? false,
+                completedToday: updated.routineCompletedToday ?? false,
+                completedCountThisWeek: updated.routineCompletedCountWeek ?? 0,
+                lastCompletedDay:
+                  updated.routineLastCompletedDay?.toISOString() ?? null,
+                wasCappedThisWeek: updated.routineWasCappedThisWeek ?? false,
+                weekStartDate:
+                  updated.routineWeekStartDate?.toISOString() ?? null,
+              }
+            : undefined,
+        backlogState:
+          updated.type === "バックログ"
+            ? {
+                acceptedToday: updated.backlogAcceptedToday ?? false,
+                lastCompletedDay:
+                  updated.backlogLastCompletedDay?.toISOString() ?? null,
+              }
+            : undefined,
       };
     } catch (err) {
       console.error("[logSuggestionComplete] Error:", err);
@@ -402,3 +596,25 @@ export const logSuggestionComplete = command(
     }
   },
 );
+
+// Helper functions for date calculations
+function getWeekStart(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Monday start
+  return new Date(d.setDate(diff));
+}
+
+function isSameWeek(date1: Date, date2: Date): boolean {
+  const week1 = getWeekNumber(date1);
+  const week2 = getWeekNumber(date2);
+  return date1.getFullYear() === date2.getFullYear() && week1 === week2;
+}
+
+function getWeekNumber(date: Date): number {
+  const startOfYear = new Date(date.getFullYear(), 0, 1);
+  const days = Math.floor(
+    (date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000),
+  );
+  return Math.ceil((days + startOfYear.getDay() + 1) / 7);
+}

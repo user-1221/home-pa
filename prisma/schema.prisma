@@ -151,6 +151,22 @@ model Memo {
   lastActivity           DateTime?
   importance             String?  // low | medium | high
 
+  // ============================================================================
+  // TYPE-SPECIFIC STATE (New scoring system)
+  // ============================================================================
+  
+  // Routine state (ルーティン type)
+  routineAcceptedToday      Boolean?   // If true, task is done for the day
+  routineCompletedToday     Boolean?   // Actually completed (not just accepted)
+  routineCompletedCountWeek Int?       // Count of completions this week
+  routineLastCompletedDay   DateTime?  // Date of last completion
+  routineWasCappedThisWeek  Boolean?   // True if display cap was active
+  routineWeekStartDate      DateTime?  // Start of current tracking week
+  
+  // Backlog state (バックログ type)
+  backlogAcceptedToday      Boolean?   // If true, task treated as done for day
+  backlogLastCompletedDay   DateTime?  // Date of last completion
+
   updatedAt              DateTime @updatedAt
 
   @@index([userId, type])

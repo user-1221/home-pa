@@ -687,6 +687,30 @@ export const taskActions = {
           lastActivity: result.lastActivity
             ? new Date(result.lastActivity)
             : task.lastActivity,
+          // Update type-specific state
+          routineState: result.routineState
+            ? {
+                acceptedToday: result.routineState.acceptedToday,
+                completedToday: result.routineState.completedToday,
+                completedCountThisWeek:
+                  result.routineState.completedCountThisWeek,
+                lastCompletedDay: result.routineState.lastCompletedDay
+                  ? new Date(result.routineState.lastCompletedDay)
+                  : null,
+                wasCappedThisWeek: result.routineState.wasCappedThisWeek,
+                weekStartDate: result.routineState.weekStartDate
+                  ? new Date(result.routineState.weekStartDate)
+                  : null,
+              }
+            : task.routineState,
+          backlogState: result.backlogState
+            ? {
+                acceptedToday: result.backlogState.acceptedToday,
+                lastCompletedDay: result.backlogState.lastCompletedDay
+                  ? new Date(result.backlogState.lastCompletedDay)
+                  : null,
+              }
+            : task.backlogState,
         };
         return newTasks;
       });
