@@ -1,16 +1,68 @@
 /**
  * Suggestion Engine
  *
- * Orchestrates the entire suggestion pipeline:
- * 1. Filter active memos (not completed)
- * 2. Reset period counters if needed (for routines)
- * 3. Enrich memos with LLM (fill missing fields)
- * 4. Score memos → generate Suggestions
- * 5. Fetch and enrich gaps with location
- * 6. Schedule suggestions into gaps
+ * Orchestrates the entire suggestion pipeline from memos to scheduled suggestions.
+ *
+ * ============================================================================
+ * PIPELINE OVERVIEW
+ * ============================================================================
+ *
+ * Phase 1: Prepare Memos
+ *   1.1 Filter active memos (not completed)
+ *   1.2 Reset period counters and daily flags (acceptedToday, completedToday)
+ *   1.3 Enrich memos with LLM (fill missing fields)
+ *
+ * Phase 2: Generate Suggestions
+ *   2.1 Score each memo → generate Suggestions (need, importance, duration)
+ *   2.2 Filter hidden suggestions (need < DISPLAY_THRESHOLD of 0.5)
+ *   2.3 Reduce scores for accepted deadline tasks (can have multiple sessions)
+ *
+ * Phase 3: Schedule Suggestions
+ *   3.1 Enrich gaps with location (based on nearby events)
+ *   3.2 Schedule suggestions into gaps using priority-based algorithm
+ *
+ * ============================================================================
+ * ACCEPTANCE FLOW
+ * ============================================================================
+ *
+ * When a user accepts a suggestion:
+ *
+ * Routine/Backlog Tasks:
+ *   1. accept() calls markMemoAccepted() → sets routineState.acceptedToday = true
+ *   2. This is persisted to DB and local store
+ *   3. On regenerate(), scoring function returns 0 → filtered out as hidden
+ *   4. Task won't appear again until next day (acceptedToday resets)
+ *
+ * Deadline Tasks:
+ *   1. accept() adds to acceptedSuggestions store
+ *   2. On regenerate(), reduceScoresForAcceptedDeadlines() lowers priority
+ *   3. Task can still appear (multiple work sessions allowed) but at lower priority
+ *
+ * ============================================================================
+ * DAILY RESET
+ * ============================================================================
+ *
+ * At day boundary (when scoring runs on a new day):
+ *   - resetPeriodIfNeeded() checks lastCompletedDay vs currentTime
+ *   - If new day: acceptedToday and completedToday are reset to false
+ *   - This allows tasks to appear in suggestions again
+ *
+ * ============================================================================
+ * SCORING THRESHOLDS
+ * ============================================================================
+ *
+ * - DISPLAY_THRESHOLD (0.5): Tasks with need < 0.5 are hidden
+ * - MANDATORY_THRESHOLD (1.0): Tasks with need >= 1.0 must be scheduled
+ *
+ * Task Type Score Ranges:
+ *   - Routine: 0.0 - 0.9 (never mandatory, grows over time)
+ *   - Deadline: 0.1 - 1.0 (mandatory near deadline)
+ *   - Backlog: 0.5 - 0.7 (always visible, never mandatory)
+ *
+ * ============================================================================
  *
  * This is a pure service module - no store coupling.
- * Store integration happens in Step 3.2.
+ * Store integration happens via schedule.ts.
  *
  * @example
  * ```ts
@@ -237,35 +289,38 @@ export function filterVisibleSuggestions(
 }
 
 /**
- * Score reduction factor for accepted memos (non-routine types)
+ * Score reduction factor for deadline tasks that have already been accepted today
  * Ensures their duplicates are always lower priority than mandatory (need >= 1.0)
  */
-const ACCEPTED_SCORE_REDUCTION = 0.5;
-const ACCEPTED_MAX_NEED = 0.85; // Always below mandatory threshold (1.0)
+const DEADLINE_ACCEPTED_SCORE_REDUCTION = 0.5;
+const DEADLINE_ACCEPTED_MAX_NEED = 0.85; // Always below mandatory threshold (1.0)
 
 /**
- * Handle accepted-today logic for routine and backlog tasks, score reduction for deadlines
+ * Reduce scores for deadline tasks that have already been accepted
  *
- * LOGIC:
- * - Routine tasks: The scoring function (calculateRoutineNeed) already handles
- *   acceptedToday by treating it as just completed (daysSinceCompletion = 0)
- *   within the same day. So we don't need special handling here.
- * - Backlog tasks: The scoring function (calculateBacklogNeed) now handles
- *   acceptedToday similarly - treating it as just completed within the same day.
- * - Deadline tasks: Reduce score to lower priority than mandatory
+ * For routine and backlog tasks:
+ * - The scoring function (calculateRoutineNeed, calculateBacklogNeed) handles
+ *   acceptedToday directly by returning a score < 0.5 when acceptedToday = true.
+ * - These are then filtered out by filterVisibleSuggestions.
+ *
+ * For deadline tasks:
+ * - Multiple work sessions may be scheduled, so we reduce (not hide) their score.
+ * - This allows them to still appear but at lower priority than other tasks.
  *
  * @param suggestions - All generated suggestions
  * @param acceptedMemoIds - Set of memo IDs that are already accepted today
- * @param memos - Source memos (to check task state)
- * @param _currentTime - Current time (unused, kept for API compatibility)
- * @returns Suggestions with appropriate score adjustments
+ * @param memos - Source memos (to check task type)
+ * @returns Suggestions with reduced scores for accepted deadline tasks
  */
-export function handleAcceptedSuggestions(
+export function reduceScoresForAcceptedDeadlines(
   suggestions: Suggestion[],
   acceptedMemoIds: Set<string>,
   memos: Memo[],
-  _currentTime: Date,
 ): Suggestion[] {
+  if (acceptedMemoIds.size === 0) {
+    return suggestions;
+  }
+
   // Build memo lookup
   const memoMap = new Map(memos.map((m) => [m.id, m]));
 
@@ -276,48 +331,18 @@ export function handleAcceptedSuggestions(
 
     const memo = memoMap.get(s.memoId);
 
-    // For routine and backlog tasks, the scoring function already handles acceptedToday
-    // by treating it as just completed (daysSinceCompletion = 0) within the same day
-    // So we return the suggestion as-is (with its already-calculated low score)
-    if (memo?.type === "ルーティン" || memo?.type === "バックログ") {
+    // Only reduce scores for deadline tasks
+    // Routine and backlog are handled by their scoring functions (return score < 0.5)
+    if (memo?.type !== "期限付き") {
       return s;
     }
 
-    // For deadline tasks: reduce scores like before
+    // For deadline tasks: reduce scores to lower priority
     const reducedNeed = Math.min(
-      s.need * ACCEPTED_SCORE_REDUCTION,
-      ACCEPTED_MAX_NEED,
+      s.need * DEADLINE_ACCEPTED_SCORE_REDUCTION,
+      DEADLINE_ACCEPTED_MAX_NEED,
     );
-    const reducedImportance = s.importance * ACCEPTED_SCORE_REDUCTION;
-
-    return {
-      ...s,
-      need: reducedNeed,
-      importance: reducedImportance,
-    };
-  });
-}
-
-/**
- * @deprecated Use handleAcceptedSuggestions instead
- * Kept for backward compatibility
- */
-export function reduceScoresForAccepted(
-  suggestions: Suggestion[],
-  acceptedMemoIds: Set<string>,
-): Suggestion[] {
-  return suggestions.map((s) => {
-    if (!acceptedMemoIds.has(s.memoId)) {
-      return s;
-    }
-
-    // Reduce both need and importance for accepted memos
-    // Cap need below mandatory threshold to ensure mandatory always wins
-    const reducedNeed = Math.min(
-      s.need * ACCEPTED_SCORE_REDUCTION,
-      ACCEPTED_MAX_NEED,
-    );
-    const reducedImportance = s.importance * ACCEPTED_SCORE_REDUCTION;
+    const reducedImportance = s.importance * DEADLINE_ACCEPTED_SCORE_REDUCTION;
 
     return {
       ...s,
@@ -421,20 +446,19 @@ export class SuggestionEngine {
     // Step 4: Score memos → Suggestions
     let suggestions = memosToSuggestions(enrichedMemos, currentTime);
 
-    // Step 5: Handle accepted-today logic
-    // NEW: Routine tasks accepted today are treated as done for the day
+    // Step 5: Filter hidden suggestions (need < 0.5)
+    // Routine/backlog tasks accepted today have score 0 from their scoring functions
+    suggestions = filterVisibleSuggestions(suggestions);
+
+    // Step 6: Reduce scores for accepted deadline tasks
+    // Deadline tasks can have multiple work sessions, so we reduce (not hide) their score
     if (options.acceptedMemoIds && options.acceptedMemoIds.size > 0) {
-      suggestions = handleAcceptedSuggestions(
+      suggestions = reduceScoresForAcceptedDeadlines(
         suggestions,
         options.acceptedMemoIds,
         enrichedMemos,
-        currentTime,
       );
     }
-
-    // Step 6: Filter hidden suggestions (need < 0.5)
-    // NEW: Tasks below display threshold are not shown
-    suggestions = filterVisibleSuggestions(suggestions);
 
     // Step 7: Enrich gaps with location (if events provided)
     let enrichedGaps: Gap[];

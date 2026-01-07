@@ -27,6 +27,8 @@ import {
   updateMemo,
   deleteMemo,
   logSuggestionComplete,
+  markMemoAccepted,
+  resetMemoAcceptedToday,
 } from "./memo.functions.remote.ts";
 
 // ============================================================================
@@ -724,6 +726,112 @@ export const taskActions = {
       console.error("[taskActions.logProgress] Failed:", err);
       toastState.show("進捗の記録に失敗しました", "error");
       return null;
+    }
+  },
+
+  /**
+   * Mark a task as accepted (sets acceptedToday = true)
+   * This causes the scoring function to treat the task as "done for today",
+   * preventing duplicate suggestions from appearing.
+   *
+   * Called when user accepts a suggestion (before completion).
+   */
+  async markAccepted(memoId: string): Promise<boolean> {
+    try {
+      const result = await markMemoAccepted({ memoId });
+
+      // Update local store
+      tasks.update((currentTasks) => {
+        const index = currentTasks.findIndex((t) => t.id === memoId);
+        if (index === -1) return currentTasks;
+
+        const task = currentTasks[index];
+        const newTasks = [...currentTasks];
+        newTasks[index] = {
+          ...task,
+          lastActivity: new Date(),
+          routineState: result.routineState
+            ? {
+                acceptedToday: result.routineState.acceptedToday,
+                completedToday: result.routineState.completedToday,
+                completedCountThisWeek:
+                  result.routineState.completedCountThisWeek,
+                lastCompletedDay: result.routineState.lastCompletedDay
+                  ? new Date(result.routineState.lastCompletedDay)
+                  : null,
+                wasCappedThisWeek: result.routineState.wasCappedThisWeek,
+                weekStartDate: result.routineState.weekStartDate
+                  ? new Date(result.routineState.weekStartDate)
+                  : null,
+              }
+            : task.routineState,
+          backlogState: result.backlogState
+            ? {
+                acceptedToday: result.backlogState.acceptedToday,
+                lastCompletedDay: result.backlogState.lastCompletedDay
+                  ? new Date(result.backlogState.lastCompletedDay)
+                  : null,
+              }
+            : task.backlogState,
+        };
+        return newTasks;
+      });
+
+      console.log(
+        `[taskActions.markAccepted] Marked task ${memoId} as accepted`,
+      );
+      return true;
+    } catch (err) {
+      console.error("[taskActions.markAccepted] Failed:", err);
+      return false;
+    }
+  },
+
+  /**
+   * Reset acceptedToday flag for a task (when user marks as "missed")
+   * This allows the task to reappear in suggestions.
+   */
+  async resetAccepted(memoId: string): Promise<boolean> {
+    try {
+      await resetMemoAcceptedToday({ memoId });
+
+      // Update local store
+      tasks.update((currentTasks) => {
+        const index = currentTasks.findIndex((t) => t.id === memoId);
+        if (index === -1) return currentTasks;
+
+        const task = currentTasks[index];
+        const newTasks = [...currentTasks];
+
+        if (task.type === "ルーティン" && task.routineState) {
+          newTasks[index] = {
+            ...task,
+            routineState: {
+              ...task.routineState,
+              acceptedToday: false,
+              completedToday: false,
+            },
+          };
+        } else if (task.type === "バックログ" && task.backlogState) {
+          newTasks[index] = {
+            ...task,
+            backlogState: {
+              ...task.backlogState,
+              acceptedToday: false,
+            },
+          };
+        }
+
+        return newTasks;
+      });
+
+      console.log(
+        `[taskActions.resetAccepted] Reset acceptedToday for task ${memoId}`,
+      );
+      return true;
+    } catch (err) {
+      console.error("[taskActions.resetAccepted] Failed:", err);
+      return false;
     }
   },
 };

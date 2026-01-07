@@ -115,7 +115,7 @@ export function isNewPeriod(
 /**
  * Check if two dates are the same calendar day
  */
-function isSameDay(date1: Date, date2: Date): boolean {
+export function isSameDay(date1: Date, date2: Date): boolean {
   return (
     date1.getFullYear() === date2.getFullYear() &&
     date1.getMonth() === date2.getMonth() &&
@@ -127,7 +127,7 @@ function isSameDay(date1: Date, date2: Date): boolean {
  * Check if two dates are in the same week
  * Week is considered to start on Sunday
  */
-function isSameWeek(date1: Date, date2: Date): boolean {
+export function isSameWeek(date1: Date, date2: Date): boolean {
   const week1 = getWeekNumber(date1);
   const week2 = getWeekNumber(date2);
   return date1.getFullYear() === date2.getFullYear() && week1 === week2;
@@ -159,37 +159,77 @@ function isSameMonth(date1: Date, date2: Date): boolean {
 // ============================================================================
 
 /**
- * Reset period counter if we've entered a new period
- * Call this before scoring to ensure fresh counts
+ * Reset period counter and daily flags if we've entered a new period/day
+ * Call this before scoring to ensure fresh state
+ *
+ * Handles:
+ * - Routine tasks: completionsThisPeriod, acceptedToday, completedToday
+ * - Backlog tasks: acceptedToday
  *
  * @param memo - Memo to check and potentially reset
  * @param currentTime - Current time
  * @returns Updated memo (new object if reset, same object if not)
  */
 export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
-  // Only applies to routine memos with recurrence goals
-  if (memo.type !== "ルーティン" || !memo.recurrenceGoal) {
-    return memo;
+  let updated = memo;
+  let hasChanges = false;
+
+  // Handle routine tasks
+  if (memo.type === "ルーティン") {
+    // Reset period counter if entered new period
+    if (memo.recurrenceGoal) {
+      const periodStart = memo.status.periodStartDate;
+      if (
+        !periodStart ||
+        isNewPeriod(periodStart, currentTime, memo.recurrenceGoal.period)
+      ) {
+        updated = {
+          ...updated,
+          status: {
+            ...updated.status,
+            completionsThisPeriod: 0,
+            periodStartDate: currentTime,
+          },
+        };
+        hasChanges = true;
+      }
+    }
+
+    // Reset daily flags if it's a new day
+    if (memo.routineState?.lastCompletedDay) {
+      const lastCompleted = new Date(memo.routineState.lastCompletedDay);
+      if (!isSameDay(lastCompleted, currentTime)) {
+        // New day - reset acceptedToday and completedToday
+        updated = {
+          ...updated,
+          routineState: {
+            ...updated.routineState!,
+            acceptedToday: false,
+            completedToday: false,
+          },
+        };
+        hasChanges = true;
+      }
+    }
   }
 
-  const periodStart = memo.status.periodStartDate;
-
-  // If no period start set, or we've entered a new period, reset
-  if (
-    !periodStart ||
-    isNewPeriod(periodStart, currentTime, memo.recurrenceGoal.period)
-  ) {
-    return {
-      ...memo,
-      status: {
-        ...memo.status,
-        completionsThisPeriod: 0,
-        periodStartDate: currentTime,
-      },
-    };
+  // Handle backlog tasks
+  if (memo.type === "バックログ" && memo.backlogState?.lastCompletedDay) {
+    const lastCompleted = new Date(memo.backlogState.lastCompletedDay);
+    if (!isSameDay(lastCompleted, currentTime)) {
+      // New day - reset acceptedToday
+      updated = {
+        ...updated,
+        backlogState: {
+          ...updated.backlogState!,
+          acceptedToday: false,
+        },
+      };
+      hasChanges = true;
+    }
   }
 
-  return memo;
+  return hasChanges ? updated : memo;
 }
 
 /**
@@ -220,7 +260,8 @@ export function incrementCompletion(memo: Memo, currentTime: Date): Memo {
 }
 
 // ============================================================================
-// UTILITY EXPORTS
+// ADDITIONAL HELPERS
 // ============================================================================
 
-export { isSameDay, isSameWeek, isSameMonth, getWeekNumber, getDaysInMonth };
+// Note: isSameDay and isSameWeek are exported inline above
+// isSameMonth, getWeekNumber, getDaysInMonth are internal helpers

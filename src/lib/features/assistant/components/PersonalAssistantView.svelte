@@ -336,12 +336,12 @@
   // Suggestion event handlers
   async function handleSuggestionAccept(event: CustomEvent<string>) {
     const suggestionId = event.detail;
-    await scheduleActions.accept(suggestionId, taskList);
+    await scheduleActions.accept(suggestionId);
   }
 
   async function handleSuggestionSkip(event: CustomEvent<string>) {
     const suggestionId = event.detail;
-    await scheduleActions.skip(suggestionId, taskList);
+    await scheduleActions.skip(suggestionId);
   }
 
   async function handleSuggestionDelete(event: CustomEvent<string>) {
@@ -479,13 +479,13 @@
   // Info panel actions
   async function handleInfoPanelAccept(event: CustomEvent<string>) {
     const suggestionId = event.detail;
-    await scheduleActions.accept(suggestionId, taskList);
+    await scheduleActions.accept(suggestionId);
     selectedSuggestion = null;
   }
 
   async function handleInfoPanelReject(event: CustomEvent<string>) {
     const suggestionId = event.detail;
-    await scheduleActions.skip(suggestionId, taskList);
+    await scheduleActions.skip(suggestionId);
     selectedSuggestion = null;
   }
 
@@ -513,9 +513,11 @@
     selectedSuggestion = null;
   }
 
-  function handleInfoPanelMissed(event: CustomEvent<{ suggestionId: string }>) {
+  async function handleInfoPanelMissed(
+    event: CustomEvent<{ suggestionId: string }>,
+  ) {
     const { suggestionId } = event.detail;
-    scheduleActions.missedSuggestion(suggestionId);
+    await scheduleActions.missedSuggestion(suggestionId);
     selectedSuggestion = null;
   }
 

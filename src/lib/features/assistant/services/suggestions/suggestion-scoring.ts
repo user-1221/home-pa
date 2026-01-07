@@ -406,22 +406,21 @@ export function calculateBacklogNeed(memo: Memo, currentTime: Date): number {
   const DAILY_GROWTH = 0.02;
   const SATURATION_DAYS = 10; // (0.7 - 0.5) / 0.02 = 10
 
-  // Days since last completion
-  let daysSinceCompletion: number;
-
-  // Check if accepted today (within same day) - treat as if just completed
+  // ACCEPTED TODAY: Return score below threshold to hide the task
+  // This prevents duplicate suggestions after accepting
   if (state.acceptedToday && state.lastCompletedDay) {
     const lastCompleted = new Date(state.lastCompletedDay);
     // Only apply "accepted today" logic if it's still the same day
     if (isSameDay(lastCompleted, currentTime)) {
-      // Accepted today - treat as if just completed (daysSinceCompletion = 0)
-      daysSinceCompletion = 0;
-    } else {
-      // New day - use normal calculation
-      daysSinceCompletion =
-        (currentTime.getTime() - lastCompleted.getTime()) / MS_PER_DAY;
+      // Accepted today - return 0 to hide (below DISPLAY_THRESHOLD of 0.5)
+      return 0;
     }
-  } else if (state.lastCompletedDay) {
+  }
+
+  // Days since last completion
+  let daysSinceCompletion: number;
+
+  if (state.lastCompletedDay) {
     // Normal case: use last completion date
     const lastCompleted = new Date(state.lastCompletedDay);
     daysSinceCompletion =

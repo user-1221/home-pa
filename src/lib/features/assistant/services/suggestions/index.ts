@@ -127,8 +127,7 @@ export {
   resetMemoPeriodsIfNeeded,
   memosToSuggestions,
   filterVisibleSuggestions,
-  handleAcceptedSuggestions,
-  reduceScoresForAccepted,
+  reduceScoresForAcceptedDeadlines,
   isMemoComplete,
   isRoutineGoalReached,
 } from "./suggestion-engine.ts";

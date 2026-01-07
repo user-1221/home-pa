@@ -597,6 +597,153 @@ export const logSuggestionComplete = command(
   },
 );
 
+/**
+ * Mark a memo as accepted (for routine/backlog - sets acceptedToday = true)
+ * This is called when a user accepts a suggestion without completing it yet.
+ * The acceptedToday flag causes the scoring function to treat the task as
+ * "done for today" (score drops to ~0), preventing duplicate suggestions.
+ */
+export const markMemoAccepted = command(
+  v.object({
+    memoId: v.string(),
+  }),
+  async (input) => {
+    const userId = getAuthenticatedUser();
+
+    try {
+      const existing = await prisma.memo.findFirst({
+        where: {
+          id: input.memoId,
+          userId,
+        },
+      });
+
+      if (!existing) {
+        throw new Error("Memo not found");
+      }
+
+      const now = new Date();
+      const updateData: Record<string, unknown> = {
+        lastActivity: now,
+      };
+
+      // Only update acceptedToday for routine and backlog tasks
+      if (existing.type === "ルーティン") {
+        const weekStart = getWeekStart(now);
+        const existingWeekStart = existing.routineWeekStartDate
+          ? new Date(existing.routineWeekStartDate)
+          : null;
+        const needsWeekReset =
+          !existingWeekStart || !isSameWeek(existingWeekStart, now);
+
+        updateData.routineAcceptedToday = true;
+        updateData.routineLastCompletedDay = now; // Treat as completed for scoring
+        updateData.routineWeekStartDate = needsWeekReset
+          ? weekStart
+          : existingWeekStart;
+        // Reset week counter if needed
+        if (needsWeekReset) {
+          updateData.routineCompletedCountWeek = 0;
+          updateData.routineWasCappedThisWeek = false;
+        }
+      } else if (existing.type === "バックログ") {
+        updateData.backlogAcceptedToday = true;
+        updateData.backlogLastCompletedDay = now; // Treat as completed for scoring
+      }
+      // Deadline tasks don't have acceptedToday - they use a different mechanism
+
+      const updated = await prisma.memo.update({
+        where: { id: input.memoId },
+        data: updateData,
+      });
+
+      console.log(`[markMemoAccepted] Marked memo ${input.memoId} as accepted`);
+
+      return {
+        id: updated.id,
+        type: updated.type,
+        routineState:
+          updated.type === "ルーティン"
+            ? {
+                acceptedToday: updated.routineAcceptedToday ?? false,
+                completedToday: updated.routineCompletedToday ?? false,
+                completedCountThisWeek: updated.routineCompletedCountWeek ?? 0,
+                lastCompletedDay:
+                  updated.routineLastCompletedDay?.toISOString() ?? null,
+                wasCappedThisWeek: updated.routineWasCappedThisWeek ?? false,
+                weekStartDate:
+                  updated.routineWeekStartDate?.toISOString() ?? null,
+              }
+            : undefined,
+        backlogState:
+          updated.type === "バックログ"
+            ? {
+                acceptedToday: updated.backlogAcceptedToday ?? false,
+                lastCompletedDay:
+                  updated.backlogLastCompletedDay?.toISOString() ?? null,
+              }
+            : undefined,
+      };
+    } catch (err) {
+      console.error("[markMemoAccepted] Error:", err);
+      throw new Error("Failed to mark memo as accepted");
+    }
+  },
+);
+
+/**
+ * Reset acceptedToday flag for a memo (when user marks as "missed")
+ * This allows the task to reappear in suggestions
+ */
+export const resetMemoAcceptedToday = command(
+  v.object({
+    memoId: v.string(),
+  }),
+  async (input) => {
+    const userId = getAuthenticatedUser();
+
+    try {
+      const existing = await prisma.memo.findFirst({
+        where: {
+          id: input.memoId,
+          userId,
+        },
+      });
+
+      if (!existing) {
+        throw new Error("Memo not found");
+      }
+
+      const updateData: Record<string, unknown> = {};
+
+      if (existing.type === "ルーティン") {
+        updateData.routineAcceptedToday = false;
+        updateData.routineCompletedToday = false;
+      } else if (existing.type === "バックログ") {
+        updateData.backlogAcceptedToday = false;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return { id: existing.id, success: true };
+      }
+
+      await prisma.memo.update({
+        where: { id: input.memoId },
+        data: updateData,
+      });
+
+      console.log(
+        `[resetMemoAcceptedToday] Reset acceptedToday for memo ${input.memoId}`,
+      );
+
+      return { id: input.memoId, success: true };
+    } catch (err) {
+      console.error("[resetMemoAcceptedToday] Error:", err);
+      throw new Error("Failed to reset memo accepted state");
+    }
+  },
+);
+
 // Helper functions for date calculations
 function getWeekStart(date: Date): Date {
   const d = new Date(date);

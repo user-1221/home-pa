@@ -1,20 +1,60 @@
 /**
  * Schedule Store
  *
- * Holds the output of the suggestion scheduler.
- * This is the result of running the engine on memos + gaps.
+ * Manages the suggestion system's state and user interactions.
  *
- * Data flow:
- *   memos + gaps → engine.generateSchedule() → scheduleResult
+ * ============================================================================
+ * DATA FLOW
+ * ============================================================================
  *
- * Usage:
- *   1. Call scheduleActions.regenerate() when you want a new schedule
- *   2. Read $scheduleResult to display scheduled blocks
- *   3. Use $nextScheduledBlock for quick access to the next task
+ *   memos (from tasks store) + gaps (from calendar) → engine → scheduleResult
  *
- * Suggestion States:
- *   - Pending: Generated suggestions not yet accepted (shown with Accept/Skip UI)
- *   - Accepted: User-accepted suggestions that act as fixed events in gap calculation
+ * ============================================================================
+ * USER ACTIONS
+ * ============================================================================
+ *
+ * accept(suggestionId):
+ *   1. Marks memo as accepted (updates routineState.acceptedToday = true)
+ *   2. Adds to acceptedSuggestions store (for gap subtraction)
+ *   3. Syncs to server
+ *   4. Regenerates schedule (accepted memo now hidden due to low score)
+ *
+ * skip(suggestionId):
+ *   1. Adds memo to rejectedMemoIds (excluded from future suggestions today)
+ *   2. Syncs to server
+ *   3. Regenerates schedule
+ *
+ * missedSuggestion(suggestionId):
+ *   1. Removes from acceptedSuggestions
+ *   2. Resets memo's acceptedToday flag (task can reappear)
+ *   3. Regenerates schedule
+ *
+ * completeSuggestion(suggestionId, durationMinutes):
+ *   1. Logs progress to memo (timeSpent, completions)
+ *   2. Updates type-specific state (routine/deadline/backlog)
+ *   3. Removes from acceptedSuggestions
+ *   4. Syncs to server
+ *
+ * ============================================================================
+ * STORES
+ * ============================================================================
+ *
+ * - scheduleResult: Current scheduled suggestions
+ * - acceptedSuggestions: User-accepted suggestions (act as fixed blocks)
+ * - movedSuggestions: Suggestions dragged to new positions
+ * - rejectedMemoIds: Memo IDs that should never appear today
+ * - skippedSuggestionIds: (Legacy) Suggestion IDs that were skipped
+ *
+ * ============================================================================
+ * SYNCED DATA
+ * ============================================================================
+ *
+ * On startup, loadSyncData() restores:
+ * - Accepted suggestions from yesterday/today
+ * - Rejected memos from today
+ * - Cached transit info
+ *
+ * cleanupExpiredData() removes stale synced data (past dates).
  */
 
 import { writable, derived, get } from "svelte/store";
@@ -536,10 +576,17 @@ export const scheduleActions = {
    * Accept a suggestion, converting it to a fixed event
    * Can accept from either result.scheduled or movedSuggestions
    *
+   * FLOW:
+   * 1. Find the suggestion block
+   * 2. Mark the source memo as accepted (updates routineState/backlogState)
+   *    - This causes the scoring function to return a low score for this memo
+   * 3. Add to acceptedSuggestions store (for gap subtraction)
+   * 4. Sync to server
+   * 5. Regenerate schedule (memo will now have low score, so no duplicate)
+   *
    * @param suggestionId - ID of the suggestion to accept
-   * @param memos - Current memos for regeneration
    */
-  async accept(suggestionId: string, memos: Memo[]): Promise<void> {
+  async accept(suggestionId: string): Promise<void> {
     const result = get(scheduleResult);
     const currentMoved = get(movedSuggestions);
 
@@ -571,6 +618,14 @@ export const scheduleActions = {
       return;
     }
 
+    // IMPORTANT: Mark the source memo as accepted
+    // This updates routineState.acceptedToday = true (or backlogState)
+    // causing the scoring function to return a low score for this memo
+    const { taskActions, tasks } = await import(
+      "$lib/features/tasks/state/taskActions.ts"
+    );
+    await taskActions.markAccepted(block.memoId);
+
     // Remove from movedSuggestions if it was there
     if (currentMoved.some((m) => m.suggestionId === suggestionId)) {
       movedSuggestions.update((list) =>
@@ -578,7 +633,7 @@ export const scheduleActions = {
       );
     }
 
-    // Move to accepted
+    // Move to accepted suggestions store (for gap subtraction)
     const accepted: AcceptedSuggestion = {
       ...block,
       acceptedAt: new Date(),
@@ -593,16 +648,19 @@ export const scheduleActions = {
     scheduleActions.syncAcceptedSuggestions();
 
     // Regenerate to fill remaining gaps
-    await scheduleActions.regenerate(memos);
+    // Use fresh memos from store (after markAccepted updated the state)
+    // The memo now has acceptedToday=true, so its score will be low (<0.5)
+    // and it won't generate a new suggestion
+    const freshMemos = get(tasks);
+    await scheduleActions.regenerate(freshMemos);
   },
 
   /**
-   * Reject a suggestion - the underlying memo will NEVER reappear
+   * Reject a suggestion - the underlying memo will NEVER reappear (for today)
    *
    * @param suggestionId - ID of the suggestion to reject
-   * @param memos - Current memos for regeneration
    */
-  async skip(suggestionId: string, memos: Memo[]): Promise<void> {
+  async skip(suggestionId: string): Promise<void> {
     const result = get(scheduleResult);
     if (!result) return;
 
@@ -641,7 +699,10 @@ export const scheduleActions = {
     scheduleActions.syncRejectedMemos();
 
     // Regenerate to get new suggestion for the gap
-    await scheduleActions.regenerate(memos);
+    // Use fresh memos from store
+    const { tasks } = await import("$lib/features/tasks/state/taskActions.ts");
+    const freshMemos = get(tasks);
+    await scheduleActions.regenerate(freshMemos);
   },
 
   /**
@@ -1127,7 +1188,18 @@ export const scheduleActions = {
    *
    * @param suggestionId - ID of the accepted suggestion
    */
-  missedSuggestion(suggestionId: string): void {
+  /**
+   * Mark an accepted suggestion as missed
+   * Removes from accepted list and resets the memo's acceptedToday flag
+   * so the task can reappear in suggestions.
+   *
+   * @param suggestionId - ID of the accepted suggestion
+   */
+  async missedSuggestion(suggestionId: string): Promise<void> {
+    // Find the accepted suggestion to get its memoId
+    const accepted = get(acceptedSuggestions);
+    const suggestion = accepted.find((a) => a.suggestionId === suggestionId);
+
     // Remove from accepted list
     acceptedSuggestions.update((list) =>
       list.filter((a) => a.suggestionId !== suggestionId),
@@ -1137,7 +1209,19 @@ export const scheduleActions = {
 
     // Remove from server sync (fire and forget)
     scheduleActions.unsyncAcceptedSuggestion(suggestionId);
-    // No memo update for missed - just ignore
+
+    // Reset the memo's acceptedToday flag so it can reappear
+    const { taskActions, tasks } = await import(
+      "$lib/features/tasks/state/taskActions.ts"
+    );
+    if (suggestion) {
+      await taskActions.resetAccepted(suggestion.memoId);
+    }
+
+    // Regenerate to potentially show the task again
+    // Use fresh memos from store
+    const freshMemos = get(tasks);
+    await scheduleActions.regenerate(freshMemos);
   },
 
   /**
