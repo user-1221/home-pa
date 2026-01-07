@@ -604,10 +604,11 @@ export const scheduleActions = {
    * - Repopulation runs to fill remaining gaps
    * - The dragged suggestion's memoId is excluded from repopulation (no duplicates)
    * - The dragged suggestion can still be moved again
+   * - Shrinking during drag (via edge snapping) is preserved
    *
    * @param suggestionId - ID of the suggestion to move
    * @param newStartTime - New start time in HH:mm format
-   * @param _newEndTime - (unused) New end time - calculated from duration
+   * @param newEndTime - New end time in HH:mm format (includes shrinking from drag)
    * @param newGapId - ID of the gap the suggestion is moved to
    * @param memos - Current memos for regeneration
    * @param externalGaps - Optional gaps to use instead of unified state
@@ -615,7 +616,7 @@ export const scheduleActions = {
   async moveSuggestion(
     suggestionId: string,
     newStartTime: string,
-    _newEndTime: string, // Kept for backwards compatibility but calculated from duration
+    newEndTime: string,
     newGapId: string,
     memos: Memo[],
     externalGaps?: Gap[],
@@ -630,18 +631,13 @@ export const scheduleActions = {
     );
 
     let block: ScheduledBlock | undefined;
-    let blockDuration: number;
 
     if (existingMoved) {
       // Re-moving an already moved suggestion
       block = existingMoved;
-      blockDuration = existingMoved.duration;
     } else if (result) {
       // Moving from scheduled blocks
       block = result.scheduled.find((b) => b.suggestionId === suggestionId);
-      blockDuration = block?.duration ?? 0;
-    } else {
-      blockDuration = 0;
     }
 
     if (!block) {
@@ -659,21 +655,20 @@ export const scheduleActions = {
       return;
     }
 
-    // Calculate new end time based on duration
+    // Calculate duration from the provided times (preserves shrinking from drag)
     const startMinutes = timeToMinutes(newStartTime);
-    const newEndTime = minutesToTime(startMinutes + blockDuration);
+    const endMinutes = timeToMinutes(newEndTime);
+    const newDuration = endMinutes - startMinutes;
 
     // Validate that the suggestion fits within the gap
     const gapStartMinutes = timeToMinutes(targetGap.start);
     const gapEndMinutes = timeToMinutes(targetGap.end);
 
-    if (
-      startMinutes < gapStartMinutes ||
-      startMinutes + blockDuration > gapEndMinutes
-    ) {
+    if (startMinutes < gapStartMinutes || endMinutes > gapEndMinutes) {
       console.warn(
         "[Schedule] Cannot move: suggestion doesn't fit in gap",
         suggestionId,
+        { startMinutes, endMinutes, gapStartMinutes, gapEndMinutes },
       );
       return;
     }
@@ -695,14 +690,14 @@ export const scheduleActions = {
       suggestionId,
     );
 
-    // Create the moved suggestion
+    // Create the moved suggestion with new duration (preserves shrinking)
     const moved: MovedSuggestion = {
       suggestionId: block.suggestionId,
       memoId: block.memoId,
       gapId: newGapId,
       startTime: newStartTime,
       endTime: newEndTime,
-      duration: blockDuration,
+      duration: newDuration,
       movedAt: new Date(),
     };
 
@@ -736,6 +731,7 @@ export const scheduleActions = {
       suggestionId,
       from: block.startTime,
       to: newStartTime,
+      duration: newDuration,
       gapId: newGapId,
       overlapsRemoved:
         overlappingScheduledIds.length + overlappingMovedIds.length,
@@ -848,11 +844,11 @@ export const scheduleActions = {
 
     if (!result) return;
 
-    // Update in scheduled blocks
-    const idx = result.scheduled.findIndex(
+    // Find in scheduled blocks
+    const scheduledBlock = result.scheduled.find(
       (b) => b.suggestionId === suggestionId,
     );
-    if (idx === -1) {
+    if (!scheduledBlock) {
       console.warn(
         "[Schedule] Cannot update pending: suggestion not found",
         suggestionId,
@@ -860,7 +856,7 @@ export const scheduleActions = {
       return;
     }
 
-    startTime = result.scheduled[idx].startTime;
+    startTime = scheduledBlock.startTime;
     const newEndTime = minutesToTime(timeToMinutes(startTime) + newDuration);
 
     // Find overlapping suggestions (excluding the one being resized)
@@ -890,33 +886,39 @@ export const scheduleActions = {
       );
     }
 
-    // Create updated schedule result, removing overlapping suggestions
-    const overlappingScheduledSet = new Set(overlappingScheduledIds);
-    const updatedScheduled = result.scheduled.filter(
-      (b) =>
-        b.suggestionId === suggestionId ||
-        !overlappingScheduledSet.has(b.suggestionId),
-    );
+    // IMPORTANT: Move the suggestion to movedSuggestions store to persist the duration change
+    // This ensures the duration change survives regeneration
+    const movedWithNewDuration: MovedSuggestion = {
+      suggestionId: scheduledBlock.suggestionId,
+      memoId: scheduledBlock.memoId,
+      gapId: scheduledBlock.gapId,
+      startTime: scheduledBlock.startTime,
+      endTime: newEndTime,
+      duration: newDuration,
+      movedAt: new Date(),
+    };
 
-    // Update the resized suggestion
-    const updatedIdx = updatedScheduled.findIndex(
-      (b) => b.suggestionId === suggestionId,
-    );
-    if (updatedIdx !== -1) {
-      updatedScheduled[updatedIdx] = {
-        ...updatedScheduled[updatedIdx],
-        duration: newDuration,
-        endTime: newEndTime,
-      };
-    }
-
-    scheduleResult.set({
-      ...result,
-      scheduled: updatedScheduled,
+    movedSuggestions.update((list) => {
+      // Remove any existing entry for this suggestion
+      const filtered = list.filter((m) => m.suggestionId !== suggestionId);
+      // Remove overlapping moved suggestions
+      const overlappingSet = new Set(overlappingMovedIds);
+      const withoutOverlaps = filtered.filter(
+        (m) => !overlappingSet.has(m.suggestionId),
+      );
+      // Add with new duration
+      return [...withoutOverlaps, movedWithNewDuration];
     });
 
-    const hadOverlaps =
-      overlappingScheduledIds.length > 0 || overlappingMovedIds.length > 0;
+    // Remove the suggestion from scheduled result (it's now in movedSuggestions)
+    // Also remove any overlapping scheduled suggestions
+    const toRemoveSet = new Set([suggestionId, ...overlappingScheduledIds]);
+    scheduleResult.set({
+      ...result,
+      scheduled: result.scheduled.filter(
+        (b) => !toRemoveSet.has(b.suggestionId),
+      ),
+    });
 
     if (overlappingScheduledIds.length > 0) {
       console.log(
@@ -926,7 +928,7 @@ export const scheduleActions = {
     }
 
     console.log(
-      "[Schedule] Updated pending suggestion duration:",
+      "[Schedule] Updated pending suggestion duration (moved to persisted):",
       suggestionId,
       newDuration,
     );
