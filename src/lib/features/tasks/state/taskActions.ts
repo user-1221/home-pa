@@ -21,6 +21,7 @@ import {
 } from "./taskForm.ts";
 import { toastState } from "../../../bootstrap/toast.svelte.ts";
 import { enrichMemoViaAPI } from "../../assistant/services/suggestions/llm-enrichment.ts";
+import { resetPeriodIfNeeded } from "../../assistant/services/suggestions/period-utils.ts";
 import {
   fetchMemos,
   createMemo,
@@ -77,6 +78,18 @@ function jsonToMemo(json: {
   totalDurationExpected?: number;
   lastActivity?: string;
   importance?: string;
+  routineState?: {
+    acceptedToday: boolean;
+    completedToday: boolean;
+    completedCountThisWeek: number;
+    lastCompletedDay: string | null;
+    wasCappedThisWeek: boolean;
+    weekStartDate: string | null;
+  };
+  backlogState?: {
+    acceptedToday: boolean;
+    lastCompletedDay: string | null;
+  };
 }): Memo {
   return {
     id: json.id,
@@ -100,6 +113,28 @@ function jsonToMemo(json: {
     totalDurationExpected: json.totalDurationExpected,
     lastActivity: json.lastActivity ? new Date(json.lastActivity) : undefined,
     importance: json.importance as ImportanceLevel | undefined,
+    routineState: json.routineState
+      ? {
+          acceptedToday: json.routineState.acceptedToday,
+          completedToday: json.routineState.completedToday,
+          completedCountThisWeek: json.routineState.completedCountThisWeek,
+          lastCompletedDay: json.routineState.lastCompletedDay
+            ? new Date(json.routineState.lastCompletedDay)
+            : null,
+          wasCappedThisWeek: json.routineState.wasCappedThisWeek,
+          weekStartDate: json.routineState.weekStartDate
+            ? new Date(json.routineState.weekStartDate)
+            : null,
+        }
+      : undefined,
+    backlogState: json.backlogState
+      ? {
+          acceptedToday: json.backlogState.acceptedToday,
+          lastCompletedDay: json.backlogState.lastCompletedDay
+            ? new Date(json.backlogState.lastCompletedDay)
+            : null,
+        }
+      : undefined,
   };
 }
 
@@ -130,13 +165,123 @@ function memoToJson(memo: Memo) {
 
 /**
  * Load all tasks from database
+ * Also checks for period resets and persists them to the database
  */
 export async function loadTasks(): Promise<void> {
   isTasksLoading.set(true);
   try {
     const memosJson = await fetchMemos({});
     const memos = memosJson.map(jsonToMemo);
-    tasks.set(memos);
+
+    // Check for period resets and persist changes
+    const currentTime = new Date();
+    const memosWithResets = memos.map((memo) =>
+      resetPeriodIfNeeded(memo, currentTime),
+    );
+
+    // Check if any memos were reset and need to be saved
+    const updates: Array<Promise<unknown>> = [];
+    for (let i = 0; i < memos.length; i++) {
+      const original = memos[i];
+      const reset = memosWithResets[i];
+
+      // Check if period was reset (completionsThisPeriod or periodStartDate changed)
+      const periodReset =
+        original.status.completionsThisPeriod !==
+          reset.status.completionsThisPeriod ||
+        original.status.periodStartDate?.getTime() !==
+          reset.status.periodStartDate?.getTime();
+
+      // Check if daily flags were reset (routineState or backlogState changed)
+      const routineStateReset =
+        original.routineState?.acceptedToday !==
+          reset.routineState?.acceptedToday ||
+        original.routineState?.completedToday !==
+          reset.routineState?.completedToday;
+
+      const backlogStateReset =
+        original.backlogState?.acceptedToday !==
+        reset.backlogState?.acceptedToday;
+
+      if (periodReset || routineStateReset || backlogStateReset) {
+        // Build update object matching MemoUpdateSchema
+        const updateData: {
+          status?: {
+            timeSpentMinutes: number;
+            completionState: "not_started" | "in_progress" | "completed";
+            completionsThisPeriod?: number;
+            periodStartDate?: string;
+          };
+          routineState?: {
+            acceptedToday: boolean;
+            completedToday: boolean;
+            completedCountThisWeek: number;
+            lastCompletedDay: string | null;
+            wasCappedThisWeek: boolean;
+            weekStartDate: string | null;
+          };
+          backlogState?: {
+            acceptedToday: boolean;
+            lastCompletedDay: string | null;
+          };
+        } = {};
+
+        if (periodReset) {
+          // Include all status fields to preserve existing values
+          updateData.status = {
+            timeSpentMinutes: reset.status.timeSpentMinutes,
+            completionState: reset.status.completionState,
+            completionsThisPeriod: reset.status.completionsThisPeriod,
+            periodStartDate: reset.status.periodStartDate?.toISOString(),
+          };
+        }
+
+        if (routineStateReset && reset.routineState) {
+          updateData.routineState = {
+            acceptedToday: reset.routineState.acceptedToday,
+            completedToday: reset.routineState.completedToday,
+            completedCountThisWeek: reset.routineState.completedCountThisWeek,
+            lastCompletedDay:
+              reset.routineState.lastCompletedDay?.toISOString() ?? null,
+            wasCappedThisWeek: reset.routineState.wasCappedThisWeek,
+            weekStartDate:
+              reset.routineState.weekStartDate?.toISOString() ?? null,
+          };
+        }
+
+        if (backlogStateReset && reset.backlogState) {
+          updateData.backlogState = {
+            acceptedToday: reset.backlogState.acceptedToday,
+            lastCompletedDay:
+              reset.backlogState.lastCompletedDay?.toISOString() ?? null,
+          };
+        }
+
+        // Persist to database
+        updates.push(
+          updateMemo({
+            id: reset.id,
+            updates: updateData,
+          }),
+        );
+
+        console.log(
+          `[loadTasks] Period reset detected for task ${reset.id}:`,
+          updateData,
+        );
+      }
+    }
+
+    // Wait for all updates to complete
+    if (updates.length > 0) {
+      await Promise.all(updates);
+      console.log(
+        `[loadTasks] Persisted ${updates.length} period reset(s) to database`,
+      );
+    }
+
+    // Use the reset memos for the store
+    tasks.set(memosWithResets);
   } catch (err) {
     console.error("[loadTasks] Failed to load tasks:", err);
     toastState.error("タスクの読み込みに失敗しました");
