@@ -7,7 +7,7 @@
  * Cleanup Logic:
  * - Accepted suggestions: Removed when their date is in the past
  * - Cached transit: Removed when the event start time is in the past
- * - Rejected memos: Removed when rejectedAt is older than yesterday (allows them to reappear after a day)
+ * - Rejected memos: Removed when rejectedAt is before today (only today's rejections persist)
  */
 
 import { query, getRequestEvent } from "$app/server";
@@ -116,6 +116,11 @@ export const loadSyncData = query(
       };
     }
     const now = new Date();
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
     const yesterdayStart = new Date(
       now.getFullYear(),
       now.getMonth(),
@@ -151,12 +156,12 @@ export const loadSyncData = query(
       );
     }
 
-    // Cleanup expired rejected memos (rejectedAt < yesterdayStart)
-    // Rejected memos older than a day are removed so they can reappear as suggestions
+    // Cleanup expired rejected memos (rejectedAt < todayStart)
+    // Rejected memos only persist for today - anything from previous days is removed
     const deletedRejectedMemos = await prisma.rejectedMemo.deleteMany({
       where: {
         userId,
-        rejectedAt: { lt: yesterdayStart },
+        rejectedAt: { lt: todayStart },
       },
     });
 
