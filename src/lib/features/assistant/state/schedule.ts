@@ -1268,24 +1268,13 @@ export const scheduleActions = {
     const today = new Date();
     const currentTime = `${String(today.getHours()).padStart(2, "0")}:${String(today.getMinutes()).padStart(2, "0")}`;
 
-    // Clean up accepted memos whose end time has passed
-    acceptedMemos.update((map) => {
-      const before = map.size;
-      const newMap = new Map<string, AcceptedMemoInfo>();
-      for (const [memoId, info] of map) {
-        if (info.endTime > currentTime) {
-          newMap.set(memoId, info);
-        }
-      }
-      if (newMap.size < before) {
-        console.log(
-          `[Schedule] Cleaned up ${before - newMap.size} expired accepted memos`,
-        );
-      }
-      return newMap;
-    });
+    // NOTE: We intentionally do NOT clean up accepted memos based on end time.
+    // Users need the opportunity to mark accepted tasks as complete or missed,
+    // even if the scheduled time has passed. The UI shows accepted tasks in a
+    // different state when their time has passed, prompting the user to act.
 
-    // Clean up moved suggestions whose end time has passed
+    // Only clean up moved suggestions (pending, not yet accepted) whose end time has passed
+    // These are auto-scheduled suggestions that the user hasn't committed to
     movedSuggestions.update((list) => {
       const before = list.length;
       const filtered = list.filter((s) => s.endTime > currentTime);

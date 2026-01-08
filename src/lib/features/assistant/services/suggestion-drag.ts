@@ -224,6 +224,9 @@ function positionArcWithShrink(
  * - If cursor is past the END of a gap → return NEXT gap
  * - If cursor is before the START of a gap → return PREVIOUS gap
  * - This makes dragging feel natural and predictable
+ *
+ * NOTE: Gap IDs may change when accepted memos split gaps (e.g., gap-0 → gap-0-sub-0).
+ * We handle this by matching on base gap ID prefix when exact match fails.
  */
 function findGapForCursorDirectional(
   cursor: number,
@@ -239,10 +242,14 @@ function findGapForCursorDirectional(
 
   // Filter to gaps that can hold minimum duration
   const valid = sorted.filter((g) => g.duration >= MIN_DRAG_DURATION);
-  if (valid.length === 0) return null;
 
-  // Check if cursor is INSIDE any gap
-  for (const gap of valid) {
+  // If no gaps are large enough, use all sorted gaps as fallback
+  // This ensures we always have somewhere to snap to
+  const candidates = valid.length > 0 ? valid : sorted;
+  if (candidates.length === 0) return null;
+
+  // Check if cursor is INSIDE any gap (check all gaps, not just valid ones)
+  for (const gap of candidates) {
     const gapStart = timeToMinutes(gap.start);
     const gapEnd = timeToMinutes(gap.end);
 
@@ -255,22 +262,33 @@ function findGapForCursorDirectional(
   // Find where cursor is relative to gaps
 
   // Find current gap index if we have a currentGapId
+  // Handle sub-gap IDs by checking for prefix match (e.g., gap-0 matches gap-0-sub-1)
   let currentIdx = -1;
   if (currentGapId) {
-    currentIdx = valid.findIndex((g) => g.gapId === currentGapId);
+    // First try exact match
+    currentIdx = candidates.findIndex((g) => g.gapId === currentGapId);
+
+    // If not found, try prefix match (for sub-gap cases)
+    if (currentIdx === -1) {
+      // Extract base gap ID (everything before "-sub-")
+      const baseId = currentGapId.replace(/-sub-\d+$/, "");
+      currentIdx = candidates.findIndex(
+        (g) => g.gapId === baseId || g.gapId.startsWith(baseId + "-sub-"),
+      );
+    }
   }
 
   // If we have a current gap, use directional logic
   if (currentIdx >= 0) {
-    const currentGap = valid[currentIdx];
+    const currentGap = candidates[currentIdx];
     const currentStart = timeToMinutes(currentGap.start);
     const currentEnd = timeToMinutes(currentGap.end);
 
     if (cursor > currentEnd) {
       // Cursor moved past end → go to NEXT gap
       const nextIdx = currentIdx + 1;
-      if (nextIdx < valid.length) {
-        const nextGap = valid[nextIdx];
+      if (nextIdx < candidates.length) {
+        const nextGap = candidates[nextIdx];
         return {
           gap: nextGap,
           gapStart: timeToMinutes(nextGap.start),
@@ -283,7 +301,7 @@ function findGapForCursorDirectional(
       // Cursor moved before start → go to PREVIOUS gap
       const prevIdx = currentIdx - 1;
       if (prevIdx >= 0) {
-        const prevGap = valid[prevIdx];
+        const prevGap = candidates[prevIdx];
         return {
           gap: prevGap,
           gapStart: timeToMinutes(prevGap.start),
@@ -296,8 +314,8 @@ function findGapForCursorDirectional(
   }
 
   // No current gap context - find gap that cursor is closest to entering
-  for (let i = 0; i < valid.length; i++) {
-    const gap = valid[i];
+  for (let i = 0; i < candidates.length; i++) {
+    const gap = candidates[i];
     const gapStart = timeToMinutes(gap.start);
     const gapEnd = timeToMinutes(gap.end);
 
@@ -309,7 +327,7 @@ function findGapForCursorDirectional(
 
     // Check if cursor is between this gap and next
     if (cursor > gapEnd) {
-      const nextGap = valid[i + 1];
+      const nextGap = candidates[i + 1];
       if (nextGap) {
         const nextStart = timeToMinutes(nextGap.start);
         if (cursor < nextStart) {
@@ -334,8 +352,8 @@ function findGapForCursorDirectional(
     }
   }
 
-  // Fallback to first valid gap
-  const first = valid[0];
+  // Fallback to first candidate gap
+  const first = candidates[0];
   return {
     gap: first,
     gapStart: timeToMinutes(first.start),
@@ -373,22 +391,38 @@ export function snapToGap(
   // Try to position arc with shrinking in the current gap
   let position = positionArcWithShrink(cursor, duration, gapStart, gapEnd);
 
-  // If can't fit (too shrunk), we jumped to a new gap
-  // Keep the MINIMUM duration, don't reset to original
+  // If can't fit (gap too small for MIN_DRAG_DURATION), use the entire gap
+  // This allows dragging into smaller gaps when no larger gaps are available
   if (!position) {
-    // Use minimum duration when jumping to new gap
-    const jumpDuration = Math.min(MIN_DRAG_DURATION, gap.duration);
-
-    if (cursor <= gapStart) {
-      // Entering from before - position at start of gap
+    // Use the full gap duration (even if smaller than MIN_DRAG_DURATION)
+    // This ensures the user can always drag somewhere
+    const gapDuration = gapEnd - gapStart;
+    if (gapDuration >= 5) {
+      // Minimum 5 minutes to be usable
       const start = snapToIncrement(gapStart);
-      const end = snapToIncrement(gapStart + jumpDuration);
+      const end = snapToIncrement(gapEnd);
       position = { start, end };
     } else {
-      // Entering from after - position at end of gap
-      const end = snapToIncrement(gapEnd);
-      const start = snapToIncrement(gapEnd - jumpDuration);
-      position = { start, end };
+      // Gap is too small to use (< 5 min), try to find next best gap
+      // This shouldn't happen often, but handle gracefully
+      const jumpDuration = Math.max(
+        5,
+        Math.min(MIN_DRAG_DURATION, gapDuration),
+      );
+
+      if (cursor <= gapStart) {
+        // Entering from before - position at start of gap
+        const start = snapToIncrement(gapStart);
+        const end = snapToIncrement(Math.min(gapStart + jumpDuration, gapEnd));
+        position = { start, end };
+      } else {
+        // Entering from after - position at end of gap
+        const end = snapToIncrement(gapEnd);
+        const start = snapToIncrement(
+          Math.max(gapEnd - jumpDuration, gapStart),
+        );
+        position = { start, end };
+      }
     }
   }
 
