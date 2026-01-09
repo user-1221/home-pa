@@ -9,7 +9,7 @@
     initializeStores,
     loadSyncedData,
   } from "$lib/bootstrap/bootstrap.ts";
-  import { loadTasks } from "$lib/features/tasks/state/taskActions.ts";
+  import { loadTasks } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import { calendarState } from "$lib/bootstrap/index.svelte.ts";
   import { authClient } from "$lib/auth-client";
   import { goto } from "$app/navigation";

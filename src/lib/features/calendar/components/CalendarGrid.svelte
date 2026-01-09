@@ -30,7 +30,7 @@
 </script>
 
 <div
-  class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-base-300/50 bg-base-200/50 shadow-sm backdrop-blur-sm"
+  class="flex min-h-0 flex-1 flex-col overflow-hidden border border-base-300/50 bg-base-200/50 shadow-sm backdrop-blur-sm"
 >
   <!-- Weekday Header -->
   <div

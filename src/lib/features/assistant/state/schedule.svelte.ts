@@ -1,5 +1,5 @@
 /**
- * Schedule Store
+ * Schedule State - Svelte 5 Reactive Class
  *
  * Manages the suggestion system's state and user interactions.
  *
@@ -10,56 +10,75 @@
  *   memos (from tasks store) + gaps (from calendar) → engine → scheduleResult
  *
  * ============================================================================
- * USER ACTIONS (stored in SuggestionAction collection)
+ * USER ACTIONS
  * ============================================================================
  *
- * accept(memoId):
+ * accept(suggestionId):
  *   1. Marks memo as accepted (updates routineState.acceptedToday = true)
- *   2. Saves action to DB: { memoId, action: "accepted", startTime, endTime, duration }
+ *   2. For deadline tasks: adds slot to deadlineState.acceptedSlots
  *   3. Regenerates schedule (accepted memo now hidden due to low score)
  *
- * skip(memoId):
- *   1. Saves action to DB: { memoId, action: "rejected" }
- *   2. Regenerates schedule
+ * skip(suggestionId):
+ *   1. Marks memo as rejected (updates routineState.rejectedToday = true)
+ *   2. Regenerates schedule (rejected memo excluded from suggestions)
  *
  * missedSuggestion(memoId):
- *   1. Removes "accepted" action from DB
+ *   1. Removes from local acceptedMemos map
  *   2. Resets memo's acceptedToday flag (task can reappear)
  *   3. Regenerates schedule
  *
  * completeSuggestion(memoId, durationMinutes):
  *   1. Logs progress to memo (timeSpent, completions)
  *   2. Updates type-specific state (routine/deadline/backlog)
- *   3. Removes "accepted" action from DB
+ *   3. Removes from local acceptedMemos map
  *
  * deleteAccepted(memoId):
- *   1. Removes "accepted" action from DB
+ *   1. Removes from local acceptedMemos map
  *   2. Resets memo's acceptedToday flag
  *   3. Regenerates schedule
  *
- * ============================================================================
- * STORES
- * ============================================================================
- *
- * - scheduleResult: Current scheduled suggestions
- * - acceptedMemos: Map of memoId -> time slot info (from DB)
- * - rejectedMemoIds: Set of rejected memoIds (from DB)
- * - movedSuggestions: Suggestions dragged to new positions (local only)
+ * moveSuggestion(suggestionId, newStartTime, newEndTime, newGapId):
+ *   1. Adds/updates entry in movedSuggestions array
+ *   2. Removes any overlapping suggestions
+ *   3. Regenerates schedule
  *
  * ============================================================================
- * SYNCED DATA (cleared daily)
+ * PERSISTENCE MODEL (Intentionally Asymmetric)
  * ============================================================================
  *
- * On startup, loadSyncData() restores:
- * - Accepted memos with their time slots
- * - Rejected memo IDs
- * - Cached transit info
+ * PERSISTED TO MEMO STATE (survives reload):
+ * ─────────────────────────────────────────
+ * - Accepted: routineState.acceptedToday, backlogState.acceptedToday,
+ *             deadlineState.acceptedSlots (for deadline tasks)
+ * - Rejected: routineState.rejectedToday, backlogState.rejectedToday,
+ *             deadlineState.rejectedToday
  *
- * All suggestion actions are cleared at the start of each new day.
+ * LOCAL MEMORY ONLY (lost on reload):
+ * ─────────────────────────────────────
+ * - movedSuggestions: Pending suggestions that user dragged to new positions
+ * - acceptedMemos: Local map for UI display and gap blocking
+ * - rejectedMemoIds: Local set (redundant with memo state, kept for fast lookup)
+ *
+ * RATIONALE:
+ * - Moved suggestions are "uncommitted" - the user hasn't accepted them yet.
+ *   If the user refreshes, showing fresh auto-scheduled suggestions is better
+ *   than trying to restore arbitrary positions.
+ * - Accepted/rejected state IS persisted because it represents user commitment.
+ * - Local acceptedMemos map is rebuilt from memo state on startup.
+ *
+ * ============================================================================
+ * DAILY RESET
+ * ============================================================================
+ *
+ * All suggestion state resets at day boundaries:
+ * - Routine/backlog: acceptedToday and rejectedToday reset via resetPeriodIfNeeded()
+ * - Deadline: acceptedSlots and rejectedToday cleared
+ * - Local stores: cleared in resetStoresIfNewDay()
+ *
+ * Migrated from writable stores to Svelte 5 reactive class ($state).
  */
 
-import { writable, derived, get } from "svelte/store";
-import type { Memo, Gap } from "../../../types.ts";
+import type { Memo, Gap, Suggestion } from "../../../types.ts";
 import type {
   ScheduleResult,
   ScheduledBlock,
@@ -104,79 +123,8 @@ export interface MovedSuggestion extends ScheduledBlock {
 }
 
 // ============================================================================
-// Schedule Result Store
+// Helper Functions (module-level)
 // ============================================================================
-
-/**
- * Current schedule result from the engine
- */
-export const scheduleResult = writable<ScheduleResult | null>(null);
-
-/**
- * Error state for schedule generation
- */
-export const scheduleError = writable<Error | null>(null);
-
-/**
- * Loading state for schedule generation
- */
-export const isScheduleLoading = writable<boolean>(false);
-
-/**
- * Summary of the last pipeline execution
- * Useful for debugging and UI feedback
- */
-export const lastPipelineSummary = writable<PipelineSummary | null>(null);
-
-/**
- * Timestamp of the last successful schedule generation
- */
-export const lastScheduleTime = writable<Date | null>(null);
-
-// ============================================================================
-// Suggestion State Stores
-// ============================================================================
-
-/**
- * Accepted memos with their time slot info
- * Key: memoId, Value: time slot info
- */
-export const acceptedMemos = writable<Map<string, AcceptedMemoInfo>>(new Map());
-
-/**
- * Set of memo IDs that have been rejected (skipped)
- * Rejected memos NEVER reappear in any future repopulation (for today)
- */
-export const rejectedMemoIds = writable<Set<string>>(new Set());
-
-/**
- * Manually moved/dragged suggestions that should persist
- * These are excluded from repopulation and maintain their position
- */
-export const movedSuggestions = writable<MovedSuggestion[]>([]);
-
-/**
- * Whether sync data has been loaded from the server
- */
-export const isSyncLoaded = writable<boolean>(false);
-
-/**
- * Whether sync operations are in progress
- */
-export const isSyncing = writable<boolean>(false);
-
-/**
- * Tracks the date when synced data was last loaded/reset
- * Used to detect day boundary crossings while app is running
- */
-let lastSyncDate: string | null = null;
-
-/**
- * Promise that resolves when sync is complete (or fails)
- * Used to wait for sync before regenerating or calling transit API
- */
-let syncCompleteResolve: (() => void) | null = null;
-let syncCompletePromise: Promise<void> | null = null;
 
 /**
  * Get today's date as YYYY-MM-DD string
@@ -186,143 +134,111 @@ function getTodayDateString(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-/**
- * Check if a new day has started since the last sync and clear stores if needed.
- * This ensures deadline acceptances and rejections reset daily, consistent with
- * how routine/backlog tasks reset their acceptedToday flags via resetPeriodIfNeeded().
- */
-function resetStoresIfNewDay(): void {
-  const today = getTodayDateString();
+// ============================================================================
+// Engine Instance
+// ============================================================================
 
-  if (lastSyncDate !== null && lastSyncDate !== today) {
-    console.log(
-      `[Schedule] Day boundary crossed (${lastSyncDate} → ${today}), clearing synced stores`,
-    );
-    acceptedMemos.set(new Map());
-    rejectedMemoIds.set(new Set());
-    movedSuggestions.set([]);
-    // Note: We don't clear server data here since loadSyncData() handles that cleanup
-    // The server-side cleanup happens on next app restart
-  }
-
-  lastSyncDate = today;
-}
-
-/**
- * Wait for sync to complete before proceeding
- * Resolves immediately if sync is already complete
- * Also resolves on network errors (to allow proceeding without sync)
- */
-export async function waitForSync(): Promise<void> {
-  if (get(isSyncLoaded)) {
-    return; // Already synced
-  }
-
-  if (!syncCompletePromise) {
-    // Create a new promise if one doesn't exist
-    syncCompletePromise = new Promise((resolve) => {
-      syncCompleteResolve = resolve;
-    });
-
-    // Also set a timeout to prevent indefinite waiting (10 seconds)
-    setTimeout(() => {
-      if (syncCompleteResolve) {
-        console.warn("[Schedule] Sync timeout - proceeding without sync");
-        syncCompleteResolve();
-        syncCompleteResolve = null;
-      }
-    }, 10000);
-  }
-
-  return syncCompletePromise;
-}
-
-/**
- * Signal that sync is complete (call this after sync finishes)
- */
-function signalSyncComplete(): void {
-  if (syncCompleteResolve) {
-    syncCompleteResolve();
-    syncCompleteResolve = null;
-  }
-  syncCompletePromise = null;
-}
-
-/**
- * Sync blocker state to unifiedGapState for availableGaps computation.
- * Call this after any change to acceptedMemos or movedSuggestions.
- */
-function syncBlockersToGapState(): void {
-  const accepted = get(acceptedMemos);
-  const moved = get(movedSuggestions);
-
-  // Convert to TimeBlocker format
-  const acceptedBlockers = new Map<
-    string,
-    { startTime: string; endTime: string }
-  >();
-  for (const [memoId, info] of accepted) {
-    acceptedBlockers.set(memoId, {
-      startTime: info.startTime,
-      endTime: info.endTime,
-    });
-  }
-
-  const movedBlockers = moved.map((m) => ({
-    startTime: m.startTime,
-    endTime: m.endTime,
-  }));
-
-  unifiedGapState.setBlockers(acceptedBlockers, movedBlockers);
-}
+const engine = createEngine();
 
 // ============================================================================
-// Derived Stores
+// Schedule State Class
 // ============================================================================
 
 /**
- * All suggestions that should be displayed (scheduled + moved)
- * Scheduled blocks from result + moved suggestions (excluding any that overlap with accepted)
+ * Schedule state reactive class
  */
-export const allDisplayedSuggestions = derived(
-  [scheduleResult, movedSuggestions, acceptedMemos],
-  ([$result, $moved, $accepted]) => {
-    const scheduled = $result?.scheduled ?? [];
-    const acceptedMemoIds = new Set($accepted.keys());
+class ScheduleState {
+  // ============================================================================
+  // Reactive State
+  // ============================================================================
+
+  /** Current schedule result from the engine */
+  result = $state<ScheduleResult | null>(null);
+
+  /** Error state for schedule generation */
+  error = $state<Error | null>(null);
+
+  /** Loading state for schedule generation */
+  isLoading = $state(false);
+
+  /** Summary of the last pipeline execution */
+  lastPipelineSummary = $state<PipelineSummary | null>(null);
+
+  /** Timestamp of the last successful schedule generation */
+  lastScheduleTime = $state<Date | null>(null);
+
+  /** Accepted memos with their time slot info */
+  acceptedMemos = $state<Map<string, AcceptedMemoInfo>>(new Map());
+
+  /** Set of memo IDs that have been rejected (skipped) */
+  rejectedMemoIds = $state<Set<string>>(new Set());
+
+  /** Manually moved/dragged suggestions that should persist */
+  movedSuggestions = $state<MovedSuggestion[]>([]);
+
+  /** Whether sync data has been loaded from the server */
+  isSyncLoaded = $state(false);
+
+  /** Whether sync operations are in progress */
+  isSyncing = $state(false);
+
+  // ============================================================================
+  // Private State (non-reactive, module-level tracking)
+  // ============================================================================
+
+  /** Tracks the date when synced data was last loaded/reset */
+  private lastSyncDate: string | null = null;
+
+  /** Promise that resolves when sync is complete (or fails) */
+  private syncCompleteResolve: (() => void) | null = null;
+  private syncCompletePromise: Promise<void> | null = null;
+
+  // ============================================================================
+  // Derived State (getters)
+  // ============================================================================
+
+  /**
+   * All suggestions that should be displayed (scheduled + moved)
+   * Scheduled blocks from result + moved suggestions (excluding any that overlap with accepted)
+   */
+  get allDisplayedSuggestions(): {
+    scheduled: ScheduledBlock[];
+    moved: MovedSuggestion[];
+  } {
+    const scheduled = this.result?.scheduled ?? [];
+    const acceptedMemoIds = new Set(this.acceptedMemos.keys());
 
     // Filter out moved suggestions for memos that are now accepted
-    const validMoved = $moved.filter((m) => !acceptedMemoIds.has(m.memoId));
+    const validMoved = this.movedSuggestions.filter(
+      (m) => !acceptedMemoIds.has(m.memoId),
+    );
 
     return {
       scheduled,
       moved: validMoved,
     };
-  },
-);
+  }
 
-/**
- * All scheduled blocks from the engine result
- */
-export const scheduledBlocks = derived(
-  [scheduleResult],
-  ([$result]) => $result?.scheduled ?? [],
-);
+  /**
+   * All scheduled blocks from the engine result
+   */
+  get scheduledBlocks(): ScheduledBlock[] {
+    return this.result?.scheduled ?? [];
+  }
 
-/**
- * Pending suggestions (scheduled blocks that haven't been accepted yet)
- */
-export const pendingSuggestions = derived(
-  [scheduleResult, movedSuggestions],
-  ([$result, $moved]): PendingSuggestion[] => {
-    const scheduled = $result?.scheduled ?? [];
-    const movedIds = new Set($moved.map((m) => m.suggestionId));
+  /**
+   * Pending suggestions (scheduled blocks that haven't been accepted yet)
+   */
+  get pendingSuggestions(): PendingSuggestion[] {
+    const scheduled = this.result?.scheduled ?? [];
+    const movedIds = new Set(this.movedSuggestions.map((m) => m.suggestionId));
 
     // Include scheduled blocks (excluding moved ones) and moved suggestions
     const fromScheduled = scheduled
       .filter((b) => !movedIds.has(b.suggestionId))
       .map((b): PendingSuggestion => ({ ...b, isPending: true }));
 
-    const fromMoved = $moved.map(
+    const fromMoved = this.movedSuggestions.map(
       (m): PendingSuggestion => ({
         suggestionId: m.suggestionId,
         memoId: m.memoId,
@@ -335,90 +251,174 @@ export const pendingSuggestions = derived(
     );
 
     return [...fromScheduled, ...fromMoved];
-  },
-);
+  }
 
-/**
- * Dropped suggestions (didn't fit in schedule)
- */
-export const droppedSuggestions = derived(
-  [scheduleResult],
-  ([$result]) => $result?.dropped ?? [],
-);
+  /**
+   * Dropped suggestions (didn't fit in schedule)
+   */
+  get droppedSuggestions(): Suggestion[] {
+    return this.result?.dropped ?? [];
+  }
 
-/**
- * Mandatory tasks that were dropped (couldn't fit)
- */
-export const droppedMandatory = derived(
-  [scheduleResult],
-  ([$result]) => $result?.mandatoryDropped ?? [],
-);
+  /**
+   * Mandatory tasks that were dropped (couldn't fit)
+   */
+  get droppedMandatory(): Suggestion[] {
+    return this.result?.mandatoryDropped ?? [];
+  }
 
-/**
- * Next scheduled block (earliest start time)
- */
-export const nextScheduledBlock = derived([scheduledBlocks], ([$blocks]) => {
-  if ($blocks.length === 0) return null;
-  return [...$blocks].sort((a, b) => a.startTime.localeCompare(b.startTime))[0];
-});
+  /**
+   * Next scheduled block (earliest start time)
+   */
+  get nextScheduledBlock(): ScheduledBlock | null {
+    const blocks = this.scheduledBlocks;
+    if (blocks.length === 0) return null;
+    return [...blocks].sort((a, b) =>
+      a.startTime.localeCompare(b.startTime),
+    )[0];
+  }
 
-/**
- * Whether there are any scheduled tasks
- */
-export const hasScheduledTasks = derived(
-  [scheduledBlocks],
-  ([$blocks]) => $blocks.length > 0,
-);
+  /**
+   * Whether there are any scheduled tasks
+   */
+  get hasScheduledTasks(): boolean {
+    return this.scheduledBlocks.length > 0;
+  }
 
-/**
- * Total minutes of scheduled tasks
- */
-export const totalScheduledMinutes = derived([scheduledBlocks], ([$blocks]) =>
-  $blocks.reduce((sum, b) => sum + b.duration, 0),
-);
+  /**
+   * Total minutes of scheduled tasks
+   */
+  get totalScheduledMinutes(): number {
+    return this.scheduledBlocks.reduce((sum, b) => sum + b.duration, 0);
+  }
 
-/**
- * Whether any mandatory tasks were dropped
- */
-export const hasMandatoryDropped = derived(
-  [droppedMandatory],
-  ([$dropped]) => $dropped.length > 0,
-);
+  /**
+   * Whether any mandatory tasks were dropped
+   */
+  get hasMandatoryDropped(): boolean {
+    return this.droppedMandatory.length > 0;
+  }
 
-/**
- * Find a scheduled block by memo ID
- */
-export function findBlockByMemoId(memoId: string): ScheduledBlock | undefined {
-  const result = get(scheduleResult);
-  return result?.scheduled.find((b) => b.memoId === memoId);
-}
+  // ============================================================================
+  // Query Methods
+  // ============================================================================
 
-/**
- * Check if a memo is currently scheduled
- */
-export function isMemoScheduled(memoId: string): boolean {
-  return findBlockByMemoId(memoId) !== undefined;
-}
+  /**
+   * Find a scheduled block by memo ID
+   */
+  findBlockByMemoId(memoId: string): ScheduledBlock | undefined {
+    return this.result?.scheduled.find((b) => b.memoId === memoId);
+  }
 
-/**
- * Get all blocks for a specific gap
- */
-export function getBlocksForGap(gapId: string): ScheduledBlock[] {
-  const result = get(scheduleResult);
-  return result?.scheduled.filter((b) => b.gapId === gapId) ?? [];
-}
+  /**
+   * Check if a memo is currently scheduled
+   */
+  isMemoScheduled(memoId: string): boolean {
+    return this.findBlockByMemoId(memoId) !== undefined;
+  }
 
-// ============================================================================
-// Engine Instance
-// ============================================================================
+  /**
+   * Get all blocks for a specific gap
+   */
+  getBlocksForGap(gapId: string): ScheduledBlock[] {
+    return this.result?.scheduled.filter((b) => b.gapId === gapId) ?? [];
+  }
 
-const engine = createEngine();
+  // ============================================================================
+  // Private Methods
+  // ============================================================================
 
-// ============================================================================
-// Schedule Actions
-// ============================================================================
+  /**
+   * Check if a new day has started since the last sync and clear stores if needed.
+   * This ensures deadline acceptances and rejections reset daily, consistent with
+   * how routine/backlog tasks reset their acceptedToday flags via resetPeriodIfNeeded().
+   */
+  private resetStoresIfNewDay(): void {
+    const today = getTodayDateString();
 
-export const scheduleActions = {
+    if (this.lastSyncDate !== null && this.lastSyncDate !== today) {
+      console.log(
+        `[Schedule] Day boundary crossed (${this.lastSyncDate} → ${today}), clearing synced stores`,
+      );
+      this.acceptedMemos = new Map();
+      this.rejectedMemoIds = new Set();
+      this.movedSuggestions = [];
+      // Note: We don't clear server data here since loadSyncData() handles that cleanup
+      // The server-side cleanup happens on next app restart
+    }
+
+    this.lastSyncDate = today;
+  }
+
+  /**
+   * Signal that sync is complete (call this after sync finishes)
+   */
+  private signalSyncComplete(): void {
+    if (this.syncCompleteResolve) {
+      this.syncCompleteResolve();
+      this.syncCompleteResolve = null;
+    }
+    this.syncCompletePromise = null;
+  }
+
+  /**
+   * Sync blocker state to unifiedGapState for availableGaps computation.
+   * Call this after any change to acceptedMemos or movedSuggestions.
+   */
+  private syncBlockersToGapState(): void {
+    // Convert to TimeBlocker format
+    const acceptedBlockers = new Map<
+      string,
+      { startTime: string; endTime: string }
+    >();
+    for (const [memoId, info] of this.acceptedMemos) {
+      acceptedBlockers.set(memoId, {
+        startTime: info.startTime,
+        endTime: info.endTime,
+      });
+    }
+
+    const movedBlockers = this.movedSuggestions.map((m) => ({
+      startTime: m.startTime,
+      endTime: m.endTime,
+    }));
+
+    unifiedGapState.setBlockers(acceptedBlockers, movedBlockers);
+  }
+
+  // ============================================================================
+  // Public Methods
+  // ============================================================================
+
+  /**
+   * Wait for sync to complete before proceeding
+   * Resolves immediately if sync is already complete
+   * Also resolves on network errors (to allow proceeding without sync)
+   */
+  async waitForSync(): Promise<void> {
+    if (this.isSyncLoaded) {
+      return; // Already synced
+    }
+
+    if (!this.syncCompletePromise) {
+      // Create a new promise if one doesn't exist
+      this.syncCompletePromise = new Promise((resolve) => {
+        this.syncCompleteResolve = resolve;
+      });
+
+      // Also set a timeout to prevent indefinite waiting (10 seconds)
+      setTimeout(() => {
+        if (this.syncCompleteResolve) {
+          console.warn("[Schedule] Sync timeout - proceeding without sync");
+          this.syncCompleteResolve();
+          this.syncCompleteResolve = null;
+        }
+      }, 10000);
+    }
+
+    return this.syncCompletePromise;
+  }
+
   /**
    * Generate a new schedule from memos and gaps
    * This is the main entry point for schedule generation
@@ -434,26 +434,26 @@ export const scheduleActions = {
     },
   ): Promise<void> {
     // Wait for sync to complete first
-    await waitForSync();
+    await this.waitForSync();
 
     // Check for day boundary crossing and reset stores if needed
     // This ensures deadline acceptances reset daily like routine/backlog tasks
-    resetStoresIfNewDay();
+    this.resetStoresIfNewDay();
 
-    isScheduleLoading.set(true);
-    scheduleError.set(null);
+    this.isLoading = true;
+    this.error = null;
 
     try {
       // Get current moved suggestions to exclude their memoIds
-      const currentMoved = get(movedSuggestions);
+      const currentMoved = this.movedSuggestions;
       const movedMemoIds = new Set(currentMoved.map((m) => m.memoId));
 
       // Get accepted memos to use as blockers
-      const accepted = get(acceptedMemos);
+      const accepted = this.acceptedMemos;
       const acceptedMemoIds = new Set(accepted.keys());
 
       // Get rejected memo IDs
-      const rejected = get(rejectedMemoIds);
+      const rejected = this.rejectedMemoIds;
 
       // Filter memos: exclude rejected and already-moved memos
       const filteredMemos = memos.filter(
@@ -461,7 +461,7 @@ export const scheduleActions = {
       );
 
       // Sync blockers to unified gap state before getting available gaps
-      syncBlockersToGapState();
+      this.syncBlockersToGapState();
 
       // Get available gaps from unified state (already has blockers subtracted)
       // If custom gaps are provided, use enrichedGaps as the base (caller handles blocker subtraction)
@@ -491,8 +491,8 @@ export const scheduleActions = {
       const endTime = performance.now();
 
       // Update stores
-      scheduleResult.set(result);
-      lastScheduleTime.set(new Date());
+      this.result = result;
+      this.lastScheduleTime = new Date();
 
       // Extend summary with additional info
       const extendedSummary = {
@@ -502,7 +502,7 @@ export const scheduleActions = {
         rejectedMemos: rejected.size,
         executionMs: Math.round(endTime - startTime),
       };
-      lastPipelineSummary.set(extendedSummary);
+      this.lastPipelineSummary = extendedSummary;
 
       console.log("[Schedule] Generated:", {
         scheduled: result.scheduled.length,
@@ -515,13 +515,11 @@ export const scheduleActions = {
       });
     } catch (error) {
       console.error("[Schedule] Generation failed:", error);
-      scheduleError.set(
-        error instanceof Error ? error : new Error(String(error)),
-      );
+      this.error = error instanceof Error ? error : new Error(String(error));
     } finally {
-      isScheduleLoading.set(false);
+      this.isLoading = false;
     }
-  },
+  }
 
   /**
    * Accept a suggestion, converting it to a fixed event
@@ -536,8 +534,8 @@ export const scheduleActions = {
    * @param suggestionId - ID of the suggestion to accept
    */
   async accept(suggestionId: string): Promise<void> {
-    const result = get(scheduleResult);
-    const currentMoved = get(movedSuggestions);
+    const result = this.result;
+    const currentMoved = this.movedSuggestions;
 
     // Try to find in scheduled blocks first
     let block = result?.scheduled.find((b) => b.suggestionId === suggestionId);
@@ -570,13 +568,12 @@ export const scheduleActions = {
     // IMPORTANT: Mark the source memo as accepted
     // This updates routineState.acceptedToday = true (or backlogState)
     // causing the scoring function to return a low score for this memo
-    const { taskActions, tasks } = await import(
-      "$lib/features/tasks/state/taskActions.ts"
+    const { taskActions, taskState } = await import(
+      "$lib/features/tasks/state/taskActions.svelte.ts"
     );
 
-    // Find the memo to check its type
-    const currentTasks = get(tasks);
-    const memo = currentTasks.find((t) => t.id === block.memoId);
+    // Find the memo to check its type (direct property access - Svelte 5 reactive)
+    const memo = taskState.items.find((t) => t.id === block.memoId);
 
     if (memo?.type === "期限付き") {
       // For deadline tasks, add the accepted slot
@@ -592,8 +589,8 @@ export const scheduleActions = {
 
     // Remove from movedSuggestions if it was there
     if (currentMoved.some((m) => m.suggestionId === suggestionId)) {
-      movedSuggestions.update((list) =>
-        list.filter((m) => m.suggestionId !== suggestionId),
+      this.movedSuggestions = this.movedSuggestions.filter(
+        (m) => m.suggestionId !== suggestionId,
       );
     }
 
@@ -605,11 +602,9 @@ export const scheduleActions = {
       duration: block.duration,
     };
 
-    acceptedMemos.update((map) => {
-      const newMap = new Map(map);
-      newMap.set(block.memoId, acceptedInfo);
-      return newMap;
-    });
+    const newMap = new Map(this.acceptedMemos);
+    newMap.set(block.memoId, acceptedInfo);
+    this.acceptedMemos = newMap;
 
     console.log(
       "[Schedule] Accepted suggestion:",
@@ -619,10 +614,9 @@ export const scheduleActions = {
     );
 
     // Regenerate to fill remaining gaps
-    // Use fresh memos from store (after markAccepted/addAcceptedSlot updated the state)
-    const freshMemos = get(tasks);
-    await scheduleActions.regenerate(freshMemos);
-  },
+    // Use fresh memos from store (taskState.items is reactive, already updated)
+    await this.regenerate(taskState.items);
+  }
 
   /**
    * Reject a suggestion - the underlying memo will NEVER reappear (for today)
@@ -630,7 +624,7 @@ export const scheduleActions = {
    * @param suggestionId - ID of the suggestion to reject
    */
   async skip(suggestionId: string): Promise<void> {
-    const result = get(scheduleResult);
+    const result = this.result;
     if (!result) return;
 
     // Find the suggestion to get its memoId
@@ -644,11 +638,9 @@ export const scheduleActions = {
     }
 
     // Add memoId to rejected set
-    rejectedMemoIds.update((set) => {
-      const next = new Set(set);
-      next.add(block.memoId);
-      return next;
-    });
+    const newSet = new Set(this.rejectedMemoIds);
+    newSet.add(block.memoId);
+    this.rejectedMemoIds = newSet;
 
     console.log(
       "[Schedule] Rejected suggestion:",
@@ -658,15 +650,15 @@ export const scheduleActions = {
     );
 
     // Persist rejection to memo state
-    const { taskActions, tasks } = await import(
-      "$lib/features/tasks/state/taskActions.ts"
+    const { taskActions, taskState } = await import(
+      "$lib/features/tasks/state/taskActions.svelte.ts"
     );
     await taskActions.markRejected(block.memoId);
 
     // Regenerate to get new suggestion for the gap
-    const freshMemos = get(tasks);
-    await scheduleActions.regenerate(freshMemos);
-  },
+    // Use taskState.items directly (Svelte 5 reactive, already updated)
+    await this.regenerate(taskState.items);
+  }
 
   /**
    * Move a pending suggestion to a new time slot
@@ -695,8 +687,8 @@ export const scheduleActions = {
     memos: Memo[],
     externalGaps?: Gap[],
   ): Promise<void> {
-    const result = get(scheduleResult);
-    const currentMoved = get(movedSuggestions);
+    const result = this.result;
+    const currentMoved = this.movedSuggestions;
     const gaps = externalGaps ?? unifiedGapState.enrichedGaps;
 
     // Check if this is an already moved suggestion being moved again
@@ -775,30 +767,28 @@ export const scheduleActions = {
       movedAt: new Date(),
     };
 
-    // Update movedSuggestions store
-    movedSuggestions.update((list) => {
-      // Remove any existing entry for this suggestion
-      const filtered = list.filter((m) => m.suggestionId !== suggestionId);
-      // Remove overlapping moved suggestions
-      const overlappingSet = new Set(overlappingMovedIds);
-      const withoutOverlaps = filtered.filter(
-        (m) => !overlappingSet.has(m.suggestionId),
-      );
-      // Add the newly moved suggestion
-      return [...withoutOverlaps, moved];
-    });
+    // Update movedSuggestions
+    // Remove any existing entry for this suggestion
+    let filtered = this.movedSuggestions.filter(
+      (m) => m.suggestionId !== suggestionId,
+    );
+    // Remove overlapping moved suggestions
+    const overlappingSet = new Set(overlappingMovedIds);
+    filtered = filtered.filter((m) => !overlappingSet.has(m.suggestionId));
+    // Add the newly moved suggestion
+    this.movedSuggestions = [...filtered, moved];
 
     // Remove overlapping suggestions from scheduled result
     if (overlappingScheduledIds.length > 0 && result) {
-      const overlappingSet = new Set(overlappingScheduledIds);
-      scheduleResult.set({
+      const overlappingScheduledSet = new Set(overlappingScheduledIds);
+      this.result = {
         ...result,
         scheduled: result.scheduled.filter(
           (b) =>
             b.suggestionId === suggestionId ||
-            !overlappingSet.has(b.suggestionId),
+            !overlappingScheduledSet.has(b.suggestionId),
         ),
-      });
+      };
     }
 
     console.log("[Schedule] Moved suggestion:", {
@@ -812,8 +802,8 @@ export const scheduleActions = {
     });
 
     // Regenerate to fill any gaps left by removed suggestions
-    await scheduleActions.regenerate(memos, { gaps });
-  },
+    await this.regenerate(memos, { gaps });
+  }
 
   /**
    * Update the duration of a pending (not yet accepted) suggestion
@@ -830,8 +820,8 @@ export const scheduleActions = {
     memos: Memo[],
     externalGaps?: Gap[],
   ): Promise<void> {
-    const result = get(scheduleResult);
-    const currentMoved = get(movedSuggestions);
+    const result = this.result;
+    const currentMoved = this.movedSuggestions;
     const gaps = externalGaps ?? unifiedGapState.enrichedGaps;
 
     // Check if this is a moved suggestion
@@ -865,37 +855,33 @@ export const scheduleActions = {
       // Remove overlapping scheduled suggestions
       if (overlappingScheduledIds.length > 0 && result) {
         const overlappingSet = new Set(overlappingScheduledIds);
-        scheduleResult.set({
+        this.result = {
           ...result,
           scheduled: result.scheduled.filter(
             (b) => !overlappingSet.has(b.suggestionId),
           ),
-        });
+        };
         console.log(
           "[Schedule] Removed overlapping scheduled suggestions:",
           overlappingScheduledIds,
         );
       }
 
-      const hadOverlaps =
-        overlappingScheduledIds.length > 0 || overlappingMovedIds.length > 0;
+      // Update movedSuggestions
+      // Remove overlapping moved suggestions
+      const overlappingSet = new Set(overlappingMovedIds);
+      const filtered = this.movedSuggestions.filter(
+        (m) =>
+          m.suggestionId === suggestionId ||
+          !overlappingSet.has(m.suggestionId),
+      );
 
-      movedSuggestions.update((list) => {
-        // Remove overlapping moved suggestions
-        const overlappingSet = new Set(overlappingMovedIds);
-        const filtered = list.filter(
-          (m) =>
-            m.suggestionId === suggestionId ||
-            !overlappingSet.has(m.suggestionId),
-        );
-
-        // Update the resized suggestion
-        return filtered.map((m) =>
-          m.suggestionId === suggestionId
-            ? { ...m, duration: newDuration, endTime: newEndTime }
-            : m,
-        );
-      });
+      // Update the resized suggestion
+      this.movedSuggestions = filtered.map((m) =>
+        m.suggestionId === suggestionId
+          ? { ...m, duration: newDuration, endTime: newEndTime }
+          : m,
+      );
 
       if (overlappingMovedIds.length > 0) {
         console.log(
@@ -912,7 +898,7 @@ export const scheduleActions = {
 
       // Always regenerate when duration changes (even without overlaps)
       // Shortening a suggestion frees up gap space for new suggestions
-      await scheduleActions.regenerate(memos, { gaps });
+      await this.regenerate(memos, { gaps });
       return;
     }
 
@@ -951,8 +937,8 @@ export const scheduleActions = {
     // Remove overlapping moved suggestions
     if (overlappingMovedIds.length > 0) {
       const overlappingSet = new Set(overlappingMovedIds);
-      movedSuggestions.update((list) =>
-        list.filter((m) => !overlappingSet.has(m.suggestionId)),
+      this.movedSuggestions = this.movedSuggestions.filter(
+        (m) => !overlappingSet.has(m.suggestionId),
       );
       console.log(
         "[Schedule] Removed overlapping moved suggestions:",
@@ -972,27 +958,26 @@ export const scheduleActions = {
       movedAt: new Date(),
     };
 
-    movedSuggestions.update((list) => {
-      // Remove any existing entry for this suggestion
-      const filtered = list.filter((m) => m.suggestionId !== suggestionId);
-      // Remove overlapping moved suggestions
-      const overlappingSet = new Set(overlappingMovedIds);
-      const withoutOverlaps = filtered.filter(
-        (m) => !overlappingSet.has(m.suggestionId),
-      );
-      // Add with new duration
-      return [...withoutOverlaps, movedWithNewDuration];
-    });
+    // Update movedSuggestions
+    // Remove any existing entry for this suggestion
+    let filtered = this.movedSuggestions.filter(
+      (m) => m.suggestionId !== suggestionId,
+    );
+    // Remove overlapping moved suggestions
+    const overlappingSet = new Set(overlappingMovedIds);
+    filtered = filtered.filter((m) => !overlappingSet.has(m.suggestionId));
+    // Add with new duration
+    this.movedSuggestions = [...filtered, movedWithNewDuration];
 
     // Remove the suggestion from scheduled result (it's now in movedSuggestions)
     // Also remove any overlapping scheduled suggestions
     const toRemoveSet = new Set([suggestionId, ...overlappingScheduledIds]);
-    scheduleResult.set({
+    this.result = {
       ...result,
       scheduled: result.scheduled.filter(
         (b) => !toRemoveSet.has(b.suggestionId),
       ),
-    });
+    };
 
     if (overlappingScheduledIds.length > 0) {
       console.log(
@@ -1009,8 +994,8 @@ export const scheduleActions = {
 
     // Always regenerate when duration changes (even without overlaps)
     // Shortening a suggestion frees up gap space for new suggestions
-    await scheduleActions.regenerate(memos, { gaps });
-  },
+    await this.regenerate(memos, { gaps });
+  }
 
   /**
    * Update the duration of an accepted suggestion
@@ -1023,11 +1008,10 @@ export const scheduleActions = {
   async updateAcceptedDuration(
     memoId: string,
     newDuration: number,
-    memos: Memo[],
-    gaps?: Gap[],
+    _memos: Memo[],
+    _gaps?: Gap[],
   ): Promise<void> {
-    const accepted = get(acceptedMemos);
-    const info = accepted.get(memoId);
+    const info = this.acceptedMemos.get(memoId);
     if (!info) {
       console.warn(
         "[Schedule] Cannot update accepted duration: memo not found",
@@ -1041,20 +1025,18 @@ export const scheduleActions = {
     );
 
     // Update the accepted memo info
-    acceptedMemos.update((map) => {
-      const newMap = new Map(map);
-      newMap.set(memoId, {
-        ...info,
-        duration: newDuration,
-        endTime: newEndTime,
-      });
-      return newMap;
+    const newMap = new Map(this.acceptedMemos);
+    newMap.set(memoId, {
+      ...info,
+      duration: newDuration,
+      endTime: newEndTime,
     });
+    this.acceptedMemos = newMap;
 
     console.log("[Schedule] Updated accepted duration:", memoId, newDuration);
 
     // Note: Acceptance state is persisted on memo, local store is for UI/gap calculation
-  },
+  }
 
   /**
    * Delete an accepted suggestion, freeing up the gap
@@ -1065,23 +1047,21 @@ export const scheduleActions = {
    */
   async deleteAccepted(memoId: string, memos: Memo[]): Promise<void> {
     // Remove from accepted memos store
-    acceptedMemos.update((map) => {
-      const newMap = new Map(map);
-      newMap.delete(memoId);
-      return newMap;
-    });
+    const newMap = new Map(this.acceptedMemos);
+    newMap.delete(memoId);
+    this.acceptedMemos = newMap;
 
     console.log("[Schedule] Deleted accepted memo:", memoId);
 
     // Reset the memo's acceptedToday flag so it can reappear
     const { taskActions } = await import(
-      "$lib/features/tasks/state/taskActions.ts"
+      "$lib/features/tasks/state/taskActions.svelte.ts"
     );
     await taskActions.resetAccepted(memoId);
 
     // Regenerate to fill the freed gap
-    await scheduleActions.regenerate(memos);
-  },
+    await this.regenerate(memos);
+  }
 
   /**
    * Mark an accepted suggestion as complete
@@ -1093,11 +1073,9 @@ export const scheduleActions = {
    */
   async completeSuggestion(memoId: string, duration: number): Promise<void> {
     // Remove from accepted memos store
-    acceptedMemos.update((map) => {
-      const newMap = new Map(map);
-      newMap.delete(memoId);
-      return newMap;
-    });
+    const newMap = new Map(this.acceptedMemos);
+    newMap.delete(memoId);
+    this.acceptedMemos = newMap;
 
     console.log("[Schedule] Completed suggestion:", {
       memoId,
@@ -1106,7 +1084,7 @@ export const scheduleActions = {
 
     // Note: The actual memo update is done via the remote function
     // called from PersonalAssistantView
-  },
+  }
 
   /**
    * Mark an accepted suggestion as missed
@@ -1117,49 +1095,47 @@ export const scheduleActions = {
    */
   async missedSuggestion(memoId: string): Promise<void> {
     // Remove from accepted memos store
-    acceptedMemos.update((map) => {
-      const newMap = new Map(map);
-      newMap.delete(memoId);
-      return newMap;
-    });
+    const newMap = new Map(this.acceptedMemos);
+    newMap.delete(memoId);
+    this.acceptedMemos = newMap;
 
     console.log("[Schedule] Missed suggestion:", memoId);
 
     // Reset the memo's acceptedToday flag so it can reappear
-    const { taskActions, tasks } = await import(
-      "$lib/features/tasks/state/taskActions.ts"
+    const { taskActions, taskState } = await import(
+      "$lib/features/tasks/state/taskActions.svelte.ts"
     );
     await taskActions.resetAccepted(memoId);
 
     // Regenerate to potentially show the task again
-    const freshMemos = get(tasks);
-    await scheduleActions.regenerate(freshMemos);
-  },
+    // Use taskState.items directly (Svelte 5 reactive, already updated)
+    await this.regenerate(taskState.items);
+  }
 
   /**
    * Clear the current schedule
    * Useful for resetting state
    */
   clear(): void {
-    scheduleResult.set(null);
-    scheduleError.set(null);
-    lastPipelineSummary.set(null);
-    acceptedMemos.set(new Map());
-    rejectedMemoIds.set(new Set());
-    movedSuggestions.set([]);
-    syncBlockersToGapState();
-  },
+    this.result = null;
+    this.error = null;
+    this.lastPipelineSummary = null;
+    this.acceptedMemos = new Map();
+    this.rejectedMemoIds = new Set();
+    this.movedSuggestions = [];
+    this.syncBlockersToGapState();
+  }
 
   /**
    * Clear only accepted, rejected, and moved state (keep schedule result)
    * Useful for daily reset
    */
   clearAcceptedAndSkipped(): void {
-    acceptedMemos.set(new Map());
-    rejectedMemoIds.set(new Set());
-    movedSuggestions.set([]);
-    syncBlockersToGapState();
-  },
+    this.acceptedMemos = new Map();
+    this.rejectedMemoIds = new Set();
+    this.movedSuggestions = [];
+    this.syncBlockersToGapState();
+  }
 
   /**
    * Mark a session as complete and update the memo
@@ -1182,7 +1158,7 @@ export const scheduleActions = {
     });
 
     return result.memo;
-  },
+  }
 
   /**
    * Get the engine for advanced usage
@@ -1190,7 +1166,7 @@ export const scheduleActions = {
    */
   getEngine() {
     return engine;
-  },
+  }
 
   // ==========================================================================
   // Sync Functions
@@ -1204,13 +1180,13 @@ export const scheduleActions = {
    * so this only loads cached transit data.
    */
   async loadSyncedData(): Promise<void> {
-    if (get(isSyncLoaded)) {
+    if (this.isSyncLoaded) {
       console.log("[Schedule] Sync data already loaded");
-      signalSyncComplete();
+      this.signalSyncComplete();
       return;
     }
 
-    isSyncing.set(true);
+    this.isSyncing = true;
 
     try {
       console.log("[Schedule] Loading synced data...");
@@ -1218,23 +1194,23 @@ export const scheduleActions = {
       await loadSyncData({});
 
       // Initialize lastSyncDate to track day boundaries
-      lastSyncDate = getTodayDateString();
+      this.lastSyncDate = getTodayDateString();
 
       // Sync blockers to gap state for availableGaps computation
-      syncBlockersToGapState();
+      this.syncBlockersToGapState();
 
-      isSyncLoaded.set(true);
+      this.isSyncLoaded = true;
       console.log("[Schedule] Synced data loaded");
     } catch (error) {
       console.error("[Schedule] Failed to load synced data:", error);
       // Continue without synced data - will work with fresh state
       // Mark as loaded anyway to prevent waiting forever
-      isSyncLoaded.set(true);
+      this.isSyncLoaded = true;
     } finally {
-      isSyncing.set(false);
-      signalSyncComplete();
+      this.isSyncing = false;
+      this.signalSyncComplete();
     }
-  },
+  }
 
   /**
    * Perform local cleanup of expired data
@@ -1251,37 +1227,36 @@ export const scheduleActions = {
 
     // Only clean up moved suggestions (pending, not yet accepted) whose end time has passed
     // These are auto-scheduled suggestions that the user hasn't committed to
-    movedSuggestions.update((list) => {
-      const before = list.length;
-      const filtered = list.filter((s) => s.endTime > currentTime);
-      if (filtered.length < before) {
-        console.log(
-          `[Schedule] Cleaned up ${before - filtered.length} expired moved suggestions`,
-        );
-      }
-      return filtered;
-    });
-  },
-};
+    const before = this.movedSuggestions.length;
+    const filtered = this.movedSuggestions.filter(
+      (s) => s.endTime > currentTime,
+    );
+    if (filtered.length < before) {
+      console.log(
+        `[Schedule] Cleaned up ${before - filtered.length} expired moved suggestions`,
+      );
+      this.movedSuggestions = filtered;
+    }
+  }
+}
 
 // ============================================================================
-// Helper Functions
+// Singleton Instance
 // ============================================================================
 
-function stableSerializeSchedule(schedule: ScheduleResult): string {
-  const scheduled = [...schedule.scheduled].sort((a, b) => {
-    const idCompare = a.suggestionId.localeCompare(b.suggestionId);
-    if (idCompare !== 0) return idCompare;
-    return a.startTime.localeCompare(b.startTime);
-  });
+/**
+ * Global schedule state instance
+ */
+export const scheduleState = new ScheduleState();
 
-  const dropped = [...schedule.dropped].sort((a, b) =>
-    a.id.localeCompare(b.id),
-  );
+// ============================================================================
+// Convenience Exports
+// ============================================================================
 
-  const mandatoryDropped = [...schedule.mandatoryDropped].sort((a, b) =>
-    a.id.localeCompare(b.id),
-  );
-
-  return JSON.stringify({ scheduled, dropped, mandatoryDropped });
+/**
+ * Wait for sync to complete before proceeding.
+ * This is a convenience export for use in other modules.
+ */
+export async function waitForSync(): Promise<void> {
+  return scheduleState.waitForSync();
 }

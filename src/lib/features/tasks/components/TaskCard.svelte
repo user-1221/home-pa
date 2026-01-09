@@ -1,9 +1,6 @@
 <script lang="ts">
   import type { Memo } from "$lib/types.ts";
-  import {
-    taskActions,
-    enrichingTaskIds,
-  } from "$lib/features/tasks/state/taskActions.ts";
+  import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import { createDragHandler } from "$lib/utils/pointer-drag.ts";
   import { browser } from "$app/environment";
 
@@ -14,7 +11,7 @@
   let { task }: Props = $props();
 
   // Check if this task is being enriched
-  let isEnriching = $derived($enrichingTaskIds.has(task.id));
+  let isEnriching = $derived(taskState.enrichingIds.has(task.id));
 
   // Swipe state
   let translateX = $state(0);
@@ -190,18 +187,18 @@
   // Handlers
   function handleEdit() {
     translateX = 0; // Close swipe
-    taskActions.edit(task);
+    taskState.edit(task);
   }
 
   function handleDelete() {
     if (confirm("このタスクを削除しますか？")) {
-      taskActions.delete(task.id);
+      taskState.delete(task.id);
     }
   }
 
   function handleComplete() {
     translateX = 0; // Close swipe
-    taskActions.markComplete(task.id);
+    taskState.markComplete(task.id);
   }
 </script>
 

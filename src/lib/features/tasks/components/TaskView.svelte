@@ -1,7 +1,7 @@
 <script lang="ts">
   import TaskCard from "./TaskCard.svelte";
   import TaskForm from "./TaskForm.svelte";
-  import { tasks, taskActions } from "$lib/features/tasks/state/taskActions.ts";
+  import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import type { Memo, MemoType } from "$lib/types.ts";
 
   // Filter options
@@ -39,7 +39,7 @@
 
   // Filtered and sorted tasks
   let filteredTasks = $derived(() => {
-    const allTasks = $tasks;
+    const allTasks = taskState.items;
     let result: Memo[];
     switch (filter) {
       case "active":
@@ -60,7 +60,7 @@
 
   // Stats
   let stats = $derived(() => {
-    const all = $tasks;
+    const all = taskState.items;
     const active = all.filter(
       (t) => t.status.completionState !== "completed",
     ).length;
@@ -71,7 +71,7 @@
   });
 
   function handleAddTask() {
-    taskActions.startCreate();
+    taskState.startCreate();
   }
 </script>
 

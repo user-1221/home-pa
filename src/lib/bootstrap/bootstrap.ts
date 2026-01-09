@@ -3,12 +3,12 @@
  */
 
 import { dataState } from "./data.svelte.ts";
-import { timezoneActions } from "./timezone.ts";
-import { scheduleActions } from "../features/assistant/state/schedule.ts";
+import { timezoneState } from "./timezone.svelte.ts";
+import { scheduleState } from "../features/assistant/state/schedule.svelte.ts";
 import { transitState } from "../features/transit/state/transit.svelte.ts";
 
 export function initializeStores(): void {
-  timezoneActions.detect();
+  timezoneState.detect();
   // Initialize selected date to today
   dataState.setSelectedDate(new Date());
 }
@@ -19,13 +19,13 @@ export function initializeStores(): void {
  */
 export async function loadSyncedData(): Promise<void> {
   // Load synced schedule data (accepted suggestions, rejected memos)
-  await scheduleActions.loadSyncedData();
+  await scheduleState.loadSyncedData();
 
   // Load synced transit cache
   await transitState.loadSyncedTransit();
 
   // Perform local cleanup of expired data
-  scheduleActions.cleanupExpiredData();
+  scheduleState.cleanupExpiredData();
 
   console.log("[Bootstrap] Synced data loaded and cleanup completed");
 }

@@ -17,23 +17,11 @@ import type { Memo, Gap } from "$lib/types.ts";
 global.fetch = vi.fn();
 
 // Task stores and actions
-import { tasks, taskActions } from "./taskActions.ts";
-import {
-  taskForm,
-  taskFormActions,
-  isTaskFormOpen,
-  taskFormErrors,
-} from "./taskForm.ts";
+import { tasks, taskActions } from "./taskActions.svelte.ts";
+import { taskFormState } from "./taskForm.svelte.ts";
 
-// Schedule stores and actions
-import {
-  scheduleResult,
-  isScheduleLoading,
-  scheduleError,
-  nextScheduledBlock,
-  scheduledBlocks,
-  scheduleActions,
-} from "../../assistant/state/schedule.ts";
+// Schedule state
+import { scheduleState } from "../../assistant/state/schedule.svelte.ts";
 
 // Gap store
 
@@ -57,8 +45,8 @@ function createTestGap(start: string, end: string): Gap {
 
 function clearAllStores() {
   tasks.set([]);
-  scheduleActions.clear();
-  taskFormActions.resetForm();
+  scheduleState.clear();
+  taskFormState.reset();
   vi.clearAllMocks();
 }
 
@@ -77,58 +65,56 @@ describe("Task Form Wiring", () => {
   });
 
   it("opens and closes the task form", () => {
-    expect(get(isTaskFormOpen)).toBe(false);
+    expect(taskFormState.isOpen).toBe(false);
 
-    taskFormActions.openForm();
-    expect(get(isTaskFormOpen)).toBe(true);
+    taskFormState.openForm();
+    expect(taskFormState.isOpen).toBe(true);
 
-    taskFormActions.closeForm();
+    taskFormState.closeForm();
     // Note: closeForm uses setTimeout, so we check immediately
-    expect(get(isTaskFormOpen)).toBe(false);
+    expect(taskFormState.isOpen).toBe(false);
   });
 
   it("updates form fields correctly", () => {
-    taskFormActions.updateField("title", "Test Task");
-    taskFormActions.updateField("type", "期限付き");
-    taskFormActions.updateField("deadline", "2025-12-31");
+    taskFormState.updateField("title", "Test Task");
+    taskFormState.updateField("type", "期限付き");
+    taskFormState.updateField("deadline", "2025-12-31");
 
-    const form = get(taskForm);
-    expect(form.title).toBe("Test Task");
-    expect(form.type).toBe("期限付き");
-    expect(form.deadline).toBe("2025-12-31");
+    expect(taskFormState.title).toBe("Test Task");
+    expect(taskFormState.type).toBe("期限付き");
+    expect(taskFormState.deadline).toBe("2025-12-31");
   });
 
   it("validates required fields on create", async () => {
     // Empty title should fail validation
-    taskFormActions.updateField("title", "");
+    taskFormState.updateField("title", "");
     const result = await taskActions.create();
 
     // Create should return null and set errors
     expect(result).toBeNull();
-    expect(get(taskFormErrors).title).toBeDefined();
+    expect(taskFormState.errors.title).toBeDefined();
   });
 
   it("validates deadline for 期限付き type on create", async () => {
-    taskFormActions.updateField("title", "Test");
-    taskFormActions.updateField("type", "期限付き");
-    taskFormActions.updateField("deadline", ""); // Missing deadline
+    taskFormState.updateField("title", "Test");
+    taskFormState.updateField("type", "期限付き");
+    taskFormState.updateField("deadline", ""); // Missing deadline
 
     const result = await taskActions.create();
 
     // Create should return null and set errors
     expect(result).toBeNull();
-    expect(get(taskFormErrors).deadline).toBeDefined();
+    expect(taskFormState.errors.deadline).toBeDefined();
   });
 
   it("resets form correctly", () => {
-    taskFormActions.updateField("title", "Test");
-    taskFormActions.updateField("type", "ルーティン");
-    taskFormActions.resetForm();
+    taskFormState.updateField("title", "Test");
+    taskFormState.updateField("type", "ルーティン");
+    taskFormState.reset();
 
-    const form = get(taskForm);
-    expect(form.title).toBe("");
-    expect(form.type).toBe("バックログ"); // Default type
-    expect(form.isEditing).toBe(false);
+    expect(taskFormState.title).toBe("");
+    expect(taskFormState.type).toBe("バックログ"); // Default type
+    expect(taskFormState.isEditing).toBe(false);
   });
 });
 
@@ -142,9 +128,9 @@ describe("Task Creation Wiring", () => {
   });
 
   it("creates a backlog task", async () => {
-    taskFormActions.updateField("title", "Read a book");
-    taskFormActions.updateField("type", "バックログ");
-    taskFormActions.updateField("locationPreference", "no_preference");
+    taskFormState.updateField("title", "Read a book");
+    taskFormState.updateField("type", "バックログ");
+    taskFormState.updateField("locationPreference", "no_preference");
 
     const task = await taskActions.create();
 
@@ -162,9 +148,9 @@ describe("Task Creation Wiring", () => {
     futureDate.setDate(futureDate.getDate() + 7);
     const dateStr = futureDate.toISOString().split("T")[0];
 
-    taskFormActions.updateField("title", "Submit report");
-    taskFormActions.updateField("type", "期限付き");
-    taskFormActions.updateField("deadline", dateStr);
+    taskFormState.updateField("title", "Submit report");
+    taskFormState.updateField("type", "期限付き");
+    taskFormState.updateField("deadline", dateStr);
 
     const task = await taskActions.create();
 
@@ -174,10 +160,10 @@ describe("Task Creation Wiring", () => {
   });
 
   it("creates a routine task with recurrence goal", async () => {
-    taskFormActions.updateField("title", "Exercise");
-    taskFormActions.updateField("type", "ルーティン");
-    taskFormActions.updateField("recurrenceCount", 3);
-    taskFormActions.updateField("recurrencePeriod", "week");
+    taskFormState.updateField("title", "Exercise");
+    taskFormState.updateField("type", "ルーティン");
+    taskFormState.updateField("recurrenceCount", 3);
+    taskFormState.updateField("recurrencePeriod", "week");
 
     const task = await taskActions.create();
 
@@ -188,7 +174,7 @@ describe("Task Creation Wiring", () => {
   });
 
   it("initializes task with correct default status", async () => {
-    taskFormActions.updateField("title", "New task");
+    taskFormState.updateField("title", "New task");
 
     const task = await taskActions.create();
 
@@ -209,19 +195,19 @@ describe("Task Update Wiring", () => {
 
   it("updates an existing task", async () => {
     // Create initial task
-    taskFormActions.updateField("title", "Original title");
+    taskFormState.updateField("title", "Original title");
     const task = await taskActions.create();
     expect(task).not.toBeNull();
 
     // Update the task
-    taskFormActions.openFormForEditing({
+    taskFormState.openFormForEditing({
       id: task!.id,
       title: task!.title,
       type: task!.type,
       locationPreference: task!.locationPreference,
     });
 
-    taskFormActions.updateField("title", "Updated title");
+    taskFormState.updateField("title", "Updated title");
     const updated = await taskActions.update();
 
     expect(updated?.title).toBe("Updated title");
@@ -232,7 +218,7 @@ describe("Task Update Wiring", () => {
   });
 
   it("deletes a task", async () => {
-    taskFormActions.updateField("title", "Task to delete");
+    taskFormState.updateField("title", "Task to delete");
     const task = await taskActions.create();
     expect(get(tasks)).toHaveLength(1);
 
@@ -253,11 +239,11 @@ describe("Schedule Generation Wiring", () => {
 
   it("generates schedule from tasks", async () => {
     // Create some tasks
-    taskFormActions.updateField("title", "Task 1");
+    taskFormState.updateField("title", "Task 1");
     await taskActions.create();
 
-    taskFormActions.resetForm();
-    taskFormActions.updateField("title", "Task 2");
+    taskFormState.reset();
+    taskFormState.updateField("title", "Task 2");
     await taskActions.create();
 
     const currentTasks = get(tasks);
@@ -270,25 +256,24 @@ describe("Schedule Generation Wiring", () => {
     ];
 
     // Generate schedule
-    const result = await scheduleActions.regenerate(currentTasks, {
+    await scheduleState.regenerate(currentTasks, {
       gaps: testGaps,
       skipLLMEnrichment: true,
     });
 
-    expect(result).not.toBeNull();
-    expect(get(scheduleResult)).not.toBeNull();
-    expect(get(scheduledBlocks).length).toBeGreaterThan(0);
+    expect(scheduleState.result).not.toBeNull();
+    expect(scheduleState.scheduledBlocks.length).toBeGreaterThan(0);
   });
 
   it("updates loading state during generation", async () => {
-    taskFormActions.updateField("title", "Test task");
+    taskFormState.updateField("title", "Test task");
     await taskActions.create();
 
     const testGaps: Gap[] = [createTestGap("09:00", "10:00")];
     const currentTasks = get(tasks);
 
     // Start generation (we can't easily test the loading state since it's async)
-    const promise = scheduleActions.regenerate(currentTasks, {
+    const promise = scheduleState.regenerate(currentTasks, {
       gaps: testGaps,
       skipLLMEnrichment: true,
     });
@@ -296,26 +281,26 @@ describe("Schedule Generation Wiring", () => {
     await promise;
 
     // After completion, loading should be false
-    expect(get(isScheduleLoading)).toBe(false);
-    expect(get(scheduleError)).toBeNull();
+    expect(scheduleState.isLoading).toBe(false);
+    expect(scheduleState.error).toBeNull();
   });
 
   it("clears schedule correctly", async () => {
-    taskFormActions.updateField("title", "Test task");
+    taskFormState.updateField("title", "Test task");
     await taskActions.create();
 
     const testGaps: Gap[] = [createTestGap("09:00", "10:00")];
-    await scheduleActions.regenerate(get(tasks), {
+    await scheduleState.regenerate(get(tasks), {
       gaps: testGaps,
       skipLLMEnrichment: true,
     });
 
-    expect(get(scheduleResult)).not.toBeNull();
+    expect(scheduleState.result).not.toBeNull();
 
-    scheduleActions.clear();
+    scheduleState.clear();
 
-    expect(get(scheduleResult)).toBeNull();
-    expect(get(scheduledBlocks)).toEqual([]);
+    expect(scheduleState.result).toBeNull();
+    expect(scheduleState.scheduledBlocks).toEqual([]);
   });
 });
 
@@ -329,11 +314,11 @@ describe("Session Completion Wiring", () => {
   });
 
   it("marks session complete and updates memo status", async () => {
-    taskFormActions.updateField("title", "Work session task");
+    taskFormState.updateField("title", "Work session task");
     const task = await taskActions.create();
     expect(task).not.toBeNull();
 
-    const updated = scheduleActions.markSessionComplete(task!, 30);
+    const updated = scheduleState.markSessionComplete(task!, 30);
 
     expect(updated.status.timeSpentMinutes).toBe(30);
     expect(updated.status.completionState).toBe("in_progress");
@@ -341,7 +326,7 @@ describe("Session Completion Wiring", () => {
   });
 
   it("marks task as completed when time spent exceeds expected", async () => {
-    taskFormActions.updateField("title", "Quick task");
+    taskFormState.updateField("title", "Quick task");
     const task = await taskActions.create();
 
     // Set a low expected duration
@@ -351,21 +336,21 @@ describe("Session Completion Wiring", () => {
     };
 
     // Complete a session that exceeds the expected duration
-    const updated = scheduleActions.markSessionComplete(taskWithDuration, 45);
+    const updated = scheduleState.markSessionComplete(taskWithDuration, 45);
 
     expect(updated.status.completionState).toBe("completed");
   });
 
   it("increments routine completions", async () => {
-    taskFormActions.updateField("title", "Daily exercise");
-    taskFormActions.updateField("type", "ルーティン");
-    taskFormActions.updateField("recurrenceCount", 3);
-    taskFormActions.updateField("recurrencePeriod", "day");
+    taskFormState.updateField("title", "Daily exercise");
+    taskFormState.updateField("type", "ルーティン");
+    taskFormState.updateField("recurrenceCount", 3);
+    taskFormState.updateField("recurrencePeriod", "day");
 
     const task = await taskActions.create();
     expect(task?.type).toBe("ルーティン");
 
-    const updated = scheduleActions.markSessionComplete(task!, 30);
+    const updated = scheduleState.markSessionComplete(task!, 30);
 
     expect(updated.status.completionsThisPeriod).toBe(1);
   });
@@ -382,12 +367,12 @@ describe("End-to-End Task Flow", () => {
 
   it("complete flow: create → schedule → complete", async () => {
     // 1. Create a task via form
-    taskFormActions.openForm();
-    expect(get(isTaskFormOpen)).toBe(true);
+    taskFormState.openForm();
+    expect(taskFormState.isOpen).toBe(true);
 
-    taskFormActions.updateField("title", "Important task");
-    taskFormActions.updateField("type", "バックログ");
-    taskFormActions.updateField("importance", "high");
+    taskFormState.updateField("title", "Important task");
+    taskFormState.updateField("type", "バックログ");
+    taskFormState.updateField("importance", "high");
 
     const task = await taskActions.create();
     expect(task).not.toBeNull();
@@ -403,23 +388,21 @@ describe("End-to-End Task Flow", () => {
       createTestGap("14:00", "16:00"),
     ];
 
-    await scheduleActions.regenerate(storedTasks, {
+    await scheduleState.regenerate(storedTasks, {
       gaps: testGaps,
       skipLLMEnrichment: true,
     });
 
     // 4. Verify schedule was created
-    const schedule = get(scheduleResult);
-    expect(schedule).not.toBeNull();
-    expect(schedule!.scheduled.length).toBeGreaterThan(0);
+    expect(scheduleState.result).not.toBeNull();
+    expect(scheduleState.result!.scheduled.length).toBeGreaterThan(0);
 
     // 5. Verify next block is available
-    const next = get(nextScheduledBlock);
-    expect(next).not.toBeNull();
-    expect(next!.memoId).toBe(task!.id);
+    expect(scheduleState.nextScheduledBlock).not.toBeNull();
+    expect(scheduleState.nextScheduledBlock!.memoId).toBe(task!.id);
 
     // 6. Complete the session
-    const completed = scheduleActions.markSessionComplete(task!, 45);
+    const completed = scheduleState.markSessionComplete(task!, 45);
     expect(completed.status.timeSpentMinutes).toBe(45);
     expect(completed.status.completionState).toBe("in_progress");
 
@@ -432,18 +415,15 @@ describe("End-to-End Task Flow", () => {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     // Create deadline task (high priority)
-    taskFormActions.updateField("title", "Urgent deadline");
-    taskFormActions.updateField("type", "期限付き");
-    taskFormActions.updateField(
-      "deadline",
-      tomorrow.toISOString().split("T")[0],
-    );
+    taskFormState.updateField("title", "Urgent deadline");
+    taskFormState.updateField("type", "期限付き");
+    taskFormState.updateField("deadline", tomorrow.toISOString().split("T")[0]);
     await taskActions.create();
 
     // Create backlog task (lower priority)
-    taskFormActions.resetForm();
-    taskFormActions.updateField("title", "Optional backlog");
-    taskFormActions.updateField("type", "バックログ");
+    taskFormState.reset();
+    taskFormState.updateField("title", "Optional backlog");
+    taskFormState.updateField("type", "バックログ");
     await taskActions.create();
 
     const allTasks = get(tasks);
@@ -452,18 +432,17 @@ describe("End-to-End Task Flow", () => {
     // Limited gap - only one task can fit
     const testGaps: Gap[] = [createTestGap("09:00", "09:30")];
 
-    await scheduleActions.regenerate(allTasks, {
+    await scheduleState.regenerate(allTasks, {
       gaps: testGaps,
       skipLLMEnrichment: true,
     });
 
-    const schedule = get(scheduleResult);
-    expect(schedule).not.toBeNull();
+    expect(scheduleState.result).not.toBeNull();
 
     // The deadline task should be scheduled (higher priority)
     // Note: This depends on the scoring algorithm
-    console.log("Scheduled:", schedule!.scheduled.length);
-    console.log("Dropped:", schedule!.dropped.length);
+    console.log("Scheduled:", scheduleState.result!.scheduled.length);
+    console.log("Dropped:", scheduleState.result!.dropped.length);
   });
 });
 
@@ -485,14 +464,14 @@ describe("Store Reactivity", () => {
     // Initial subscription triggers once
     expect(updateCount).toBe(1);
 
-    taskFormActions.updateField("title", "Task 1");
+    taskFormState.updateField("title", "Task 1");
     await taskActions.create();
     // Task added; background enrichment is asynchronous and may coalesce updates.
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(updateCount).toBeGreaterThanOrEqual(2);
 
-    taskFormActions.resetForm();
-    taskFormActions.updateField("title", "Task 2");
+    taskFormState.reset();
+    taskFormState.updateField("title", "Task 2");
     await taskActions.create();
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(updateCount).toBeGreaterThanOrEqual(3);
@@ -500,28 +479,23 @@ describe("Store Reactivity", () => {
     unsubscribe();
   });
 
-  it("schedule stores update together", async () => {
-    taskFormActions.updateField("title", "Test");
+  it("schedule state updates after regenerate", async () => {
+    taskFormState.updateField("title", "Test");
     await taskActions.create();
 
     const testGaps: Gap[] = [createTestGap("09:00", "10:00")];
 
-    let resultUpdates = 0;
-    let blocksUpdates = 0;
+    // Before regenerate
+    expect(scheduleState.result).toBeNull();
+    expect(scheduleState.scheduledBlocks).toEqual([]);
 
-    const unsub1 = scheduleResult.subscribe(() => resultUpdates++);
-    const unsub2 = scheduledBlocks.subscribe(() => blocksUpdates++);
-
-    await scheduleActions.regenerate(get(tasks), {
+    await scheduleState.regenerate(get(tasks), {
       gaps: testGaps,
       skipLLMEnrichment: true,
     });
 
-    // Both should have been updated
-    expect(resultUpdates).toBeGreaterThan(1);
-    expect(blocksUpdates).toBeGreaterThan(1);
-
-    unsub1();
-    unsub2();
+    // After regenerate, both should be updated
+    expect(scheduleState.result).not.toBeNull();
+    expect(scheduleState.scheduledBlocks.length).toBeGreaterThan(0);
   });
 });

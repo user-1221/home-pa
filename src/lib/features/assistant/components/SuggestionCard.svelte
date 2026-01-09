@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { PendingSuggestion } from "$lib/features/assistant/state/schedule.ts";
+  import type { PendingSuggestion } from "$lib/features/assistant/state/schedule.svelte.ts";
 
   // Common fields for both pending and accepted suggestions
   interface SuggestionDisplay {

@@ -4,7 +4,7 @@
   import { dataState, calendarState } from "$lib/bootstrap/compat.svelte.ts";
   import { getEventColor } from "$lib/features/calendar/utils/index.ts";
   import type { Event as MyEvent, Gap } from "$lib/types.ts";
-  import type { PendingSuggestion } from "$lib/features/assistant/state/schedule.ts";
+  import type { PendingSuggestion } from "$lib/features/assistant/state/schedule.svelte.ts";
 
   // Accepted memo display format
   interface AcceptedMemoDisplay {
@@ -567,9 +567,11 @@
     e.preventDefault();
     const coords = getPointerCoords(e);
     const delta = Math.round((dragStartY - coords.y) / 5) * 5;
+    // Enforce 45-minute minimum (MIN_DRAG_DURATION from suggestion-scheduler)
+    const MIN_DRAG_DURATION = 45;
     dispatch("suggestionResize", {
       suggestionId: dragId,
-      newDuration: Math.max(5, dragOrigDuration + delta),
+      newDuration: Math.max(MIN_DRAG_DURATION, dragOrigDuration + delta),
     });
   }
 

@@ -1,12 +1,13 @@
 /**
- * Task Actions
+ * Task Actions - Svelte 5 Reactive Class
  *
  * CRUD operations for rich Memo objects (tasks).
  * These memos have type, deadline, recurrence, location, etc.
  * All operations persist to database via Remote Functions.
+ *
+ * Migrated from writable stores to Svelte 5 reactive class ($state).
  */
 
-import { writable, derived, get } from "svelte/store";
 import type {
   Memo,
   ImportanceLevel,
@@ -14,11 +15,10 @@ import type {
   MemoStatus,
 } from "../../../types.ts";
 import {
-  taskForm,
-  taskFormActions,
+  taskFormState,
   type TaskFormData,
   type TaskFormErrors,
-} from "./taskForm.ts";
+} from "./taskForm.svelte.ts";
 import { toastState } from "../../../bootstrap/toast.svelte.ts";
 import { enrichMemoViaAPI } from "../../assistant/services/suggestions/llm-enrichment.ts";
 import { resetPeriodIfNeeded } from "../../assistant/services/suggestions/period-utils.ts";
@@ -34,26 +34,6 @@ import {
   addDeadlineAcceptedSlot,
   removeDeadlineAcceptedSlot,
 } from "./memo.functions.remote.ts";
-
-// ============================================================================
-// Tasks Store (Rich Memos)
-// ============================================================================
-
-/**
- * Store for rich Memo objects (tasks)
- * Persisted to database via Remote Functions.
- */
-export const tasks = writable<Memo[]>([]);
-
-/**
- * Whether tasks are currently being loaded from DB
- */
-export const isTasksLoading = writable<boolean>(false);
-
-/**
- * Set of task IDs currently being enriched by LLM
- */
-export const enrichingTaskIds = writable<Set<string>>(new Set());
 
 // ============================================================================
 // DB Sync Helpers
@@ -81,7 +61,6 @@ function jsonToMemo(json: {
   totalDurationExpected?: number;
   lastActivity?: string;
   importance?: string;
-  // Note: These fields may be partial from server responses that haven't been updated yet
   routineState?: {
     acceptedToday: boolean;
     completedToday: boolean;
@@ -89,12 +68,12 @@ function jsonToMemo(json: {
     lastCompletedDay: string | null;
     wasCappedThisPeriod: boolean;
     periodStartDate: string | null;
-    rejectedToday?: boolean; // Optional for backwards compat with server responses
+    rejectedToday?: boolean;
   };
   backlogState?: {
     acceptedToday: boolean;
     lastCompletedDay: string | null;
-    rejectedToday?: boolean; // Optional for backwards compat with server responses
+    rejectedToday?: boolean;
   };
   deadlineState?: {
     rejectedToday: boolean;
@@ -190,153 +169,6 @@ function memoToJson(memo: Memo) {
     importance: memo.importance,
   };
 }
-
-/**
- * Load all tasks from database
- * Also checks for period resets and persists them to the database
- */
-export async function loadTasks(): Promise<void> {
-  isTasksLoading.set(true);
-  try {
-    const memosJson = await fetchMemos({});
-    const memos = memosJson.map(jsonToMemo);
-
-    // Check for period resets and persist changes
-    const currentTime = new Date();
-    const memosWithResets = memos.map((memo) =>
-      resetPeriodIfNeeded(memo, currentTime),
-    );
-
-    // Check if any memos were reset and need to be saved
-    const updates: Array<Promise<unknown>> = [];
-    for (let i = 0; i < memos.length; i++) {
-      const original = memos[i];
-      const reset = memosWithResets[i];
-
-      // Check if period was reset (completionsThisPeriod or periodStartDate changed)
-      const periodReset =
-        original.status.completionsThisPeriod !==
-          reset.status.completionsThisPeriod ||
-        original.status.periodStartDate?.getTime() !==
-          reset.status.periodStartDate?.getTime();
-
-      // Check if daily flags were reset (routineState or backlogState changed)
-      const routineStateReset =
-        original.routineState?.acceptedToday !==
-          reset.routineState?.acceptedToday ||
-        original.routineState?.completedToday !==
-          reset.routineState?.completedToday;
-
-      const backlogStateReset =
-        original.backlogState?.acceptedToday !==
-        reset.backlogState?.acceptedToday;
-
-      if (periodReset || routineStateReset || backlogStateReset) {
-        // Build update object matching MemoUpdateSchema
-        const updateData: {
-          status?: {
-            timeSpentMinutes: number;
-            completionState: "not_started" | "in_progress" | "completed";
-            completionsThisPeriod?: number;
-            periodStartDate?: string;
-          };
-          routineState?: {
-            acceptedToday: boolean;
-            completedToday: boolean;
-            completedCountThisPeriod: number;
-            lastCompletedDay: string | null;
-            wasCappedThisPeriod: boolean;
-            periodStartDate: string | null;
-            rejectedToday: boolean;
-          };
-          backlogState?: {
-            acceptedToday: boolean;
-            lastCompletedDay: string | null;
-            rejectedToday: boolean;
-          };
-        } = {};
-
-        if (periodReset) {
-          // Include all status fields to preserve existing values
-          updateData.status = {
-            timeSpentMinutes: reset.status.timeSpentMinutes,
-            completionState: reset.status.completionState,
-            completionsThisPeriod: reset.status.completionsThisPeriod,
-            periodStartDate: reset.status.periodStartDate?.toISOString(),
-          };
-        }
-
-        if (routineStateReset && reset.routineState) {
-          updateData.routineState = {
-            acceptedToday: reset.routineState.acceptedToday,
-            completedToday: reset.routineState.completedToday,
-            completedCountThisPeriod:
-              reset.routineState.completedCountThisPeriod,
-            lastCompletedDay:
-              reset.routineState.lastCompletedDay?.toISOString() ?? null,
-            wasCappedThisPeriod: reset.routineState.wasCappedThisPeriod,
-            periodStartDate:
-              reset.routineState.periodStartDate?.toISOString() ?? null,
-            rejectedToday: reset.routineState.rejectedToday,
-          };
-        }
-
-        if (backlogStateReset && reset.backlogState) {
-          updateData.backlogState = {
-            acceptedToday: reset.backlogState.acceptedToday,
-            lastCompletedDay:
-              reset.backlogState.lastCompletedDay?.toISOString() ?? null,
-            rejectedToday: reset.backlogState.rejectedToday,
-          };
-        }
-
-        // Persist to database
-        updates.push(
-          updateMemo({
-            id: reset.id,
-            updates: updateData,
-          }),
-        );
-
-        console.log(
-          `[loadTasks] Period reset detected for task ${reset.id}:`,
-          updateData,
-        );
-      }
-    }
-
-    // Wait for all updates to complete
-    if (updates.length > 0) {
-      await Promise.all(updates);
-      console.log(
-        `[loadTasks] Persisted ${updates.length} period reset(s) to database`,
-      );
-    }
-
-    // Use the reset memos for the store
-    tasks.set(memosWithResets);
-  } catch (err) {
-    console.error("[loadTasks] Failed to load tasks:", err);
-    toastState.error("タスクの読み込みに失敗しました");
-  } finally {
-    isTasksLoading.set(false);
-  }
-}
-
-/**
- * Check if a specific task is being enriched
- */
-export function isTaskEnriching(taskId: string): boolean {
-  return get(enrichingTaskIds).has(taskId);
-}
-
-/**
- * Derived store: is any task being enriched?
- */
-export const hasEnrichingTasks = derived(
-  enrichingTaskIds,
-  ($ids) => $ids.size > 0,
-);
 
 // ============================================================================
 // Helper Functions
@@ -460,129 +292,209 @@ function validateTaskForm(formData: TaskFormData): {
   };
 }
 
+// ============================================================================
+// Task State Class
+// ============================================================================
+
 /**
- * Enrich a task with LLM in background
- * Updates the task in store and DB when complete
+ * Task state reactive class
  */
-async function enrichTaskInBackground(taskId: string): Promise<void> {
-  // Mark as enriching
-  enrichingTaskIds.update((ids) => {
-    const newSet = new Set(ids);
-    newSet.add(taskId);
-    return newSet;
-  });
+class TaskState {
+  // ============================================================================
+  // Reactive State
+  // ============================================================================
 
-  try {
-    // Get the task from store (get fresh copy to ensure we have latest values)
-    const currentTasks = get(tasks);
-    const task = currentTasks.find((t) => t.id === taskId);
-    if (!task) {
-      console.warn(`[Enrichment] Task ${taskId} not found`);
-      return;
-    }
+  /** Store for rich Memo objects (tasks) */
+  items = $state<Memo[]>([]);
 
-    // Call LLM enrichment via API
-    const enrichment = await enrichMemoViaAPI(task);
+  /** Whether tasks are currently being loaded from DB */
+  isLoading = $state(false);
 
-    // Edge case: If enrichment is undefined/null, use fallback
-    if (!enrichment) {
-      console.warn(
-        `[Enrichment] Received undefined enrichment for task ${taskId}, skipping update`,
-      );
-      return;
-    }
+  /** Set of task IDs currently being enriched by LLM */
+  enrichingIds = $state<Set<string>>(new Set());
 
-    // Get fresh task copy again (in case it was updated while enrichment was running)
-    const latestTasks = get(tasks);
-    const latestTask = latestTasks.find((t) => t.id === taskId);
-    if (!latestTask) {
-      console.warn(`[Enrichment] Task ${taskId} was deleted during enrichment`);
-      return;
-    }
+  // ============================================================================
+  // Derived State (getters)
+  // ============================================================================
 
-    // Build enrichment updates (only fill missing fields)
-    const enrichmentUpdates: Record<string, unknown> = {};
-    if (!latestTask.genre && enrichment.genre) {
-      enrichmentUpdates.genre = enrichment.genre;
-    }
-    if (!latestTask.importance && enrichment.importance) {
-      enrichmentUpdates.importance = enrichment.importance;
-    }
-    if (!latestTask.sessionDuration && enrichment.sessionDuration) {
-      enrichmentUpdates.sessionDuration = enrichment.sessionDuration;
-    }
-    if (!latestTask.totalDurationExpected && enrichment.totalDurationExpected) {
-      enrichmentUpdates.totalDurationExpected =
-        enrichment.totalDurationExpected;
-    }
-
-    // Skip if nothing to update
-    if (Object.keys(enrichmentUpdates).length === 0) {
-      console.log(`[Enrichment] No fields to update for task ${taskId}`);
-      return;
-    }
-
-    // Update in DB
-    const updatedJson = await updateMemo({
-      id: taskId,
-      updates: enrichmentUpdates,
-    });
-    const enrichedTask = jsonToMemo(updatedJson);
-
-    // Update task in store with enriched data
-    tasks.update((currentTasks) => {
-      const index = currentTasks.findIndex((t) => t.id === taskId);
-      if (index === -1) return currentTasks;
-
-      const newTasks = [...currentTasks];
-      newTasks[index] = enrichedTask;
-      return newTasks;
-    });
-
-    console.log(`[Enrichment] Task "${enrichedTask.title}" enriched:`, {
-      genre: enrichedTask.genre,
-      importance: enrichedTask.importance,
-      sessionDuration: enrichedTask.sessionDuration,
-      totalDurationExpected: enrichedTask.totalDurationExpected,
-    });
-  } catch (error) {
-    console.error(`[Enrichment] Failed to enrich task ${taskId}:`, error);
-  } finally {
-    // Remove from enriching set
-    enrichingTaskIds.update((ids) => {
-      const newSet = new Set(ids);
-      newSet.delete(taskId);
-      return newSet;
-    });
+  /** Is any task being enriched? */
+  get hasEnriching(): boolean {
+    return this.enrichingIds.size > 0;
   }
-}
 
-// ============================================================================
-// Actions
-// ============================================================================
+  /** Get active tasks (not completed) */
+  get active(): Memo[] {
+    return this.items.filter((t) => t.status.completionState !== "completed");
+  }
 
-export const taskActions = {
+  // ============================================================================
+  // Loading Methods
+  // ============================================================================
+
+  /**
+   * Load all tasks from database
+   * Also checks for period resets and persists them to the database
+   */
+  async load(): Promise<void> {
+    this.isLoading = true;
+    try {
+      const memosJson = await fetchMemos({});
+      const memos = memosJson.map(jsonToMemo);
+
+      // Check for period resets and persist changes
+      const currentTime = new Date();
+      const memosWithResets = memos.map((memo) =>
+        resetPeriodIfNeeded(memo, currentTime),
+      );
+
+      // Check if any memos were reset and need to be saved
+      const updates: Array<Promise<unknown>> = [];
+      for (let i = 0; i < memos.length; i++) {
+        const original = memos[i];
+        const reset = memosWithResets[i];
+
+        // Check if period was reset (completionsThisPeriod or periodStartDate changed)
+        const periodReset =
+          original.status.completionsThisPeriod !==
+            reset.status.completionsThisPeriod ||
+          original.status.periodStartDate?.getTime() !==
+            reset.status.periodStartDate?.getTime();
+
+        // Check if daily flags were reset (routineState or backlogState changed)
+        const routineStateReset =
+          original.routineState?.acceptedToday !==
+            reset.routineState?.acceptedToday ||
+          original.routineState?.completedToday !==
+            reset.routineState?.completedToday;
+
+        const backlogStateReset =
+          original.backlogState?.acceptedToday !==
+          reset.backlogState?.acceptedToday;
+
+        if (periodReset || routineStateReset || backlogStateReset) {
+          // Build update object matching MemoUpdateSchema
+          const updateData: {
+            status?: {
+              timeSpentMinutes: number;
+              completionState: "not_started" | "in_progress" | "completed";
+              completionsThisPeriod?: number;
+              periodStartDate?: string;
+            };
+            routineState?: {
+              acceptedToday: boolean;
+              completedToday: boolean;
+              completedCountThisPeriod: number;
+              lastCompletedDay: string | null;
+              wasCappedThisPeriod: boolean;
+              periodStartDate: string | null;
+              rejectedToday: boolean;
+            };
+            backlogState?: {
+              acceptedToday: boolean;
+              lastCompletedDay: string | null;
+              rejectedToday: boolean;
+            };
+          } = {};
+
+          if (periodReset) {
+            // Include all status fields to preserve existing values
+            updateData.status = {
+              timeSpentMinutes: reset.status.timeSpentMinutes,
+              completionState: reset.status.completionState,
+              completionsThisPeriod: reset.status.completionsThisPeriod,
+              periodStartDate: reset.status.periodStartDate?.toISOString(),
+            };
+          }
+
+          if (routineStateReset && reset.routineState) {
+            updateData.routineState = {
+              acceptedToday: reset.routineState.acceptedToday,
+              completedToday: reset.routineState.completedToday,
+              completedCountThisPeriod:
+                reset.routineState.completedCountThisPeriod,
+              lastCompletedDay:
+                reset.routineState.lastCompletedDay?.toISOString() ?? null,
+              wasCappedThisPeriod: reset.routineState.wasCappedThisPeriod,
+              periodStartDate:
+                reset.routineState.periodStartDate?.toISOString() ?? null,
+              rejectedToday: reset.routineState.rejectedToday,
+            };
+          }
+
+          if (backlogStateReset && reset.backlogState) {
+            updateData.backlogState = {
+              acceptedToday: reset.backlogState.acceptedToday,
+              lastCompletedDay:
+                reset.backlogState.lastCompletedDay?.toISOString() ?? null,
+              rejectedToday: reset.backlogState.rejectedToday,
+            };
+          }
+
+          // Persist to database
+          updates.push(
+            updateMemo({
+              id: reset.id,
+              updates: updateData,
+            }),
+          );
+
+          console.log(
+            `[TaskState.load] Period reset detected for task ${reset.id}:`,
+            updateData,
+          );
+        }
+      }
+
+      // Wait for all updates to complete
+      if (updates.length > 0) {
+        await Promise.all(updates);
+        console.log(
+          `[TaskState.load] Persisted ${updates.length} period reset(s) to database`,
+        );
+      }
+
+      // Use the reset memos for the store
+      this.items = memosWithResets;
+    } catch (err) {
+      console.error("[TaskState.load] Failed to load tasks:", err);
+      toastState.error("タスクの読み込みに失敗しました");
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  /**
+   * Check if a specific task is being enriched
+   */
+  isEnriching(taskId: string): boolean {
+    return this.enrichingIds.has(taskId);
+  }
+
+  // ============================================================================
+  // CRUD Methods
+  // ============================================================================
+
   /**
    * Create a new task from the current form data
    * Task is saved to DB, added to store, then enriched by LLM in background
    */
   async create(): Promise<Memo | null> {
-    const formData = get(taskForm);
+    const formData = taskFormState.formData;
 
     // Clear previous errors
-    taskFormActions.clearAllErrors();
+    taskFormState.clearAllErrors();
 
     // Validate
     const validation = validateTaskForm(formData);
     if (!validation.isValid) {
       Object.entries(validation.errors).forEach(([field, error]) => {
-        taskFormActions.setFieldError(field as keyof TaskFormErrors, error);
+        taskFormState.setFieldError(field as keyof TaskFormErrors, error);
       });
       return null;
     }
 
     try {
-      taskFormActions.setSubmitting(true);
+      taskFormState.setSubmitting(true);
 
       // Create the memo (without enrichment fields)
       const newMemo = createMemoFromForm(formData);
@@ -592,56 +504,55 @@ export const taskActions = {
       const savedMemo = jsonToMemo(savedJson);
 
       // Add to store
-      tasks.update((currentTasks) => [...currentTasks, savedMemo]);
+      this.items = [...this.items, savedMemo];
 
       // Close form and show success
-      taskFormActions.closeForm();
+      taskFormState.closeForm();
       toastState.show("タスクを作成しました", "success");
 
       // Start LLM enrichment in background
-      enrichTaskInBackground(savedMemo.id);
+      this.enrichInBackground(savedMemo.id);
 
       return savedMemo;
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "タスクの作成に失敗しました";
-      taskFormActions.setGeneralError(message);
+      taskFormState.setGeneralError(message);
       return null;
     } finally {
-      taskFormActions.setSubmitting(false);
+      taskFormState.setSubmitting(false);
     }
-  },
+  }
 
   /**
    * Update an existing task from the current form data
    */
   async update(): Promise<Memo | null> {
-    const formData = get(taskForm);
+    const formData = taskFormState.formData;
 
     if (!formData.editingId) {
-      taskFormActions.setGeneralError("編集するタスクが選択されていません");
+      taskFormState.setGeneralError("編集するタスクが選択されていません");
       return null;
     }
 
     // Clear previous errors
-    taskFormActions.clearAllErrors();
+    taskFormState.clearAllErrors();
 
     // Validate
     const validation = validateTaskForm(formData);
     if (!validation.isValid) {
       Object.entries(validation.errors).forEach(([field, error]) => {
-        taskFormActions.setFieldError(field as keyof TaskFormErrors, error);
+        taskFormState.setFieldError(field as keyof TaskFormErrors, error);
       });
       return null;
     }
 
     try {
-      taskFormActions.setSubmitting(true);
+      taskFormState.setSubmitting(true);
 
-      const currentTasks = get(tasks);
-      const existing = currentTasks.find((t) => t.id === formData.editingId);
+      const existing = this.items.find((t) => t.id === formData.editingId);
       if (!existing) {
-        taskFormActions.setGeneralError("タスクが見つかりません");
+        taskFormState.setGeneralError("タスクが見つかりません");
         return null;
       }
 
@@ -679,30 +590,27 @@ export const taskActions = {
       const updatedMemo = jsonToMemo(updatedJson);
 
       // Update store
-      tasks.update((currentTasks) => {
-        const index = currentTasks.findIndex(
-          (t) => t.id === formData.editingId,
-        );
-        if (index === -1) return currentTasks;
-        const newTasks = [...currentTasks];
-        newTasks[index] = updatedMemo;
-        return newTasks;
-      });
+      const index = this.items.findIndex((t) => t.id === formData.editingId);
+      if (index !== -1) {
+        const newItems = [...this.items];
+        newItems[index] = updatedMemo;
+        this.items = newItems;
+      }
 
       // Close form and show success
-      taskFormActions.closeForm();
+      taskFormState.closeForm();
       toastState.show("タスクを更新しました", "success");
 
       return updatedMemo;
     } catch (error: unknown) {
       const message =
         error instanceof Error ? error.message : "タスクの更新に失敗しました";
-      taskFormActions.setGeneralError(message);
+      taskFormState.setGeneralError(message);
       return null;
     } finally {
-      taskFormActions.setSubmitting(false);
+      taskFormState.setSubmitting(false);
     }
-  },
+  }
 
   /**
    * Delete a task by ID
@@ -713,26 +621,23 @@ export const taskActions = {
       await deleteMemo({ id: taskId });
 
       // Remove from store
-      tasks.update((currentTasks) => {
-        return currentTasks.filter((t) => t.id !== taskId);
-      });
+      this.items = this.items.filter((t) => t.id !== taskId);
 
       toastState.show("タスクを削除しました", "success");
       return true;
     } catch (err) {
-      console.error("[delete] Failed:", err);
+      console.error("[TaskState.delete] Failed:", err);
       toastState.show("タスクの削除に失敗しました", "error");
       return false;
     }
-  },
+  }
 
   /**
    * Mark a task as complete
    */
   async markComplete(taskId: string): Promise<Memo | null> {
     try {
-      const currentTasks = get(tasks);
-      const existing = currentTasks.find((t) => t.id === taskId);
+      const existing = this.items.find((t) => t.id === taskId);
       if (!existing) return null;
 
       const newStatus = {
@@ -755,54 +660,43 @@ export const taskActions = {
       const updatedMemo = jsonToMemo(updatedJson);
 
       // Update store
-      tasks.update((currentTasks) => {
-        const index = currentTasks.findIndex((t) => t.id === taskId);
-        if (index === -1) return currentTasks;
-        const newTasks = [...currentTasks];
-        newTasks[index] = updatedMemo;
-        return newTasks;
-      });
+      const index = this.items.findIndex((t) => t.id === taskId);
+      if (index !== -1) {
+        const newItems = [...this.items];
+        newItems[index] = updatedMemo;
+        this.items = newItems;
+      }
 
       toastState.show("タスクを完了しました", "success");
       return updatedMemo;
     } catch (err) {
-      console.error("[markComplete] Failed:", err);
+      console.error("[TaskState.markComplete] Failed:", err);
       toastState.show("タスクの更新に失敗しました", "error");
       return null;
     }
-  },
+  }
 
-  /**
-   * Get active tasks (not completed)
-   */
-  getActive(): Memo[] {
-    return get(tasks).filter((t) => t.status.completionState !== "completed");
-  },
-
-  /**
-   * Get all tasks
-   */
-  getAll(): Memo[] {
-    return get(tasks);
-  },
+  // ============================================================================
+  // Form Methods
+  // ============================================================================
 
   /**
    * Submit the form (create or update based on editing state)
    */
   async submit(): Promise<Memo | null> {
-    const formData = get(taskForm);
+    const formData = taskFormState.formData;
     if (formData.isEditing) {
       return this.update();
     } else {
       return this.create();
     }
-  },
+  }
 
   /**
    * Start editing a task
    */
   edit(task: Memo): void {
-    taskFormActions.openFormForEditing({
+    taskFormState.openFormForEditing({
       id: task.id,
       title: task.title,
       type: task.type,
@@ -814,21 +708,25 @@ export const taskActions = {
       sessionDuration: task.sessionDuration,
       totalDurationExpected: task.totalDurationExpected,
     });
-  },
+  }
 
   /**
    * Open form for creating new task
    */
   startCreate(): void {
-    taskFormActions.openForm();
-  },
+    taskFormState.openForm();
+  }
 
   /**
    * Cancel form
    */
   cancel(): void {
-    taskFormActions.closeForm();
-  },
+    taskFormState.closeForm();
+  }
+
+  // ============================================================================
+  // Progress & Status Methods
+  // ============================================================================
 
   /**
    * Log progress for a task session (updates DB and store reactively)
@@ -851,13 +749,11 @@ export const taskActions = {
       const result = await logSuggestionComplete({ memoId, durationMinutes });
 
       // Update store reactively
-      tasks.update((currentTasks) => {
-        const index = currentTasks.findIndex((t) => t.id === memoId);
-        if (index === -1) return currentTasks;
-
-        const task = currentTasks[index];
-        const newTasks = [...currentTasks];
-        newTasks[index] = {
+      const index = this.items.findIndex((t) => t.id === memoId);
+      if (index !== -1) {
+        const task = this.items[index];
+        const newItems = [...this.items];
+        newItems[index] = {
           ...task,
           status: {
             ...task.status,
@@ -896,20 +792,20 @@ export const taskActions = {
               }
             : task.backlogState,
         };
-        return newTasks;
-      });
+        this.items = newItems;
+      }
 
       console.log(
-        `[taskActions.logProgress] Updated task ${memoId}: ${result.timeSpentMinutes}min total, ${result.completionsThisPeriod} completions`,
+        `[TaskState.logProgress] Updated task ${memoId}: ${result.timeSpentMinutes}min total, ${result.completionsThisPeriod} completions`,
       );
 
       return result;
     } catch (err) {
-      console.error("[taskActions.logProgress] Failed:", err);
+      console.error("[TaskState.logProgress] Failed:", err);
       toastState.show("進捗の記録に失敗しました", "error");
       return null;
     }
-  },
+  }
 
   /**
    * Mark a task as accepted (sets acceptedToday = true)
@@ -923,13 +819,11 @@ export const taskActions = {
       const result = await markMemoAccepted({ memoId });
 
       // Update local store
-      tasks.update((currentTasks) => {
-        const index = currentTasks.findIndex((t) => t.id === memoId);
-        if (index === -1) return currentTasks;
-
-        const task = currentTasks[index];
-        const newTasks = [...currentTasks];
-        newTasks[index] = {
+      const index = this.items.findIndex((t) => t.id === memoId);
+      if (index !== -1) {
+        const task = this.items[index];
+        const newItems = [...this.items];
+        newItems[index] = {
           ...task,
           lastActivity: new Date(),
           routineState: result.routineState
@@ -960,18 +854,16 @@ export const taskActions = {
               }
             : task.backlogState,
         };
-        return newTasks;
-      });
+        this.items = newItems;
+      }
 
-      console.log(
-        `[taskActions.markAccepted] Marked task ${memoId} as accepted`,
-      );
+      console.log(`[TaskState.markAccepted] Marked task ${memoId} as accepted`);
       return true;
     } catch (err) {
-      console.error("[taskActions.markAccepted] Failed:", err);
+      console.error("[TaskState.markAccepted] Failed:", err);
       return false;
     }
-  },
+  }
 
   /**
    * Reset acceptedToday flag for a task (when user marks as "missed")
@@ -982,15 +874,13 @@ export const taskActions = {
       await resetMemoAcceptedToday({ memoId });
 
       // Update local store
-      tasks.update((currentTasks) => {
-        const index = currentTasks.findIndex((t) => t.id === memoId);
-        if (index === -1) return currentTasks;
-
-        const task = currentTasks[index];
-        const newTasks = [...currentTasks];
+      const index = this.items.findIndex((t) => t.id === memoId);
+      if (index !== -1) {
+        const task = this.items[index];
+        const newItems = [...this.items];
 
         if (task.type === "ルーティン" && task.routineState) {
-          newTasks[index] = {
+          newItems[index] = {
             ...task,
             routineState: {
               ...task.routineState,
@@ -999,7 +889,7 @@ export const taskActions = {
             },
           };
         } else if (task.type === "バックログ" && task.backlogState) {
-          newTasks[index] = {
+          newItems[index] = {
             ...task,
             backlogState: {
               ...task.backlogState,
@@ -1008,18 +898,18 @@ export const taskActions = {
           };
         }
 
-        return newTasks;
-      });
+        this.items = newItems;
+      }
 
       console.log(
-        `[taskActions.resetAccepted] Reset acceptedToday for task ${memoId}`,
+        `[TaskState.resetAccepted] Reset acceptedToday for task ${memoId}`,
       );
       return true;
     } catch (err) {
-      console.error("[taskActions.resetAccepted] Failed:", err);
+      console.error("[TaskState.resetAccepted] Failed:", err);
       return false;
     }
-  },
+  }
 
   /**
    * Mark a task as rejected (sets rejectedToday = true)
@@ -1032,15 +922,13 @@ export const taskActions = {
       await markMemoRejected({ memoId });
 
       // Update local store
-      tasks.update((currentTasks) => {
-        const index = currentTasks.findIndex((t) => t.id === memoId);
-        if (index === -1) return currentTasks;
-
-        const task = currentTasks[index];
-        const newTasks = [...currentTasks];
+      const index = this.items.findIndex((t) => t.id === memoId);
+      if (index !== -1) {
+        const task = this.items[index];
+        const newItems = [...this.items];
 
         if (task.type === "ルーティン" && task.routineState) {
-          newTasks[index] = {
+          newItems[index] = {
             ...task,
             routineState: {
               ...task.routineState,
@@ -1048,7 +936,7 @@ export const taskActions = {
             },
           };
         } else if (task.type === "バックログ" && task.backlogState) {
-          newTasks[index] = {
+          newItems[index] = {
             ...task,
             backlogState: {
               ...task.backlogState,
@@ -1056,7 +944,7 @@ export const taskActions = {
             },
           };
         } else if (task.type === "期限付き" && task.deadlineState) {
-          newTasks[index] = {
+          newItems[index] = {
             ...task,
             deadlineState: {
               ...task.deadlineState,
@@ -1065,18 +953,16 @@ export const taskActions = {
           };
         }
 
-        return newTasks;
-      });
+        this.items = newItems;
+      }
 
-      console.log(
-        `[taskActions.markRejected] Marked task ${memoId} as rejected`,
-      );
+      console.log(`[TaskState.markRejected] Marked task ${memoId} as rejected`);
       return true;
     } catch (err) {
-      console.error("[taskActions.markRejected] Failed:", err);
+      console.error("[TaskState.markRejected] Failed:", err);
       return false;
     }
-  },
+  }
 
   /**
    * Add an accepted time slot for a deadline task
@@ -1093,37 +979,33 @@ export const taskActions = {
       const result = await addDeadlineAcceptedSlot({ memoId, slot });
 
       // Update local store
-      tasks.update((currentTasks) => {
-        const index = currentTasks.findIndex((t) => t.id === memoId);
-        if (index === -1) return currentTasks;
-
-        const task = currentTasks[index];
-        if (task.type !== "期限付き" || !task.deadlineState)
-          return currentTasks;
-
-        const newTasks = [...currentTasks];
-        newTasks[index] = {
-          ...task,
-          deadlineState: {
-            ...task.deadlineState,
-            acceptedSlots: result.acceptedSlots,
-          },
-          lastActivity: new Date(),
-        };
-
-        return newTasks;
-      });
+      const index = this.items.findIndex((t) => t.id === memoId);
+      if (index !== -1) {
+        const task = this.items[index];
+        if (task.type === "期限付き" && task.deadlineState) {
+          const newItems = [...this.items];
+          newItems[index] = {
+            ...task,
+            deadlineState: {
+              ...task.deadlineState,
+              acceptedSlots: result.acceptedSlots,
+            },
+            lastActivity: new Date(),
+          };
+          this.items = newItems;
+        }
+      }
 
       console.log(
-        `[taskActions.addAcceptedSlot] Added slot to task ${memoId}:`,
+        `[TaskState.addAcceptedSlot] Added slot to task ${memoId}:`,
         slot,
       );
       return true;
     } catch (err) {
-      console.error("[taskActions.addAcceptedSlot] Failed:", err);
+      console.error("[TaskState.addAcceptedSlot] Failed:", err);
       return false;
     }
-  },
+  }
 
   /**
    * Remove an accepted time slot from a deadline task
@@ -1140,33 +1022,272 @@ export const taskActions = {
       const result = await removeDeadlineAcceptedSlot({ memoId, startTime });
 
       // Update local store
-      tasks.update((currentTasks) => {
-        const index = currentTasks.findIndex((t) => t.id === memoId);
-        if (index === -1) return currentTasks;
-
-        const task = currentTasks[index];
-        if (task.type !== "期限付き" || !task.deadlineState)
-          return currentTasks;
-
-        const newTasks = [...currentTasks];
-        newTasks[index] = {
-          ...task,
-          deadlineState: {
-            ...task.deadlineState,
-            acceptedSlots: result.acceptedSlots,
-          },
-        };
-
-        return newTasks;
-      });
+      const index = this.items.findIndex((t) => t.id === memoId);
+      if (index !== -1) {
+        const task = this.items[index];
+        if (task.type === "期限付き" && task.deadlineState) {
+          const newItems = [...this.items];
+          newItems[index] = {
+            ...task,
+            deadlineState: {
+              ...task.deadlineState,
+              acceptedSlots: result.acceptedSlots,
+            },
+          };
+          this.items = newItems;
+        }
+      }
 
       console.log(
-        `[taskActions.removeAcceptedSlot] Removed slot ${startTime} from task ${memoId}`,
+        `[TaskState.removeAcceptedSlot] Removed slot ${startTime} from task ${memoId}`,
       );
       return true;
     } catch (err) {
-      console.error("[taskActions.removeAcceptedSlot] Failed:", err);
+      console.error("[TaskState.removeAcceptedSlot] Failed:", err);
       return false;
     }
+  }
+
+  // ============================================================================
+  // Enrichment Methods
+  // ============================================================================
+
+  /**
+   * Enrich a task with LLM in background
+   * Updates the task in store and DB when complete
+   */
+  private async enrichInBackground(taskId: string): Promise<void> {
+    // Mark as enriching
+    const newSet = new Set(this.enrichingIds);
+    newSet.add(taskId);
+    this.enrichingIds = newSet;
+
+    try {
+      // Get the task from store (get fresh copy to ensure we have latest values)
+      const task = this.items.find((t) => t.id === taskId);
+      if (!task) {
+        console.warn(`[TaskState.enrichInBackground] Task ${taskId} not found`);
+        return;
+      }
+
+      // Call LLM enrichment via API
+      const enrichment = await enrichMemoViaAPI(task);
+
+      // Edge case: If enrichment is undefined/null, use fallback
+      if (!enrichment) {
+        console.warn(
+          `[TaskState.enrichInBackground] Received undefined enrichment for task ${taskId}, skipping update`,
+        );
+        return;
+      }
+
+      // Get fresh task copy again (in case it was updated while enrichment was running)
+      const latestTask = this.items.find((t) => t.id === taskId);
+      if (!latestTask) {
+        console.warn(
+          `[TaskState.enrichInBackground] Task ${taskId} was deleted during enrichment`,
+        );
+        return;
+      }
+
+      // Build enrichment updates (only fill missing fields)
+      const enrichmentUpdates: Record<string, unknown> = {};
+      if (!latestTask.genre && enrichment.genre) {
+        enrichmentUpdates.genre = enrichment.genre;
+      }
+      if (!latestTask.importance && enrichment.importance) {
+        enrichmentUpdates.importance = enrichment.importance;
+      }
+      if (!latestTask.sessionDuration && enrichment.sessionDuration) {
+        enrichmentUpdates.sessionDuration = enrichment.sessionDuration;
+      }
+      if (
+        !latestTask.totalDurationExpected &&
+        enrichment.totalDurationExpected
+      ) {
+        enrichmentUpdates.totalDurationExpected =
+          enrichment.totalDurationExpected;
+      }
+
+      // Skip if nothing to update
+      if (Object.keys(enrichmentUpdates).length === 0) {
+        console.log(
+          `[TaskState.enrichInBackground] No fields to update for task ${taskId}`,
+        );
+        return;
+      }
+
+      // Update in DB
+      const updatedJson = await updateMemo({
+        id: taskId,
+        updates: enrichmentUpdates,
+      });
+      const enrichedTask = jsonToMemo(updatedJson);
+
+      // Update task in store with enriched data
+      const index = this.items.findIndex((t) => t.id === taskId);
+      if (index !== -1) {
+        const newItems = [...this.items];
+        newItems[index] = enrichedTask;
+        this.items = newItems;
+      }
+
+      console.log(
+        `[TaskState.enrichInBackground] Task "${enrichedTask.title}" enriched:`,
+        {
+          genre: enrichedTask.genre,
+          importance: enrichedTask.importance,
+          sessionDuration: enrichedTask.sessionDuration,
+          totalDurationExpected: enrichedTask.totalDurationExpected,
+        },
+      );
+    } catch (error) {
+      console.error(
+        `[TaskState.enrichInBackground] Failed to enrich task ${taskId}:`,
+        error,
+      );
+    } finally {
+      // Remove from enriching set
+      const newSet = new Set(this.enrichingIds);
+      newSet.delete(taskId);
+      this.enrichingIds = newSet;
+    }
+  }
+
+  // ============================================================================
+  // Legacy Getter Methods (for backwards compatibility)
+  // ============================================================================
+
+  /**
+   * Get active tasks (not completed)
+   * @deprecated Use taskState.active getter instead
+   */
+  getActive(): Memo[] {
+    return this.active;
+  }
+
+  /**
+   * Get all tasks
+   * @deprecated Use taskState.items directly instead
+   */
+  getAll(): Memo[] {
+    return this.items;
+  }
+
+  /**
+   * Set items directly (for test compatibility)
+   */
+  set(items: Memo[]): void {
+    this.items = items;
+  }
+}
+
+// ============================================================================
+// Singleton Instance
+// ============================================================================
+
+/**
+ * Global task state instance
+ */
+export const taskState = new TaskState();
+
+// ============================================================================
+// Backwards Compatibility Exports
+// ============================================================================
+
+// Note: writable/derived imports removed - backwards compat exports use manual subscribe pattern
+
+/**
+ * @deprecated Use taskState.items directly instead
+ * Legacy store for backwards compatibility
+ */
+export const tasks = {
+  subscribe(callback: (value: Memo[]) => void) {
+    callback(taskState.items);
+    return () => {};
   },
+  set(value: Memo[]) {
+    taskState.items = value;
+  },
+  update(fn: (value: Memo[]) => Memo[]) {
+    taskState.items = fn(taskState.items);
+  },
+};
+
+/**
+ * @deprecated Use taskState.isLoading directly instead
+ */
+export const isTasksLoading = {
+  subscribe(callback: (value: boolean) => void) {
+    callback(taskState.isLoading);
+    return () => {};
+  },
+  set(value: boolean) {
+    taskState.isLoading = value;
+  },
+};
+
+/**
+ * @deprecated Use taskState.enrichingIds directly instead
+ */
+export const enrichingTaskIds = {
+  subscribe(callback: (value: Set<string>) => void) {
+    callback(taskState.enrichingIds);
+    return () => {};
+  },
+  update(fn: (value: Set<string>) => Set<string>) {
+    taskState.enrichingIds = fn(taskState.enrichingIds);
+  },
+};
+
+/**
+ * @deprecated Use taskState.hasEnriching directly instead
+ */
+export const hasEnrichingTasks = {
+  subscribe(callback: (value: boolean) => void) {
+    callback(taskState.hasEnriching);
+    return () => {};
+  },
+};
+
+/**
+ * @deprecated Use taskState.load() instead
+ */
+export async function loadTasks(): Promise<void> {
+  return taskState.load();
+}
+
+/**
+ * @deprecated Use taskState.isEnriching() instead
+ */
+export function isTaskEnriching(taskId: string): boolean {
+  return taskState.isEnriching(taskId);
+}
+
+/**
+ * @deprecated Use taskState methods directly instead
+ * Legacy actions object for backwards compatibility
+ */
+export const taskActions = {
+  create: () => taskState.create(),
+  update: () => taskState.update(),
+  delete: (taskId: string) => taskState.delete(taskId),
+  markComplete: (taskId: string) => taskState.markComplete(taskId),
+  getActive: () => taskState.getActive(),
+  getAll: () => taskState.getAll(),
+  submit: () => taskState.submit(),
+  edit: (task: Memo) => taskState.edit(task),
+  startCreate: () => taskState.startCreate(),
+  cancel: () => taskState.cancel(),
+  logProgress: (memoId: string, durationMinutes: number) =>
+    taskState.logProgress(memoId, durationMinutes),
+  markAccepted: (memoId: string) => taskState.markAccepted(memoId),
+  resetAccepted: (memoId: string) => taskState.resetAccepted(memoId),
+  markRejected: (memoId: string) => taskState.markRejected(memoId),
+  addAcceptedSlot: (
+    memoId: string,
+    slot: { startTime: string; endTime: string; duration: number },
+  ) => taskState.addAcceptedSlot(memoId, slot),
+  removeAcceptedSlot: (memoId: string, startTime: string) =>
+    taskState.removeAcceptedSlot(memoId, startTime),
 };

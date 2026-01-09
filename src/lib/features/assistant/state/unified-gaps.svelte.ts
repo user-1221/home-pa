@@ -119,13 +119,6 @@ let isTimetableLoading = $state(false);
 let isTimetableLoaded = $state(false);
 
 /**
- * Promise that resolves when timetable loading completes
- * Used to wait for timetable before computing gaps
- */
-let timetableLoadPromise: Promise<void> | null = null;
-let timetableLoadResolve: (() => void) | null = null;
-
-/**
  * Clear the last loaded date key to force a reload
  */
 function clearTimetableDateCache(): void {
@@ -134,7 +127,12 @@ function clearTimetableDateCache(): void {
 }
 
 /**
- * Load timetable events for a given date
+ * Load timetable events for a given date.
+ *
+ * This is a fire-and-forget async function. Components should use reactive
+ * state (unifiedGapState.isReady) to know when loading is complete, rather
+ * than awaiting this function.
+ *
  * @param forceReload - If true, ignores the date cache and reloads anyway
  */
 async function loadTimetableForDate(
@@ -152,11 +150,6 @@ async function loadTimetableForDate(
   lastLoadedDateKey = key;
   isTimetableLoading = true;
 
-  // Create a new promise for waiting
-  timetableLoadPromise = new Promise((resolve) => {
-    timetableLoadResolve = resolve;
-  });
-
   try {
     const { config, cells } = await loadTimetableData();
     const allEvents = getTimetableEventsForDate(date, config, cells);
@@ -170,24 +163,6 @@ async function loadTimetableForDate(
   } finally {
     isTimetableLoading = false;
     isTimetableLoaded = true;
-
-    // Signal that loading is complete
-    if (timetableLoadResolve) {
-      timetableLoadResolve();
-      timetableLoadResolve = null;
-    }
-    timetableLoadPromise = null;
-  }
-}
-
-/**
- * Wait for timetable to finish loading
- * Resolves immediately if already loaded
- */
-async function waitForTimetable(): Promise<void> {
-  if (isTimetableLoaded && !isTimetableLoading) return;
-  if (timetableLoadPromise) {
-    await timetableLoadPromise;
   }
 }
 
@@ -640,32 +615,19 @@ class UnifiedGapState {
   }
 
   /**
-   * Load timetable events for the selected date
-   * Should be called when the component mounts or date changes
+   * Load timetable events for the selected date.
+   *
+   * This is fire-and-forget - do NOT await. Use `isReady` to reactively
+   * know when loading is complete.
+   *
    * @param forceReload - If true, ignores the date cache and reloads anyway
    */
-  async loadTimetableEvents(forceReload = false): Promise<void> {
+  loadTimetableEvents(forceReload = false): void {
     if (forceReload) {
       clearTimetableDateCache();
     }
-    await loadTimetableForDate(dataState.selectedDate, forceReload);
-  }
-
-  /**
-   * Wait for timetable data to finish loading
-   * Use this before computing gaps or generating schedules
-   */
-  async waitForTimetable(): Promise<void> {
-    await waitForTimetable();
-  }
-
-  /**
-   * Initialize gap state - loads timetable and waits for it
-   * Call this once when entering the assistant view
-   */
-  async initialize(): Promise<void> {
-    await this.loadTimetableEvents();
-    console.log("[unified-gaps] Initialized, ready:", this.isReady);
+    // Fire-and-forget: don't await, let reactive state handle UI updates
+    loadTimetableForDate(dataState.selectedDate, forceReload);
   }
 
   // ============================================================================

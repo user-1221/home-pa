@@ -186,6 +186,27 @@
       number: platform.number || "",
     };
   }
+
+  /**
+   * Parse platform info from either object or string format
+   * API may return platform as "2番線" string or {number, symbol} object
+   */
+  function parsePlatformInfo(
+    platform: { number: string; symbol: string } | string | undefined,
+  ): { symbol: string; number: string } | null {
+    if (!platform) return null;
+    if (typeof platform === "object") {
+      return {
+        symbol: platform.symbol || "",
+        number: platform.number || "",
+      };
+    }
+    // Parse string format like "2番線" or "A出口"
+    return {
+      symbol: platform.split(/\d/)[0] || "",
+      number: platform.replace(/^\D+/, "") || "",
+    };
+  }
 </script>
 
 <div class="flex h-full min-h-0 flex-col bg-base-100">
@@ -659,9 +680,8 @@
                     : null}
                 {@const boardingPlatform = prevPoint?.numbering?.departure?.[0]}
                 {@const alightingPlatform = nextPoint?.numbering?.arrival?.[0]}
-                {@const moveSectionAny = section as any}
-                {@const startPlatform = moveSectionAny.start_platform}
-                {@const goalPlatform = moveSectionAny.goal_platform}
+                {@const startPlatform = section.start_platform}
+                {@const goalPlatform = section.goal_platform}
                 <!-- Movement Segment -->
                 <div class="flex items-stretch">
                   <!-- Timeline -->
@@ -675,19 +695,9 @@
                   <!-- Content -->
                   <div class="flex-1 py-2 pl-1">
                     {#if boardingPlatform || startPlatform}
-                      {@const platformData =
-                        boardingPlatform ||
-                        (typeof startPlatform === "object"
-                          ? startPlatform
-                          : null)}
-                      {@const badge = platformData
-                        ? getPlatformBadge(platformData)
-                        : startPlatform
-                          ? {
-                              symbol: startPlatform.split(/\d/)[0] || "",
-                              number: startPlatform.replace(/^\D+/, "") || "",
-                            }
-                          : null}
+                      {@const badge = boardingPlatform
+                        ? getPlatformBadge(boardingPlatform)
+                        : parsePlatformInfo(startPlatform)}
                       {#if badge && (badge.symbol || badge.number)}
                         <div class="mb-1.5 flex items-center">
                           <div
@@ -751,19 +761,9 @@
                       {/if}
                     </div>
                     {#if alightingPlatform || goalPlatform}
-                      {@const platformData =
-                        alightingPlatform ||
-                        (typeof goalPlatform === "object"
-                          ? goalPlatform
-                          : null)}
-                      {@const badge = platformData
-                        ? getPlatformBadge(platformData)
-                        : goalPlatform
-                          ? {
-                              symbol: goalPlatform.split(/\d/)[0] || "",
-                              number: goalPlatform.replace(/^\D+/, "") || "",
-                            }
-                          : null}
+                      {@const badge = alightingPlatform
+                        ? getPlatformBadge(alightingPlatform)
+                        : parsePlatformInfo(goalPlatform)}
                       {#if badge && (badge.symbol || badge.number)}
                         <div class="mt-1.5 flex items-center">
                           <div

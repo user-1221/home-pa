@@ -25,9 +25,30 @@
   let timetableEvents = $state<TimetableEvent[]>([]);
   let _timetableLoaded = $state(false);
 
+  // Timeline container reference and height tracking
+  let timelineContainer: HTMLDivElement | undefined = $state();
+  let timelineHeight = $state(400); // Default to 400px (min-h-[400px])
+
   // Load timetable events on mount
   $effect(() => {
     loadTimetableForDate();
+  });
+
+  // Track timeline container height
+  $effect(() => {
+    if (!timelineContainer) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        timelineHeight = entry.contentRect.height;
+      }
+    });
+
+    resizeObserver.observe(timelineContainer);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
   });
 
   async function loadTimetableForDate() {
@@ -46,12 +67,15 @@
     }
   }
 
+  // Calculate pixels per hour based on actual timeline height
+  let pixelsPerHour = $derived(timelineHeight / 24);
+
   function getCurrentTimePositionScaled(): number {
     const now = new Date();
     const hours = now.getHours();
     const minutes = now.getMinutes();
     const totalMinutes = hours * 60 + minutes;
-    return (totalMinutes / 60) * 16.67;
+    return (totalMinutes / 60) * pixelsPerHour;
   }
 
   function getEventPositionScaled(startTime: Date, timeLabel?: string): number {
@@ -61,18 +85,18 @@
     const hours = startTime.getHours();
     const minutes = startTime.getMinutes();
     const totalMinutes = hours * 60 + minutes;
-    return (totalMinutes / 60) * 16.67;
+    return (totalMinutes / 60) * pixelsPerHour;
   }
 
   function getEventHeightScaled(event: Event): number {
     if (event.timeLabel === "all-day") {
-      return 24 * 16.67;
+      return 24 * pixelsPerHour;
     }
     // Use milliseconds-based duration to handle truncated events correctly
     // (Events may have been truncated at day boundaries by getEventsForDate)
     const durationMs = event.end.getTime() - event.start.getTime();
     const durationMinutes = Math.max(durationMs / (1000 * 60), 30);
-    return (durationMinutes / 60) * 16.67;
+    return (durationMinutes / 60) * pixelsPerHour;
   }
 
   function formatTime(date: Date): string {
@@ -150,14 +174,14 @@
     const hours = event.start.getHours();
     const minutes = event.start.getMinutes();
     const totalMinutes = hours * 60 + minutes;
-    return (totalMinutes / 60) * 16.67;
+    return (totalMinutes / 60) * pixelsPerHour;
   }
 
   function getTimetableEventHeight(event: TimetableEvent): number {
     const startMinutes = event.start.getHours() * 60 + event.start.getMinutes();
     const endMinutes = event.end.getHours() * 60 + event.end.getMinutes();
     const durationMinutes = Math.max(endMinutes - startMinutes, 30);
-    return (durationMinutes / 60) * 16.67;
+    return (durationMinutes / 60) * pixelsPerHour;
   }
 
   function getTimetableEventColor(event: TimetableEvent): string {
@@ -185,7 +209,7 @@
   aria-label="Close timeline"
 >
   <div
-    class="flex h-full w-full max-w-[600px] animate-[slideUpFromBottom_0.3s_ease-out] flex-col overflow-hidden rounded-xl border-0 border-base-300 bg-base-100 shadow-xl md:h-auto md:max-h-[80vh] md:animate-none md:rounded-xl md:border"
+    class="flex h-full w-full animate-[slideUpFromBottom_0.3s_ease-out] flex-col overflow-hidden rounded-none border-0 border-base-300 bg-base-100 shadow-xl md:h-[600px] md:max-h-[80vh] md:max-w-[600px] md:animate-none md:rounded-xl md:border"
     onclick={(e: MouseEvent) => e.stopPropagation()}
     onkeydown={(e: KeyboardEvent) => e.key === "Escape" && onClose()}
     role="dialog"
@@ -207,34 +231,59 @@
       </button>
     </div>
 
-    <div class="flex-1 overflow-y-auto p-4">
+    <div
+      class="flex-1 overflow-hidden pt-8 pr-8 pb-16 pl-0 md:pt-4 md:pr-4 md:pb-4 md:pl-0"
+    >
       {#if events.length === 0 && timetableEvents.length === 0}
         <p class="py-12 text-center text-[var(--color-text-muted)]">
           この日の予定はありません
         </p>
       {:else}
-        <div class="relative h-[400px] min-h-[400px]">
-          <!-- Hour indicators -->
+        <div
+          class="relative h-full min-h-[400px]"
+          bind:this={timelineContainer}
+        >
+          <!-- Hour grid lines (full width, behind everything) -->
+          <div class="pointer-events-none absolute inset-0">
+            {#each Array(24) as _, hour (hour)}
+              <div
+                class="absolute right-0 left-[50px] h-px"
+                class:bg-base-300={hour % 6 === 0}
+                class:bg-base-200={hour % 6 !== 0}
+                class:opacity-80={hour % 6 === 0}
+                class:opacity-40={hour % 6 !== 0}
+                style="top: {hour * pixelsPerHour}px;"
+              ></div>
+            {/each}
+          </div>
+
+          <!-- Hour indicators (left gutter) -->
           <div class="absolute top-0 left-0 h-full w-[50px]">
             {#each Array(24) as _, hour (hour)}
               <div
                 class="absolute left-0 flex w-full items-center"
-                style="top: {hour * 16.67}px;"
+                style="top: {hour * pixelsPerHour - 6}px;"
               >
                 <span
-                  class="w-10 pr-1 text-right text-xs text-[var(--color-text-muted)]"
-                  >{hour.toString().padStart(2, "0")}:00</span
+                  class="w-11 pr-2 text-right font-mono text-[11px] tabular-nums {hour %
+                    6 ===
+                  0
+                    ? 'font-medium text-base-content'
+                    : 'font-normal text-base-content/40'}"
+                  >{hour.toString().padStart(2, "0")}</span
                 >
-                <div class="h-px flex-1 bg-base-300"></div>
               </div>
             {/each}
           </div>
 
           <!-- Current time indicator -->
           <div
-            class="absolute z-[5] h-0.5 bg-error before:absolute before:top-[-3px] before:left-[-4px] before:h-2 before:w-2 before:rounded-full before:bg-error before:content-['']"
-            style="top: {getCurrentTimePositionScaled()}px; left: 50px; right: 0;"
-          ></div>
+            class="absolute z-[5] flex items-center"
+            style="top: {getCurrentTimePositionScaled()}px; left: 44px; right: 0;"
+          >
+            <div class="h-2.5 w-2.5 rounded-full bg-primary shadow-sm"></div>
+            <div class="h-[2px] flex-1 bg-primary/80"></div>
+          </div>
 
           <!-- Event columns (including timetable lane) -->
           <div
@@ -244,41 +293,42 @@
             <!-- Timetable lane (first column if exists) -->
             {#if hasTimetableEvents}
               <div
-                class="relative h-full border-r border-base-300/50"
+                class="bg-base-50/30 relative h-full border-r border-base-200"
                 style="width: {100 / totalColumns}%;"
               >
                 <div
-                  class="absolute inset-x-0 top-[-20px] text-center text-[10px] font-medium text-[var(--color-text-secondary)]"
+                  class="absolute inset-x-0 top-[-18px] text-center font-mono text-[9px] font-medium tracking-wider text-base-content/50 uppercase"
                 >
                   時間割
                 </div>
                 {#each timetableEvents as ttEvent (ttEvent.id)}
+                  {@const isBlocking = ttEvent.workAllowed === "作業不可"}
                   <div
-                    class="absolute right-0.5 left-0.5 min-h-[20px] overflow-hidden rounded border-l-2 px-1 py-0.5"
+                    class="absolute right-1 left-1 min-h-[20px] overflow-hidden rounded-md border-l-[3px] px-1.5 py-1"
                     style="
                       top: {getTimetableEventPosition(ttEvent)}px;
                       height: {getTimetableEventHeight(ttEvent)}px;
-                      background-color: {getTimetableEventColor(ttEvent)}20;
+                      background-color: {isBlocking
+                      ? 'var(--color-error-100)'
+                      : 'var(--color-success-100)'};
                       border-left-color: {getTimetableEventColor(ttEvent)};
                     "
                   >
                     <div
-                      class="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap"
-                      style="color: {getTimetableEventColor(ttEvent)};"
+                      class="overflow-hidden text-[11px] font-medium text-ellipsis whitespace-nowrap"
+                      style="color: {isBlocking
+                        ? 'var(--color-error-700)'
+                        : 'var(--color-success-700)'};"
                     >
                       {ttEvent.title}
                     </div>
                     <div
-                      class="text-[10px] opacity-70"
-                      style="color: {getTimetableEventColor(ttEvent)};"
+                      class="font-mono text-[9px] tabular-nums"
+                      style="color: {isBlocking
+                        ? 'var(--color-error-500)'
+                        : 'var(--color-success-500)'};"
                     >
-                      {formatTime(ttEvent.start)} - {formatTime(ttEvent.end)}
-                    </div>
-                    <div
-                      class="text-[9px] opacity-60"
-                      style="color: {getTimetableEventColor(ttEvent)};"
-                    >
-                      {ttEvent.workAllowed}
+                      {formatTime(ttEvent.start)} – {formatTime(ttEvent.end)}
                     </div>
                   </div>
                 {/each}
@@ -288,12 +338,12 @@
             <!-- Regular event columns -->
             {#each eventColumns as column, columnIndex (columnIndex)}
               <div
-                class="relative h-full"
+                class="relative h-full px-0.5"
                 style="width: {100 / totalColumns}%;"
               >
                 {#each column as event (event.id)}
                   <div
-                    class="absolute right-0.5 left-0.5 min-h-[20px] cursor-pointer overflow-hidden rounded px-1 py-0.5 transition-all duration-200 hover:z-10 hover:scale-[1.02] hover:shadow-md"
+                    class="event-card absolute right-1 left-1 min-h-[24px] cursor-pointer overflow-hidden rounded-md border-l-[3px] px-2 py-1 shadow-sm transition-all duration-200 hover:z-10 hover:shadow-lg"
                     onclick={() => handleEventClick(event)}
                     onkeydown={(e: KeyboardEvent) =>
                       e.key === "Enter" && handleEventClick(event)}
@@ -305,20 +355,30 @@
                       event.timeLabel,
                     )}px;
                       height: {getEventHeightScaled(event)}px;
-                      background-color: {getEventColor(event)};
-                      color: white;
+                      background-color: color-mix(in srgb, {getEventColor(
+                      event,
+                    )} 15%, white);
+                      border-left-color: {getEventColor(event)};
                     "
                   >
                     <div
                       class="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap"
+                      style="color: color-mix(in srgb, {getEventColor(
+                        event,
+                      )} 85%, black);"
                     >
                       {event.title}
                     </div>
-                    <div class="text-[10px] opacity-80">
+                    <div
+                      class="font-mono text-[10px] tabular-nums"
+                      style="color: color-mix(in srgb, {getEventColor(
+                        event,
+                      )} 60%, black);"
+                    >
                       {#if event.timeLabel === "all-day"}
-                        00:00 - 23:59
+                        終日
                       {:else}
-                        {formatTime(event.start)} - {formatTime(event.end)}
+                        {formatTime(event.start)} – {formatTime(event.end)}
                       {/if}
                     </div>
                   </div>

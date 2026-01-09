@@ -227,7 +227,6 @@ export function isFirstDayOfEvent(event: Event, targetDate: Date): boolean {
  * Each entry has a key for storage and a CSS value for display
  */
 export const EVENT_COLOR_PALETTE = [
-  { key: "primary", value: "var(--color-primary)", label: "Primary" },
   {
     key: "primary-400",
     value: "var(--color-primary-400)",
@@ -238,15 +237,12 @@ export const EVENT_COLOR_PALETTE = [
     value: "var(--color-primary-800)",
     label: "Primary Dark",
   },
-  { key: "success", value: "var(--color-success-500)", label: "Green" },
+  { key: "teal", value: "#14b8a6", label: "Teal" },
+  { key: "soft-green", value: "#86efac", label: "Soft Green" },
+  { key: "soft-blue", value: "#7dd3fc", label: "Soft Blue" },
+  { key: "soft-purple", value: "#c4b5fd", label: "Soft Purple" },
   { key: "warning", value: "var(--color-warning-500)", label: "Yellow" },
   { key: "error", value: "var(--color-error-500)", label: "Red" },
-  { key: "sky", value: "#38bdf8", label: "Sky" },
-  { key: "violet", value: "#8b5cf6", label: "Violet" },
-  { key: "pink", value: "#ec4899", label: "Pink" },
-  { key: "orange", value: "#f97316", label: "Orange" },
-  { key: "teal", value: "#14b8a6", label: "Teal" },
-  { key: "slate", value: "#64748b", label: "Gray" },
 ] as const;
 
 /**

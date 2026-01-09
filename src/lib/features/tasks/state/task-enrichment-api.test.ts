@@ -11,12 +11,13 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
 import {
+  taskState,
   tasks,
   taskActions,
   enrichingTaskIds,
   hasEnrichingTasks,
-} from "./taskActions.ts";
-import { taskFormActions, taskForm } from "./taskForm.ts";
+} from "./taskActions.svelte.ts";
+import { taskFormState } from "./taskForm.svelte.ts";
 import type { Memo } from "$lib/types.ts";
 import type { EnrichmentResult } from "$lib/features/assistant/services/suggestions/llm-enrichment.ts";
 
@@ -33,7 +34,7 @@ vi.mock(
 describe("Task Enrichment API Integration", () => {
   beforeEach(() => {
     tasks.set([]);
-    taskFormActions.resetForm();
+    taskFormState.reset();
     vi.clearAllMocks();
   });
 
@@ -53,9 +54,9 @@ describe("Task Enrichment API Integration", () => {
       mockEnrichment,
     );
 
-    taskFormActions.updateField("title", "数学の勉強");
-    taskFormActions.updateField("type", "期限付き");
-    taskFormActions.updateField("deadline", "2025-12-31");
+    taskFormState.updateField("title", "数学の勉強");
+    taskFormState.updateField("type", "期限付き");
+    taskFormState.updateField("deadline", "2025-12-31");
 
     const createdTask = await taskActions.create();
 
@@ -89,7 +90,7 @@ describe("Task Enrichment API Integration", () => {
       enrichmentPromise,
     );
 
-    taskFormActions.updateField("title", "Test task");
+    taskFormState.updateField("title", "Test task");
     const createPromise = taskActions.create();
 
     // Wait a bit for the enrichment to start
@@ -127,7 +128,7 @@ describe("Task Enrichment API Integration", () => {
       new Error("Network error"),
     );
 
-    taskFormActions.updateField("title", "Test task");
+    taskFormState.updateField("title", "Test task");
     const createdTask = await taskActions.create();
 
     // Wait for enrichment attempt
@@ -158,13 +159,12 @@ describe("Task Enrichment API Integration", () => {
       mockEnrichment,
     );
 
-    taskFormActions.updateField("title", "Test task");
-    taskFormActions.updateField("type", "期限付き");
-    taskFormActions.updateField("importance", "low"); // User-set importance
+    taskFormState.updateField("title", "Test task");
+    taskFormState.updateField("type", "期限付き");
+    taskFormState.updateField("importance", "low"); // User-set importance
 
     // Verify form has the importance set
-    const formBeforeCreate = get(taskForm);
-    expect(formBeforeCreate.importance).toBe("low");
+    expect(taskFormState.importance).toBe("low");
 
     const createdTask = await taskActions.create();
 
@@ -220,14 +220,14 @@ describe("Task Enrichment API Integration", () => {
     );
 
     // Create first task
-    taskFormActions.updateField("title", "Task 1");
+    taskFormState.updateField("title", "Task 1");
     const task1 = await taskActions.create();
 
     // Wait a bit to ensure first enrichment starts
     await new Promise((resolve) => setTimeout(resolve, 20));
 
     // Create second task
-    taskFormActions.updateField("title", "Task 2");
+    taskFormState.updateField("title", "Task 2");
     const task2 = await taskActions.create();
 
     // Wait for both enrichments to complete
@@ -262,7 +262,7 @@ describe("Task Enrichment API Integration", () => {
         }),
     );
 
-    taskFormActions.updateField("title", "Test task");
+    taskFormState.updateField("title", "Test task");
     const createdTask = await taskActions.create();
 
     // Delete task while enriching (enrichment is async)

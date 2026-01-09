@@ -204,9 +204,18 @@ function positionArcWithShrink(
     // start stays where cursor put it, creating a shorter arc
   }
 
-  // Snap to 5-min increments
-  start = snapToIncrement(Math.max(start, gapStart));
-  end = snapToIncrement(Math.min(end, gapEnd));
+  // Snap to 5-min increments, preserving gap boundaries
+  // For start: clamp to gapStart first, then snap UP (ceiling) if needed
+  const clampedStart = Math.max(start, gapStart);
+  const snappedStart = snapToIncrement(clampedStart);
+  // If snapping down would go below gap start, snap up instead
+  start = snappedStart < gapStart ? Math.ceil(gapStart / 5) * 5 : snappedStart;
+
+  // For end: clamp to gapEnd first, then snap DOWN (floor) if needed
+  const clampedEnd = Math.min(end, gapEnd);
+  const snappedEnd = snapToIncrement(clampedEnd);
+  // If snapping up would go above gap end, snap down instead
+  end = snappedEnd > gapEnd ? Math.floor(gapEnd / 5) * 5 : snappedEnd;
 
   // Check final duration
   const finalDuration = end - start;
@@ -389,41 +398,12 @@ export function snapToGap(
   const { gap, gapStart, gapEnd } = gapInfo;
 
   // Try to position arc with shrinking in the current gap
-  let position = positionArcWithShrink(cursor, duration, gapStart, gapEnd);
+  const position = positionArcWithShrink(cursor, duration, gapStart, gapEnd);
 
-  // If can't fit (gap too small for MIN_DRAG_DURATION), use the entire gap
-  // This allows dragging into smaller gaps when no larger gaps are available
+  // If can't fit (gap too small for MIN_DRAG_DURATION), return null
+  // The suggestion simply won't snap to this gap - it will stay in a valid gap
   if (!position) {
-    // Use the full gap duration (even if smaller than MIN_DRAG_DURATION)
-    // This ensures the user can always drag somewhere
-    const gapDuration = gapEnd - gapStart;
-    if (gapDuration >= 5) {
-      // Minimum 5 minutes to be usable
-      const start = snapToIncrement(gapStart);
-      const end = snapToIncrement(gapEnd);
-      position = { start, end };
-    } else {
-      // Gap is too small to use (< 5 min), try to find next best gap
-      // This shouldn't happen often, but handle gracefully
-      const jumpDuration = Math.max(
-        5,
-        Math.min(MIN_DRAG_DURATION, gapDuration),
-      );
-
-      if (cursor <= gapStart) {
-        // Entering from before - position at start of gap
-        const start = snapToIncrement(gapStart);
-        const end = snapToIncrement(Math.min(gapStart + jumpDuration, gapEnd));
-        position = { start, end };
-      } else {
-        // Entering from after - position at end of gap
-        const end = snapToIncrement(gapEnd);
-        const start = snapToIncrement(
-          Math.max(gapEnd - jumpDuration, gapStart),
-        );
-        position = { start, end };
-      }
-    }
+    return null;
   }
 
   return {

@@ -1,17 +1,15 @@
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  import { onMount, untrack } from "svelte";
   import CircularTimelineCss from "./CircularTimelineCss.svelte";
   import TimelineInfoPanel from "./TimelineInfoPanel.svelte";
   import { calendarState, dataState } from "$lib/bootstrap/index.svelte.ts";
   import {
-    scheduleActions,
-    pendingSuggestions,
-    acceptedMemos,
-    tasks,
+    scheduleState,
     type AcceptedMemoInfo,
-  } from "$lib/bootstrap/compat.svelte.ts";
+    type PendingSuggestion,
+  } from "$lib/features/assistant/state/schedule.svelte.ts";
+  import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import type { Event, Gap } from "$lib/types.ts";
-  import { get } from "svelte/store";
   import {
     startOfDay,
     endOfDay,
@@ -19,29 +17,26 @@
   } from "$lib/utils/date-utils.ts";
   import { unifiedGapState } from "$lib/features/assistant/state/unified-gaps.svelte.ts";
 
-  // Task list (synced from store via subscription)
-  let taskList = $state(get(tasks));
+  // Task list - directly from taskState (reactive)
+  let taskList = $derived(taskState.items);
 
   // ============================================================================
-  // INITIALIZATION STATE
+  // INITIALIZATION STATE (Reactive Approach)
   // ============================================================================
 
   /**
-   * Whether the assistant view is fully initialized
-   * Initialization sequence:
-   * 1. Load blocking items (timetable) → compute unified gaps
-   * 2. Load sync data (accepted/rejected from DB)
-   * 3. Ready for schedule generation
+   * Whether the assistant view is fully initialized.
+   * Derived from reactive loading states - no manual promise management needed.
+   *
+   * Becomes true when:
+   * 1. Timetable data is loaded (unifiedGapState.isReady)
+   * 2. Sync data is loaded (scheduleState.isSyncLoaded)
+   *
+   * This prevents UI flickering by ensuring all data is ready before rendering.
    */
-  let isInitialized = $state(false);
-
-  // Subscribe to tasks store to keep local state in sync
-  $effect(() => {
-    const unsubscribe = tasks.subscribe((newTasks) => {
-      taskList = newTasks;
-    });
-    return unsubscribe;
-  });
+  let isInitialized = $derived(
+    unifiedGapState.isReady && scheduleState.isSyncLoaded,
+  );
 
   // Mark that we're on the assistant tab
   $effect(() => {
@@ -51,23 +46,20 @@
     };
   });
 
-  // Load timetable events when date changes (after initial load)
+  // Load timetable events when date changes
+  // Runs on initial mount AND when date changes
   $effect(() => {
     const _date = dataState.selectedDate; // Track dependency
-    if (isInitialized) {
-      // Date changed after initialization - reload timetable
-      console.log(
-        "[PersonalAssistantView] Date changed, reloading timetable...",
-      );
-      unifiedGapState.loadTimetableEvents();
-    }
+    console.log("[PersonalAssistantView] Loading timetable for date change...");
+    // Fire-and-forget: state updates will trigger UI reactively
+    unifiedGapState.loadTimetableEvents();
   });
 
   // Selected items for details display - track all separately
   let selectedSuggestion = $state<
     | {
         type: "pending-suggestion";
-        data: import("$lib/features/assistant/state/schedule.ts").PendingSuggestion;
+        data: PendingSuggestion;
         title: string;
         gapEnd: string; // For duration extension limits
       }
@@ -123,46 +115,24 @@
     return startOfDay(date).toLocaleDateString("ja-JP");
   }
 
-  let unsubscribeTasks: (() => void) | undefined;
-
-  onMount(async () => {
+  onMount(() => {
+    // Set today's date on mount
     const now = new Date(Date.now());
     dataState.setSelectedDate(startOfDay(now));
 
-    // Subscribe to tasks store
-    unsubscribeTasks = tasks.subscribe((value) => (taskList = value));
-
     // ========================================================================
-    // INITIALIZATION SEQUENCE
+    // REACTIVE INITIALIZATION
     // ========================================================================
-    // 1. Load blocking items (timetable) - creates unified gaps
-    // 2. Load sync data (accepted/rejected from DB)
-    // 3. Mark as initialized - allows schedule generation
+    // Loading is triggered by $effect above (timetable) and here (sync data).
+    // isInitialized is a $derived that becomes true when both are ready.
+    // No await needed - UI renders reactively when data is ready.
     // ========================================================================
 
     console.log("[PersonalAssistantView] Starting initialization...");
 
-    try {
-      // Step 1: Load timetable data (affects gap computation)
-      await unifiedGapState.initialize();
-      console.log("[PersonalAssistantView] Timetable loaded");
-
-      // Step 2: Load sync data (accepted/rejected suggestions)
-      await scheduleActions.loadSyncedData();
-      console.log("[PersonalAssistantView] Sync data loaded");
-
-      // Step 3: Mark as initialized - this triggers schedule generation
-      isInitialized = true;
-      console.log("[PersonalAssistantView] Initialization complete");
-    } catch (error) {
-      console.error("[PersonalAssistantView] Initialization failed:", error);
-      // Still mark as initialized to allow operation with degraded state
-      isInitialized = true;
-    }
-  });
-
-  onDestroy(() => {
-    if (unsubscribeTasks) unsubscribeTasks();
+    // Trigger sync data loading (fire-and-forget)
+    // The $derived isInitialized will become true when this completes
+    scheduleState.loadSyncedData();
   });
 
   function overlapsDay(eventStart: Date, eventEnd: Date, day: Date) {
@@ -232,34 +202,30 @@
   // Uses unified gap state for consistent gap computation
   // ============================================================================
 
-  // Reactively compute schedule signature for auto-generation
-  // Includes enriched gaps to ensure regeneration when gaps change
-  let scheduleSignature = $derived.by(() => {
-    // Only generate schedule for today AND after initialization
-    if (!isTodaySelected || !isInitialized) return null;
-
-    // Include gap details in signature to detect changes from:
-    // - Active time settings changes
-    // - Current time passing (past time blocker updates)
-    // - Calendar/timetable event changes
-    const gapSig = enrichedGaps.map((g) => `${g.start}-${g.end}`).join("|");
-    return `t${taskList.length}|g${gapSig}`;
-  });
-
-  // Track last schedule signature to avoid re-triggering
-  let lastScheduleSignature: string | null = null;
-
-  // Auto-generate schedule when signature changes
-  // Only runs after initialization is complete
+  // Auto-generate schedule when dependencies change
+  // Svelte 5's $effect automatically tracks: taskList, enrichedGaps, isTodaySelected, isInitialized
+  // The effect re-runs when any tracked dependency changes - no manual signature needed
   $effect(() => {
-    if (scheduleSignature && scheduleSignature !== lastScheduleSignature) {
-      lastScheduleSignature = scheduleSignature;
-      console.log(
-        "[PersonalAssistantView] Schedule signature changed, regenerating...",
-      );
-      // Pass enriched gaps from unified state for consistent pipeline
-      scheduleActions.regenerate(taskList, { gaps: enrichedGaps });
-    }
+    // Only generate schedule for today AND after initialization
+    if (!isTodaySelected || !isInitialized) return;
+
+    // Track dependencies by reading them (Svelte 5 reactivity)
+    const currentTasks = taskList;
+    const currentGaps = enrichedGaps;
+
+    // Skip if no tasks or gaps
+    if (currentTasks.length === 0 && currentGaps.length === 0) return;
+
+    console.log(
+      "[PersonalAssistantView] Dependencies changed, regenerating schedule...",
+      { tasks: currentTasks.length, gaps: currentGaps.length },
+    );
+
+    // Use untrack for the side effect to prevent infinite loops
+    // The regenerate call itself shouldn't create new subscriptions
+    untrack(() => {
+      scheduleState.regenerate(currentTasks, { gaps: currentGaps });
+    });
   });
 
   // Helper to get task title from memoId
@@ -271,18 +237,20 @@
   // Only show suggestions when viewing today
   let filteredPendingSuggestions = $derived.by(() => {
     if (!isTodaySelected) return [];
-    return $pendingSuggestions;
+    return scheduleState.pendingSuggestions;
   });
 
   // Convert accepted memos to display format for CircularTimeline
   let filteredAcceptedForDisplay = $derived.by(() => {
     if (!isTodaySelected) return [];
-    return Array.from($acceptedMemos.entries()).map(([memoId, info]) => ({
-      memoId,
-      startTime: info.startTime,
-      endTime: info.endTime,
-      duration: info.duration,
-    }));
+    return Array.from(scheduleState.acceptedMemos.entries()).map(
+      ([memoId, info]) => ({
+        memoId,
+        startTime: info.startTime,
+        endTime: info.endTime,
+        duration: info.duration,
+      }),
+    );
   });
 
   // Convert accepted memos to Event format for display list
@@ -290,18 +258,19 @@
     if (!isTodaySelected) return [];
 
     const base = startOfDay(dataState.selectedDate);
-    return Array.from($acceptedMemos.entries()).map(([memoId, info]) => {
-      const title = getTaskTitle(memoId);
-
-      return {
-        id: `accepted-${memoId}`,
-        title,
-        start: parseTimeOnDate(base, info.startTime),
-        end: parseTimeOnDate(base, info.endTime),
-        description: "Accepted suggestion",
-        timeLabel: "timed",
-      } as Event;
-    });
+    return Array.from(scheduleState.acceptedMemos.entries()).map(
+      ([memoId, info]) => {
+        const title = getTaskTitle(memoId);
+        return {
+          id: `accepted-${memoId}`,
+          title,
+          start: parseTimeOnDate(base, info.startTime),
+          end: parseTimeOnDate(base, info.endTime),
+          description: "Accepted suggestion",
+          timeLabel: "timed",
+        } as Event;
+      },
+    );
   });
 
   let displayEvents = $derived.by(() =>
@@ -313,24 +282,24 @@
   // Suggestion event handlers
   async function handleSuggestionAccept(event: CustomEvent<string>) {
     const suggestionId = event.detail;
-    await scheduleActions.accept(suggestionId);
+    await scheduleState.accept(suggestionId);
   }
 
   async function handleSuggestionSkip(event: CustomEvent<string>) {
     const suggestionId = event.detail;
-    await scheduleActions.skip(suggestionId);
+    await scheduleState.skip(suggestionId);
   }
 
   async function handleSuggestionDelete(event: CustomEvent<string>) {
     const suggestionId = event.detail;
-    await scheduleActions.deleteAccepted(suggestionId, taskList);
+    await scheduleState.deleteAccepted(suggestionId, taskList);
   }
 
   async function handleSuggestionResize(
     event: CustomEvent<{ suggestionId: string; newDuration: number }>,
   ) {
     const { suggestionId, newDuration } = event.detail;
-    await scheduleActions.updateAcceptedDuration(
+    await scheduleState.updateAcceptedDuration(
       suggestionId,
       newDuration,
       taskList,
@@ -346,7 +315,7 @@
     }>,
   ) {
     const { suggestionId, newStartTime, newEndTime, newGapId } = event.detail;
-    await scheduleActions.moveSuggestion(
+    await scheduleState.moveSuggestion(
       suggestionId,
       newStartTime,
       newEndTime,
@@ -360,7 +329,7 @@
     event: CustomEvent<{ suggestionId: string; newDuration: number }>,
   ) {
     const { suggestionId, newDuration } = event.detail;
-    await scheduleActions.updateAcceptedDuration(
+    await scheduleState.updateAcceptedDuration(
       suggestionId,
       newDuration,
       taskList,
@@ -373,15 +342,12 @@
     event: CustomEvent<{
       type: "pending" | "accepted";
       memoId: string;
-      data:
-        | import("$lib/features/assistant/state/schedule.ts").PendingSuggestion
-        | AcceptedMemoInfo;
+      data: PendingSuggestion | AcceptedMemoInfo;
     }>,
   ) {
     const { type, memoId, data } = event.detail;
     if (type === "pending") {
-      const pendingData =
-        data as import("$lib/features/assistant/state/schedule.ts").PendingSuggestion;
+      const pendingData = data as PendingSuggestion;
       // Find the gap this suggestion is in to get gapEnd
       const gap = gapsForDrag?.find((g) => g.gapId === pendingData.gapId);
       const gapEnd = gap?.end ?? "23:59"; // Fallback to end of day
@@ -458,13 +424,13 @@
   // Info panel actions
   async function handleInfoPanelAccept(event: CustomEvent<string>) {
     const suggestionId = event.detail;
-    await scheduleActions.accept(suggestionId);
+    await scheduleState.accept(suggestionId);
     selectedSuggestion = null;
   }
 
   async function handleInfoPanelReject(event: CustomEvent<string>) {
     const suggestionId = event.detail;
-    await scheduleActions.skip(suggestionId);
+    await scheduleState.skip(suggestionId);
     selectedSuggestion = null;
   }
 
@@ -478,28 +444,27 @@
 
     // Log progress via taskActions (updates DB AND store reactively)
     const { taskActions: actions } = await import(
-      "$lib/features/tasks/state/taskActions.ts"
+      "$lib/features/tasks/state/taskActions.svelte.ts"
     );
     await actions.logProgress(memoId, duration);
 
     // Remove from accepted list
-    await scheduleActions.completeSuggestion(memoId, duration);
+    await scheduleState.completeSuggestion(memoId, duration);
 
-    // Update local taskList from store
-    taskList = get(tasks);
+    // taskList is now $derived from taskState.items, no manual update needed
 
     selectedSuggestion = null;
   }
 
   async function handleInfoPanelMissed(event: CustomEvent<{ memoId: string }>) {
     const { memoId } = event.detail;
-    await scheduleActions.missedSuggestion(memoId);
+    await scheduleState.missedSuggestion(memoId);
     selectedSuggestion = null;
   }
 
   async function handleInfoPanelDelete(event: CustomEvent<{ memoId: string }>) {
     const { memoId } = event.detail;
-    await scheduleActions.deleteAccepted(memoId, taskList);
+    await scheduleState.deleteAccepted(memoId, taskList);
     selectedSuggestion = null;
   }
 
@@ -513,7 +478,7 @@
     const { suggestionId, newDuration, newEndTime } = event.detail;
 
     // Update the pending suggestion in the schedule (triggers regeneration if overlaps were removed)
-    await scheduleActions.updatePendingDuration(
+    await scheduleState.updatePendingDuration(
       suggestionId,
       newDuration,
       newEndTime,

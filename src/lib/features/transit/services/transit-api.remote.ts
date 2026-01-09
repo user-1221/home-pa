@@ -62,6 +62,14 @@ const AddressAutocompleteInputSchema = v.object({
 // Response Types
 // ============================================================================
 
+/**
+ * Platform numbering info (e.g., "2番線", "A出口")
+ */
+export interface PlatformInfo {
+  number: string;
+  symbol: string;
+}
+
 export interface RouteSection {
   type: "point" | "move";
   coord?: { lat: number; lon: number };
@@ -69,8 +77,8 @@ export interface RouteSection {
   node_id?: string;
   gateway?: string;
   numbering?: {
-    departure?: Array<{ number: string; symbol: string }>;
-    arrival?: Array<{ number: string; symbol: string }>;
+    departure?: Array<PlatformInfo>;
+    arrival?: Array<PlatformInfo>;
   };
   from_time?: string;
   to_time?: string;
@@ -78,6 +86,10 @@ export interface RouteSection {
   distance?: number;
   move?: string;
   line_name?: string;
+  /** Platform info for boarding (move sections only) */
+  start_platform?: PlatformInfo | string;
+  /** Platform info for alighting (move sections only) */
+  goal_platform?: PlatformInfo | string;
   transport?: {
     id: string;
     name: string;

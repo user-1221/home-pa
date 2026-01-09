@@ -24,7 +24,7 @@ import {
   clearCachedTransit,
   type SyncedCachedTransit,
 } from "$lib/features/assistant/services/sync.remote.ts";
-import { waitForSync } from "$lib/features/assistant/state/schedule.ts";
+import { waitForSync } from "$lib/features/assistant/state/schedule.svelte.ts";
 
 // ============================================================================
 // Types

@@ -3,7 +3,7 @@
   import type {
     PendingSuggestion,
     AcceptedMemoInfo,
-  } from "$lib/features/assistant/state/schedule.ts";
+  } from "$lib/features/assistant/state/schedule.svelte.ts";
   import { createEventDispatcher } from "svelte";
   import {
     calculateMaxDuration,

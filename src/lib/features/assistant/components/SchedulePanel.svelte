@@ -6,31 +6,19 @@
    * Shows next task prominently, upcoming tasks list, and dropped warnings.
    */
 
-  import {
-    scheduleResult,
-    isScheduleLoading,
-    scheduleError,
-    nextScheduledBlock,
-    scheduledBlocks,
-    droppedMandatory,
-    hasMandatoryDropped,
-    scheduleActions,
-  } from "$lib/features/assistant/state/schedule.ts";
-  import { tasks } from "$lib/features/tasks/state/taskActions.ts";
+  import { scheduleState } from "$lib/features/assistant/state/schedule.svelte.ts";
+  import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import { unifiedGapState } from "$lib/features/assistant/state/unified-gaps.svelte.ts";
-  import { get } from "svelte/store";
 
   // Get memo title from memoId
   function getMemoTitle(memoId: string): string {
-    const taskList = get(tasks);
-    const task = taskList.find((t) => t.id === memoId);
+    const task = taskState.items.find((t) => t.id === memoId);
     return task?.title ?? "Unknown Task";
   }
 
   // Get memo type from memoId
   function getMemoType(memoId: string): string {
-    const taskList = get(tasks);
-    const task = taskList.find((t) => t.id === memoId);
+    const task = taskState.items.find((t) => t.id === memoId);
     return task?.type ?? "";
   }
 
@@ -44,9 +32,8 @@
 
   // Regenerate schedule using unified gap state
   async function handleRegenerate() {
-    const currentTasks = get(tasks);
     // Use enriched gaps from unified state (always fresh, properly enriched)
-    await scheduleActions.regenerate(currentTasks, {
+    await scheduleState.regenerate(taskState.items, {
       gaps: unifiedGapState.enrichedGaps,
     });
   }
@@ -64,9 +51,9 @@
     <button
       class="btn btn-circle h-10 min-h-10 w-10 text-base transition-all duration-200 btn-outline btn-primary disabled:cursor-not-allowed disabled:opacity-50"
       onclick={handleRegenerate}
-      disabled={$isScheduleLoading}
+      disabled={scheduleState.isLoading}
     >
-      {#if $isScheduleLoading}
+      {#if scheduleState.isLoading}
         <span class="loading loading-sm loading-spinner"></span>
       {:else}
         🔄
@@ -74,17 +61,17 @@
     </button>
   </div>
 
-  {#if $scheduleError}
+  {#if scheduleState.error}
     <div
       class="flex items-center gap-2 rounded-xl bg-error/10 p-3 text-sm text-error"
       role="alert"
     >
       <span>⚠️</span>
-      <span>{$scheduleError}</span>
+      <span>{scheduleState.error}</span>
     </div>
   {/if}
 
-  {#if $hasMandatoryDropped}
+  {#if scheduleState.hasMandatoryDropped}
     <div
       class="flex items-center gap-2 rounded-xl bg-warning/10 p-3 text-sm text-warning"
       role="alert"
@@ -94,7 +81,7 @@
     </div>
   {/if}
 
-  {#if !$scheduleResult}
+  {#if !scheduleState.result}
     <div class="flex flex-col items-center justify-center p-8 text-center">
       <div class="mb-4 text-5xl opacity-50">📋</div>
       <p class="mb-2 text-base text-[var(--color-text-secondary)]">
@@ -107,7 +94,7 @@
         Generate Schedule
       </button>
     </div>
-  {:else if $scheduledBlocks.length === 0}
+  {:else if scheduleState.scheduledBlocks.length === 0}
     <div class="flex flex-col items-center justify-center p-8 text-center">
       <div class="mb-4 text-5xl opacity-50">✨</div>
       <p class="mb-2 text-base text-[var(--color-text-secondary)]">
@@ -118,8 +105,8 @@
       </p>
     </div>
   {:else}
-    {#if $nextScheduledBlock}
-      {@const next = $nextScheduledBlock}
+    {#if scheduleState.nextScheduledBlock}
+      {@const next = scheduleState.nextScheduledBlock}
       {@const title = getMemoTitle(next.memoId)}
       {@const _type = getMemoType(next.memoId)}
       <div
@@ -154,7 +141,7 @@
       </div>
     {/if}
 
-    {#if $scheduledBlocks.length > 1}
+    {#if scheduleState.scheduledBlocks.length > 1}
       <div class="mt-4">
         <h4
           class="m-0 mb-2 text-sm font-normal tracking-wider text-[var(--color-text-secondary)] uppercase"
@@ -162,7 +149,7 @@
           Upcoming
         </h4>
         <ul class="m-0 flex list-none flex-col gap-1 p-0">
-          {#each $scheduledBlocks.slice(1) as block (block.suggestionId)}
+          {#each scheduleState.scheduledBlocks.slice(1) as block (block.suggestionId)}
             {@const title = getMemoTitle(block.memoId)}
             <li
               class="flex items-center gap-2 rounded-lg bg-base-200 p-2 text-sm"
@@ -180,7 +167,7 @@
       </div>
     {/if}
 
-    {#if $droppedMandatory.length > 0}
+    {#if scheduleState.droppedMandatory.length > 0}
       <div class="mt-4">
         <h4
           class="m-0 mb-2 text-sm font-normal tracking-wider text-warning uppercase"
@@ -188,7 +175,7 @@
           ⚠️ Couldn't Schedule
         </h4>
         <ul class="m-0 flex list-none flex-col gap-1 p-0">
-          {#each $droppedMandatory as suggestion (suggestion.id)}
+          {#each scheduleState.droppedMandatory as suggestion (suggestion.id)}
             {@const title = getMemoTitle(suggestion.memoId)}
             <li
               class="flex items-center justify-between rounded-lg bg-error/10 p-2 text-sm"

@@ -63,37 +63,31 @@ export const clearAllData = () => {
 // Unified Gap State - single source of truth for gaps
 export { unifiedGapState } from "../features/assistant/state/unified-gaps.svelte.ts";
 
-// Schedule store
+// Schedule state
 export {
-  scheduleResult,
-  isScheduleLoading,
-  scheduleError,
-  lastPipelineSummary,
-  lastScheduleTime,
-  scheduledBlocks,
-  pendingSuggestions,
-  acceptedMemos,
-  rejectedMemoIds,
-  droppedSuggestions,
-  droppedMandatory,
-  nextScheduledBlock,
-  hasScheduledTasks,
-  totalScheduledMinutes,
-  hasMandatoryDropped,
-  scheduleActions,
-  findBlockByMemoId,
-  isMemoScheduled,
-  getBlocksForGap,
+  scheduleState,
   type AcceptedMemoInfo,
   type PendingSuggestion,
   type MovedSuggestion,
-} from "../features/assistant/state/schedule.ts";
+} from "../features/assistant/state/schedule.svelte.ts";
 
 // Task state
-export { taskActions, tasks } from "../features/tasks/state/taskActions.ts";
+export {
+  taskState,
+  // Legacy exports for backwards compatibility
+  taskActions,
+  tasks,
+  isTasksLoading,
+  enrichingTaskIds,
+  hasEnrichingTasks,
+  loadTasks,
+  isTaskEnriching,
+} from "../features/tasks/state/taskActions.svelte.ts";
 
 // Task form
 export {
+  taskFormState,
+  // Legacy exports for backwards compatibility
   taskForm,
   taskFormErrors,
   isTaskFormSubmitting,
@@ -104,21 +98,32 @@ export {
   taskFormActions,
   type TaskFormData,
   type TaskFormErrors as TaskFormErrorsType,
-} from "../features/tasks/state/taskForm.ts";
+} from "../features/tasks/state/taskForm.svelte.ts";
 
 // ============================================================================
 // Utility Exports
 // ============================================================================
 
-export { timezone, timezoneActions, timezoneLabel } from "./timezone.ts";
-export { devtools, devtoolsEnabled } from "./devtools.ts";
+// Timezone state (Svelte 5)
+export {
+  timezoneState,
+  // Legacy backwards compatibility
+  timezone,
+  timezoneActions,
+  timezoneLabel,
+} from "./timezone.svelte.ts";
+
+// Devtools state (Svelte 5)
+export {
+  devtoolsState,
+  // Legacy backwards compatibility
+  devtools,
+  devtoolsEnabled,
+} from "./devtools.svelte.ts";
+
 export { formatDate, formatDateTime } from "../utils/date-utils.ts";
 
 // Bootstrap functions
 export { initializeStores, loadSyncedData } from "./bootstrap.ts";
 
-// Sync stores
-export {
-  isSyncLoaded,
-  isSyncing,
-} from "../features/assistant/state/schedule.ts";
+// Note: isSyncLoaded and isSyncing are now accessible via scheduleState.isSyncLoaded and scheduleState.isSyncing

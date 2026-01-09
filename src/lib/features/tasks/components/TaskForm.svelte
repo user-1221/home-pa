@@ -1,17 +1,6 @@
 <script lang="ts">
-  import {
-    taskForm,
-    taskFormErrors,
-    isTaskFormSubmitting,
-    isTaskFormOpen,
-    isTaskFormValid,
-    showDeadlineField,
-    showRecurrenceFields,
-    isTaskFormEditing,
-    hasEnrichedFieldsCleared,
-    taskFormActions,
-  } from "$lib/features/tasks/state/taskForm.ts";
-  import { taskActions } from "$lib/features/tasks/state/taskActions.ts";
+  import { taskFormState } from "$lib/features/tasks/state/taskForm.svelte.ts";
+  import { taskActions } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import type {
     MemoType,
     LocationPreference,
@@ -75,14 +64,15 @@
 
   // Auto-expand advanced settings when editing with LLM values
   $effect(() => {
-    if ($isTaskFormEditing) {
+    if (taskFormState.isEditing) {
       // Open advanced settings if there are any LLM-enriched values to edit
       // Note: totalDurationExpected only applies to backlog tasks now
       const hasEnrichedValues =
-        $taskForm.genre ||
-        $taskForm.importance ||
-        $taskForm.sessionDuration ||
-        ($taskForm.type === "バックログ" && $taskForm.totalDurationExpected);
+        taskFormState.genre ||
+        taskFormState.importance ||
+        taskFormState.sessionDuration ||
+        (taskFormState.type === "バックログ" &&
+          taskFormState.totalDurationExpected);
       if (hasEnrichedValues) {
         showAdvancedSettings = true;
       }
@@ -94,7 +84,7 @@
 
   // Handlers
   function handleClose() {
-    taskFormActions.closeForm();
+    taskFormState.closeForm();
     showAdvancedSettings = false;
   }
 
@@ -104,11 +94,11 @@
   }
 
   function handleTypeChange(type: MemoType) {
-    taskFormActions.setType(type);
+    taskFormState.setType(type);
   }
 </script>
 
-{#if $isTaskFormOpen}
+{#if taskFormState.isOpen}
   <div
     class="modal-open modal-mobile-fullscreen modal z-[2100] md:modal-middle"
     onkeydown={(e: KeyboardEvent) => e.key === "Escape" && handleClose()}
@@ -151,21 +141,21 @@
         <h3
           class="flex-1 text-center text-base font-medium tracking-tight text-base-content md:flex-none md:text-left md:text-lg"
         >
-          {$taskForm.isEditing ? "タスクを編集" : "新しいタスク"}
+          {taskFormState.isEditing ? "タスクを編集" : "新しいタスク"}
         </h3>
         <button
           type="button"
           class="flex h-9 items-center justify-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[var(--color-primary-800)] active:scale-95 disabled:opacity-50 md:hidden"
-          disabled={!$isTaskFormValid || $isTaskFormSubmitting}
+          disabled={!taskFormState.isValid || taskFormState.isSubmitting}
           onclick={async (e: MouseEvent) => {
             e.preventDefault();
             await taskActions.submit();
           }}
         >
-          {#if $isTaskFormSubmitting}
+          {#if taskFormState.isSubmitting}
             <span class="loading loading-sm loading-spinner"></span>
           {:else}
-            {$taskForm.isEditing ? "更新" : "作成"}
+            {taskFormState.isEditing ? "更新" : "作成"}
           {/if}
         </button>
         <button
@@ -205,13 +195,14 @@
               id="title"
               type="text"
               placeholder="タスクのタイトルを入力"
-              bind:value={$taskForm.title}
-              class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 placeholder:text-base-content/40 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none {$taskFormErrors.title
+              bind:value={taskFormState.title}
+              class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 placeholder:text-base-content/40 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none {taskFormState
+                .errors.title
                 ? 'border-error'
                 : ''}"
             />
-            {#if $taskFormErrors.title}
-              <p class="text-xs text-error">{$taskFormErrors.title}</p>
+            {#if taskFormState.errors.title}
+              <p class="text-xs text-error">{taskFormState.errors.title}</p>
             {/if}
           </div>
 
@@ -223,11 +214,11 @@
                 <button
                   type="button"
                   class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200
-                    {$taskForm.type === option.value
+                    {taskFormState.type === option.value
                     ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
                     : 'border-base-300/60 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
                   onclick={() => handleTypeChange(option.value)}
-                  aria-pressed={$taskForm.type === option.value}
+                  aria-pressed={taskFormState.type === option.value}
                 >
                   {option.label}
                 </button>
@@ -236,7 +227,7 @@
           </div>
 
           <!-- Deadline -->
-          {#if $showDeadlineField}
+          {#if taskFormState.showDeadlineField}
             <div class="space-y-1.5">
               <label
                 class="text-sm font-medium text-base-content/70"
@@ -247,19 +238,22 @@
               <input
                 id="deadline"
                 type="date"
-                bind:value={$taskForm.deadline}
-                class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none {$taskFormErrors.deadline
+                bind:value={taskFormState.deadline}
+                class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none {taskFormState
+                  .errors.deadline
                   ? 'border-error'
                   : ''}"
               />
-              {#if $taskFormErrors.deadline}
-                <p class="text-xs text-error">{$taskFormErrors.deadline}</p>
+              {#if taskFormState.errors.deadline}
+                <p class="text-xs text-error">
+                  {taskFormState.errors.deadline}
+                </p>
               {/if}
             </div>
           {/if}
 
           <!-- Recurrence Goal -->
-          {#if $showRecurrenceFields}
+          {#if taskFormState.showRecurrenceFields}
             <div class="space-y-1.5">
               <label
                 class="text-sm font-medium text-base-content/70"
@@ -273,14 +267,14 @@
                   type="number"
                   min="1"
                   max="100"
-                  bind:value={$taskForm.recurrenceCount}
+                  bind:value={taskFormState.recurrenceCount}
                   class="w-16 rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-center text-base text-base-content transition-colors duration-200 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none"
                   aria-label="回数"
                 />
                 <span class="text-sm text-base-content/60">回 /</span>
                 <select
                   id="recurrence-period"
-                  bind:value={$taskForm.recurrencePeriod}
+                  bind:value={taskFormState.recurrencePeriod}
                   class="flex-1 rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none"
                   aria-label="期間"
                 >
@@ -289,8 +283,10 @@
                   {/each}
                 </select>
               </div>
-              {#if $taskFormErrors.recurrence}
-                <p class="text-xs text-error">{$taskFormErrors.recurrence}</p>
+              {#if taskFormState.errors.recurrence}
+                <p class="text-xs text-error">
+                  {taskFormState.errors.recurrence}
+                </p>
               {/if}
             </div>
           {/if}
@@ -302,7 +298,7 @@
               {#each locationOptions as option (option.value)}
                 <label
                   class="flex flex-1 cursor-pointer items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200
-                    {$taskForm.locationPreference === option.value
+                    {taskFormState.locationPreference === option.value
                     ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
                     : 'border-base-300/60 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
                 >
@@ -310,9 +306,9 @@
                     type="radio"
                     name="location"
                     value={option.value}
-                    checked={$taskForm.locationPreference === option.value}
+                    checked={taskFormState.locationPreference === option.value}
                     onchange={() =>
-                      taskFormActions.updateField(
+                      taskFormState.updateField(
                         "locationPreference",
                         option.value,
                       )}
@@ -362,7 +358,7 @@
                   <select
                     id="genre"
                     class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none"
-                    bind:value={$taskForm.genre}
+                    bind:value={taskFormState.genre}
                   >
                     <option value="">未設定（AIが推定）</option>
                     {#each genreOptions as genre (genre)}
@@ -380,11 +376,11 @@
                     <button
                       type="button"
                       class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200
-                        {$taskForm.importance === ''
+                        {taskFormState.importance === ''
                         ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
                         : 'border-base-300/60 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
                       onclick={() =>
-                        taskFormActions.updateField("importance", "")}
+                        taskFormState.updateField("importance", "")}
                     >
                       未設定
                     </button>
@@ -392,14 +388,11 @@
                       <button
                         type="button"
                         class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200
-                          {$taskForm.importance === option.value
+                          {taskFormState.importance === option.value
                           ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
                           : 'border-base-300/60 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
                         onclick={() =>
-                          taskFormActions.updateField(
-                            "importance",
-                            option.value,
-                          )}
+                          taskFormState.updateField("importance", option.value)}
                       >
                         {option.label}
                       </button>
@@ -408,7 +401,7 @@
                 </div>
 
                 <!-- Session Duration & Total Duration (only in edit mode) -->
-                {#if $isTaskFormEditing}
+                {#if taskFormState.isEditing}
                   <div class="space-y-1.5">
                     <label
                       class="text-sm font-medium text-base-content/70"
@@ -423,12 +416,12 @@
                       max="480"
                       placeholder="例: 30"
                       class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 placeholder:text-base-content/40 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none"
-                      value={$taskForm.sessionDuration ?? ""}
+                      value={taskFormState.sessionDuration ?? ""}
                       onchange={(
                         e: Event & { currentTarget: HTMLInputElement },
                       ) => {
                         const val = e.currentTarget.value;
-                        taskFormActions.updateField(
+                        taskFormState.updateField(
                           "sessionDuration",
                           val ? parseInt(val, 10) : null,
                         );
@@ -437,7 +430,7 @@
                   </div>
 
                   <!-- Total Duration: Only show for backlog tasks (removed from routine and deadline) -->
-                  {#if $taskForm.type === "バックログ"}
+                  {#if taskFormState.type === "バックログ"}
                     <div class="space-y-1.5">
                       <label
                         class="text-sm font-medium text-base-content/70"
@@ -452,12 +445,12 @@
                         max="9999"
                         placeholder="例: 120"
                         class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 placeholder:text-base-content/40 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none"
-                        value={$taskForm.totalDurationExpected ?? ""}
+                        value={taskFormState.totalDurationExpected ?? ""}
                         onchange={(
                           e: Event & { currentTarget: HTMLInputElement },
                         ) => {
                           const val = e.currentTarget.value;
-                          taskFormActions.updateField(
+                          taskFormState.updateField(
                             "totalDurationExpected",
                             val ? parseInt(val, 10) : null,
                           );
@@ -471,7 +464,7 @@
           </div>
 
           <!-- Enriched Fields Cleared Warning -->
-          {#if $taskFormErrors.enrichedFieldsCleared}
+          {#if taskFormState.errors.enrichedFieldsCleared}
             <div
               class="flex items-center gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3"
             >
@@ -489,13 +482,13 @@
                 />
               </svg>
               <p class="text-sm text-warning">
-                {$taskFormErrors.enrichedFieldsCleared}
+                {taskFormState.errors.enrichedFieldsCleared}
               </p>
             </div>
           {/if}
 
           <!-- General Error Display -->
-          {#if $taskFormErrors.general}
+          {#if taskFormState.errors.general}
             <div
               class="flex items-center gap-3 rounded-lg border border-error/30 bg-error/10 p-3"
             >
@@ -513,7 +506,7 @@
                 />
               </svg>
               <p class="text-sm text-error">
-                {$taskFormErrors.general}
+                {taskFormState.errors.general}
               </p>
             </div>
           {/if}
@@ -533,13 +526,13 @@
           <button
             type="submit"
             class="rounded-lg bg-[var(--color-primary)] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[var(--color-primary-800)] hover:shadow-md active:scale-95 disabled:opacity-50"
-            disabled={!$isTaskFormValid || $isTaskFormSubmitting}
+            disabled={!taskFormState.isValid || taskFormState.isSubmitting}
           >
-            {#if $isTaskFormSubmitting}
+            {#if taskFormState.isSubmitting}
               <span class="loading loading-sm loading-spinner"></span>
               保存中...
             {:else}
-              {$taskForm.isEditing ? "更新" : "作成"}
+              {taskFormState.isEditing ? "更新" : "作成"}
             {/if}
           </button>
         </div>

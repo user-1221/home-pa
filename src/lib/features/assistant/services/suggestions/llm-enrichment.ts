@@ -14,6 +14,7 @@
  */
 
 import type { Memo, ImportanceLevel } from "$lib/types.ts";
+import * as v from "valibot";
 
 // ============================================================================
 // Types
@@ -46,14 +47,21 @@ export interface LLMEnrichmentConfig {
 }
 
 /**
- * Raw response from LLM (before validation)
+ * Valibot schema for LLM response validation
+ * Validates raw JSON from LLM before processing
  */
-interface RawLLMResponse {
-  genre?: string;
-  importance?: string;
-  sessionDuration?: number;
-  totalDurationExpected?: number;
-}
+const RawLLMResponseSchema = v.object({
+  genre: v.optional(v.string()),
+  importance: v.optional(v.string()),
+  sessionDuration: v.optional(v.number()),
+  totalDurationExpected: v.optional(v.number()),
+});
+
+/**
+ * Raw response from LLM (inferred from schema)
+ * Used internally by parseResponse - the type alias documents intent
+ */
+type _RawLLMResponse = v.InferOutput<typeof RawLLMResponseSchema>;
 
 // ============================================================================
 // Constants
@@ -192,8 +200,8 @@ Respond with ONLY valid JSON in this exact format, no other text:
 // ============================================================================
 
 /**
- * Parse and validate LLM response
- * Returns null if parsing fails
+ * Parse and validate LLM response using valibot
+ * Returns null if parsing or validation fails
  */
 export function parseResponse(responseText: string): EnrichmentResult | null {
   try {
@@ -206,9 +214,21 @@ export function parseResponse(responseText: string): EnrichmentResult | null {
       jsonStr = jsonMatch[1].trim();
     }
 
-    const parsed: RawLLMResponse = JSON.parse(jsonStr);
+    const rawJson: unknown = JSON.parse(jsonStr);
 
-    // Validate and sanitize each field
+    // Validate structure with valibot
+    const parseResult = v.safeParse(RawLLMResponseSchema, rawJson);
+    if (!parseResult.success) {
+      console.warn(
+        "[LLM Enrichment] Response validation failed:",
+        parseResult.issues,
+      );
+      return null;
+    }
+
+    const parsed = parseResult.output;
+
+    // Validate and sanitize each field against business rules
     const genre =
       parsed.genre &&
       VALID_GENRES.includes(parsed.genre as (typeof VALID_GENRES)[number])
