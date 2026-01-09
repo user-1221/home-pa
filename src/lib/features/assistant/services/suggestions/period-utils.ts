@@ -147,11 +147,79 @@ function getWeekNumber(date: Date): number {
 /**
  * Check if two dates are in the same month
  */
-function isSameMonth(date1: Date, date2: Date): boolean {
+export function isSameMonth(date1: Date, date2: Date): boolean {
   return (
     date1.getFullYear() === date2.getFullYear() &&
     date1.getMonth() === date2.getMonth()
   );
+}
+
+/**
+ * Get the next period start date by advancing exactly one period
+ *
+ * Periods are task-creation-aligned, not calendar-aligned.
+ * If you create a weekly task on Wednesday, your weeks are Wed-Tue.
+ *
+ * @param previousPeriodStart - The start of the previous period
+ * @param period - Period type (day/week/month)
+ * @returns Date representing the start of the next period
+ *
+ * @example
+ * // previousPeriodStart = Wed Jan 8, 2025 (weekly task created on Wed)
+ * getNextPeriodStart(previousPeriodStart, "week") // Wed Jan 15, 2025
+ */
+export function getNextPeriodStart(
+  previousPeriodStart: Date,
+  period: Period,
+): Date {
+  const result = new Date(previousPeriodStart);
+  switch (period) {
+    case "day":
+      result.setDate(result.getDate() + 1);
+      break;
+    case "week":
+      result.setDate(result.getDate() + 7);
+      break;
+    case "month":
+      result.setMonth(result.getMonth() + 1);
+      break;
+  }
+  return result;
+}
+
+/**
+ * Find the current period start by iterating forward from the original period start
+ *
+ * This handles cases where multiple periods have passed since the last update.
+ * Periods are task-creation-aligned based on when the task was first created.
+ *
+ * @param originalPeriodStart - The original/previous period start date
+ * @param currentTime - Current time to check against
+ * @param period - Period type (day/week/month)
+ * @returns The start date of the current period
+ *
+ * @example
+ * // Task created on Wed Jan 1, multiple weeks passed, now Jan 20
+ * getCurrentPeriodStart(Jan1, Jan20, "week") // Wed Jan 15 (current week start)
+ */
+export function getCurrentPeriodStart(
+  originalPeriodStart: Date,
+  currentTime: Date,
+  period: Period,
+): Date {
+  let periodStart = new Date(originalPeriodStart);
+
+  // Advance until we find the period that contains currentTime
+  while (isNewPeriod(periodStart, currentTime, period)) {
+    const nextStart = getNextPeriodStart(periodStart, period);
+    // Safety check: if next period would be after current time, we found our period
+    if (nextStart > currentTime) {
+      break;
+    }
+    periodStart = nextStart;
+  }
+
+  return periodStart;
 }
 
 // ============================================================================
@@ -179,16 +247,34 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
     // Reset period counter if entered new period
     if (memo.recurrenceGoal) {
       const periodStart = memo.status.periodStartDate;
-      if (
-        !periodStart ||
-        isNewPeriod(periodStart, currentTime, memo.recurrenceGoal.period)
-      ) {
+      if (!periodStart) {
+        // First time: use currentTime as initial period start (task-creation-aligned)
+        // If you create a weekly task on Wed, your weeks are Wed-Tue
         updated = {
           ...updated,
           status: {
             ...updated.status,
             completionsThisPeriod: 0,
             periodStartDate: currentTime,
+          },
+        };
+        hasChanges = true;
+      } else if (
+        isNewPeriod(periodStart, currentTime, memo.recurrenceGoal.period)
+      ) {
+        // Existing period start: advance to current period (task-creation-aligned)
+        // This preserves the original day-of-week/day-of-month alignment
+        const newPeriodStart = getCurrentPeriodStart(
+          periodStart,
+          currentTime,
+          memo.recurrenceGoal.period,
+        );
+        updated = {
+          ...updated,
+          status: {
+            ...updated.status,
+            completionsThisPeriod: 0,
+            periodStartDate: newPeriodStart,
           },
         };
         hasChanges = true;

@@ -179,15 +179,15 @@
 <div
   class="fixed inset-0 z-[2100] flex items-center justify-center bg-base-content/60 p-0 backdrop-blur-sm md:p-4"
   onclick={() => onClose()}
-  onkeydown={(e) => e.key === "Escape" && onClose()}
+  onkeydown={(e: KeyboardEvent) => e.key === "Escape" && onClose()}
   role="button"
   tabindex="-1"
   aria-label="Close timeline"
 >
   <div
     class="flex h-full w-full max-w-[600px] animate-[slideUpFromBottom_0.3s_ease-out] flex-col overflow-hidden rounded-xl border-0 border-base-300 bg-base-100 shadow-xl md:h-auto md:max-h-[80vh] md:animate-none md:rounded-xl md:border"
-    onclick={(e) => e.stopPropagation()}
-    onkeydown={(e) => e.key === "Escape" && onClose()}
+    onclick={(e: MouseEvent) => e.stopPropagation()}
+    onkeydown={(e: KeyboardEvent) => e.key === "Escape" && onClose()}
     role="dialog"
     aria-modal="true"
     tabindex="-1"
@@ -295,7 +295,7 @@
                   <div
                     class="absolute right-0.5 left-0.5 min-h-[20px] cursor-pointer overflow-hidden rounded px-1 py-0.5 transition-all duration-200 hover:z-10 hover:scale-[1.02] hover:shadow-md"
                     onclick={() => handleEventClick(event)}
-                    onkeydown={(e) =>
+                    onkeydown={(e: KeyboardEvent) =>
                       e.key === "Enter" && handleEventClick(event)}
                     role="button"
                     tabindex="0"

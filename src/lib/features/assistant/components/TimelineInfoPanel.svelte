@@ -191,173 +191,350 @@
     // Simple string comparison works for HH:mm format
     return nowTime > endTime;
   }
+
+  // Badge config based on item type
+  let badgeConfig = $derived.by(() => {
+    if (!selectedItem) {
+      return {
+        label: "選択なし",
+        class: "bg-base-200 text-base-content/50",
+      };
+    }
+    switch (selectedItem.type) {
+      case "pending-suggestion":
+        return {
+          label: "提案",
+          class: "bg-warning/15 text-warning border border-warning/30",
+        };
+      case "accepted-suggestion":
+        return {
+          label: "承認済み",
+          class: "bg-success/15 text-success border border-success/30",
+        };
+      case "event":
+        return {
+          label: "イベント",
+          class:
+            "bg-[var(--color-primary-100)] text-[var(--color-primary-800)] border border-[var(--color-primary)]/30",
+        };
+      case "gap":
+        return {
+          label: "空き時間",
+          class:
+            "bg-[var(--color-surface-100)] text-[var(--color-text-primary)] border border-base-300",
+        };
+      case "drag-preview":
+        return {
+          label: "プレビュー",
+          class:
+            "bg-[var(--color-primary-100)] text-[var(--color-primary-800)] border border-[var(--color-primary)]/30 animate-pulse",
+        };
+      default:
+        return { label: "", class: "" };
+    }
+  });
 </script>
 
-<div class="card bg-base-100 shadow-sm card-sm">
-  <div class="card-body gap-1 p-4">
+<div
+  class="group relative overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm transition-all duration-300 ease-out hover:shadow-md"
+>
+  <!-- Subtle gradient overlay for depth -->
+  <div
+    class="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/50 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+  ></div>
+
+  <div class="relative p-4">
     {#if selectedItem}
       {#if selectedItem.type === "pending-suggestion"}
-        <!-- Compact layout: Badge + Title + Buttons in one row -->
-        <div class="flex items-center justify-between gap-2">
-          <div class="flex min-w-0 flex-1 items-center gap-2">
-            <span class="badge flex-shrink-0 badge-sm badge-warning">提案</span>
-            <h3 class="card-title truncate text-lg">{selectedItem.title}</h3>
+        <!-- Pending Suggestion -->
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <div class="flex items-center gap-2">
+              <span class="badge flex-shrink-0 badge-sm {badgeConfig.class}">
+                {badgeConfig.label}
+              </span>
+              <h3
+                class="truncate text-base font-medium text-[var(--color-text-primary)]"
+              >
+                {selectedItem.title}
+              </h3>
+            </div>
+            <div class="flex flex-wrap items-center gap-3">
+              <p
+                class="font-mono text-sm tracking-tight text-[var(--color-text-secondary)]"
+              >
+                {selectedItem.data.startTime} - {selectedItem.data.endTime}
+              </p>
+              <!-- Duration adjustment -->
+              <div
+                class="flex items-center gap-1 rounded-lg bg-base-200/60 px-2 py-1"
+              >
+                <button
+                  class="flex h-6 w-6 items-center justify-center rounded-md text-sm transition-all duration-200 hover:bg-base-300 active:scale-95 disabled:opacity-30 disabled:hover:bg-transparent"
+                  onclick={handleShrink}
+                  disabled={!canShrink}
+                  title="10分短く (最小: {formatDuration(MIN_DURATION)})"
+                >
+                  −
+                </button>
+                <span
+                  class="min-w-[4rem] text-center text-xs font-medium text-[var(--color-text-primary)]"
+                >
+                  {formatDuration(selectedItem.data.duration)}
+                </span>
+                <button
+                  class="flex h-6 w-6 items-center justify-center rounded-md text-sm transition-all duration-200 hover:bg-base-300 active:scale-95 disabled:opacity-30 disabled:hover:bg-transparent"
+                  onclick={handleExtend}
+                  disabled={!canExtend}
+                  title="10分長く (最大: {formatDuration(maxDuration)})"
+                >
+                  +
+                </button>
+              </div>
+            </div>
           </div>
-          <div class="card-actions flex-shrink-0">
+          <!-- Action buttons -->
+          <div class="flex flex-shrink-0 gap-2">
             <button
-              class="btn btn-square btn-sm btn-success"
+              class="flex h-9 w-9 items-center justify-center rounded-lg bg-success/10 text-success transition-all duration-200 hover:bg-success hover:text-success-content active:scale-95"
               onclick={handleAccept}
               title="承認"
+              aria-label="承認"
             >
-              ✓
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
             </button>
             <button
-              class="btn btn-square btn-sm btn-error"
+              class="flex h-9 w-9 items-center justify-center rounded-lg bg-error/10 text-error transition-all duration-200 hover:bg-error hover:text-error-content active:scale-95"
               onclick={handleReject}
               title="却下"
+              aria-label="却下"
             >
-              ✗
-            </button>
-          </div>
-        </div>
-        <!-- Time range with duration adjustment -->
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-sm text-[var(--color-text-secondary)]">
-            {selectedItem.data.startTime} - {selectedItem.data.endTime}
-          </p>
-          <!-- Duration adjustment buttons -->
-          <div class="flex items-center gap-1">
-            <button
-              class="btn btn-square btn-ghost btn-xs"
-              onclick={handleShrink}
-              disabled={!canShrink}
-              title="10分短く (最小: {formatDuration(MIN_DURATION)})"
-            >
-              −
-            </button>
-            <span class="min-w-[4rem] text-center text-sm font-medium">
-              {formatDuration(selectedItem.data.duration)}
-            </span>
-            <button
-              class="btn btn-square btn-ghost btn-xs"
-              onclick={handleExtend}
-              disabled={!canExtend}
-              title="10分長く (最大: {formatDuration(maxDuration)})"
-            >
-              +
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
             </button>
           </div>
         </div>
       {:else if selectedItem.type === "event"}
-        <div class="mb-1 flex items-center gap-2">
-          <span
-            class="badge bg-[var(--color-primary-100)] badge-sm text-[var(--color-primary-800)]"
-            >イベント</span
-          >
-        </div>
-        <h3 class="card-title text-lg">{selectedItem.data.title}</h3>
-        <p class="text-sm text-[var(--color-text-secondary)]">
-          {#if selectedItem.data.timeLabel === "all-day"}
-            終日
-          {:else if selectedItem.data.timeLabel === "some-timing"}
-            どこかのタイミングで
-          {:else}
-            {new Date(selectedItem.data.start).toLocaleTimeString("ja-JP", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })} - {new Date(selectedItem.data.end).toLocaleTimeString("ja-JP", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          {/if}
-        </p>
-      {:else if selectedItem.type === "gap"}
-        <div class="mb-1 flex items-center gap-2">
-          <span
-            class="badge bg-[var(--color-surface-100)] badge-sm text-[var(--color-text-primary)]"
-            >空き時間</span
-          >
-        </div>
-        <h3 class="card-title text-lg">
-          {selectedItem.data.start} - {selectedItem.data.end}
-        </h3>
-        <p class="text-sm text-[var(--color-text-secondary)]">
-          {formatDuration(selectedItem.data.duration)}
-        </p>
-      {:else if selectedItem.type === "accepted-suggestion"}
-        <!-- Compact layout: Badge + Title + Buttons in one row -->
-        <div class="flex items-center justify-between gap-2">
-          <div class="flex min-w-0 flex-1 items-center gap-2">
-            <span class="badge flex-shrink-0 badge-sm badge-success"
-              >承認済み</span
+        <!-- Event -->
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center gap-2">
+            <span class="badge flex-shrink-0 badge-sm {badgeConfig.class}">
+              {badgeConfig.label}
+            </span>
+            <h3
+              class="truncate text-base font-medium text-[var(--color-text-primary)]"
             >
-            <h3 class="card-title truncate text-lg">{selectedItem.title}</h3>
+              {selectedItem.data.title}
+            </h3>
           </div>
-          <div class="card-actions flex-shrink-0">
+          <p
+            class="font-mono text-sm tracking-tight text-[var(--color-text-secondary)]"
+          >
+            {#if selectedItem.data.timeLabel === "all-day"}
+              終日
+            {:else if selectedItem.data.timeLabel === "some-timing"}
+              どこかのタイミングで
+            {:else}
+              {new Date(selectedItem.data.start).toLocaleTimeString("ja-JP", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })} - {new Date(selectedItem.data.end).toLocaleTimeString(
+                "ja-JP",
+                { hour: "2-digit", minute: "2-digit" },
+              )}
+            {/if}
+          </p>
+        </div>
+      {:else if selectedItem.type === "gap"}
+        <!-- Gap -->
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center gap-2">
+            <span class="badge flex-shrink-0 badge-sm {badgeConfig.class}">
+              {badgeConfig.label}
+            </span>
+            <h3
+              class="font-mono text-base font-medium tracking-tight text-[var(--color-text-primary)]"
+            >
+              {selectedItem.data.start} - {selectedItem.data.end}
+            </h3>
+          </div>
+          <p class="text-sm text-[var(--color-text-secondary)]">
+            {formatDuration(selectedItem.data.duration)}の空き
+          </p>
+        </div>
+      {:else if selectedItem.type === "accepted-suggestion"}
+        <!-- Accepted Suggestion -->
+        <div class="flex items-start justify-between gap-3">
+          <div class="flex min-w-0 flex-1 flex-col gap-2">
+            <div class="flex items-center gap-2">
+              <span class="badge flex-shrink-0 badge-sm {badgeConfig.class}">
+                {badgeConfig.label}
+              </span>
+              <h3
+                class="truncate text-base font-medium text-[var(--color-text-primary)]"
+              >
+                {selectedItem.title}
+              </h3>
+            </div>
+            <p
+              class="font-mono text-sm tracking-tight text-[var(--color-text-secondary)]"
+            >
+              {selectedItem.data.startTime} - {selectedItem.data.endTime}
+              <span class="ml-2 text-[var(--color-text-muted)]">
+                ({formatDuration(selectedItem.data.duration)})
+              </span>
+            </p>
+          </div>
+          <!-- Action buttons -->
+          <div class="flex flex-shrink-0 gap-2">
             {#if isInPast(selectedItem.data.endTime)}
               <!-- Past: Complete or Missed -->
               <button
-                class="btn btn-square btn-sm btn-success"
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-success/10 text-success transition-all duration-200 hover:bg-success hover:text-success-content active:scale-95"
                 onclick={handleComplete}
                 title="完了"
+                aria-label="完了"
               >
-                ✓
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
               </button>
               <button
-                class="btn btn-square btn-ghost btn-sm"
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-base-200 text-base-content/60 transition-all duration-200 hover:bg-base-300 active:scale-95"
                 onclick={handleMissed}
                 title="未達成"
+                aria-label="未達成"
               >
-                ✗
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
               </button>
             {:else}
               <!-- Future: Delete only -->
               <button
-                class="btn btn-square btn-sm btn-error"
+                class="flex h-9 w-9 items-center justify-center rounded-lg bg-error/10 text-error transition-all duration-200 hover:bg-error hover:text-error-content active:scale-95"
                 onclick={handleDelete}
                 title="削除"
+                aria-label="削除"
               >
-                🗑
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
               </button>
             {/if}
           </div>
         </div>
-        <!-- Time range in separate row -->
-        <p class="text-sm text-[var(--color-text-secondary)]">
-          {selectedItem.data.startTime} - {selectedItem.data.endTime}
-          <span class="ml-2 text-[var(--color-text-muted)]">
-            ({formatDuration(selectedItem.data.duration)})
-          </span>
-        </p>
       {:else if selectedItem.type === "drag-preview"}
-        <div class="mb-1 flex items-center gap-2">
-          <span
-            class="badge bg-[var(--color-primary-100)] badge-sm text-[var(--color-primary-800)]"
-            >プレビュー</span
+        <!-- Drag Preview -->
+        <div class="flex flex-col gap-2">
+          <div class="flex items-center gap-2">
+            <span class="badge flex-shrink-0 badge-sm {badgeConfig.class}">
+              {badgeConfig.label}
+            </span>
+            <h3
+              class="truncate text-base font-medium text-[var(--color-text-primary)]"
+            >
+              {selectedItem.title}
+            </h3>
+          </div>
+          <p
+            class="font-mono text-sm tracking-tight text-[var(--color-text-secondary)]"
           >
+            {selectedItem.startTime} - {selectedItem.endTime}
+            <span class="ml-2 text-[var(--color-text-muted)]">
+              ({formatDuration(selectedItem.duration)})
+            </span>
+          </p>
         </div>
-        <h3 class="card-title text-lg">{selectedItem.title}</h3>
-        <p class="text-sm text-[var(--color-text-secondary)]">
-          {selectedItem.startTime} - {selectedItem.endTime}
-          <span class="ml-2 text-[var(--color-text-muted)]">
-            ({formatDuration(selectedItem.duration)})
-          </span>
-        </p>
       {/if}
     {:else}
-      <!-- Empty state when nothing is selected -->
-      <div class="mb-1 flex items-center gap-2">
-        <span
-          class="badge bg-[var(--color-bg-surface)] badge-sm text-[var(--color-text-muted)]"
-          >選択なし</span
+      <!-- Empty state -->
+      <div class="flex flex-col items-center gap-2 py-2 text-center">
+        <div
+          class="flex h-10 w-10 items-center justify-center rounded-full bg-base-200"
         >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 text-base-content/40"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
+            />
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-[var(--color-text-muted)]">
+            項目を選択してください
+          </p>
+          <p class="text-xs text-[var(--color-text-muted)]/70">
+            提案、イベント、または空き時間をクリック
+          </p>
+        </div>
       </div>
-      <h3 class="card-title text-lg text-[var(--color-text-muted)]">
-        項目を選択してください
-      </h3>
-      <p class="text-sm text-[var(--color-text-muted)]">
-        提案、イベント、または空き時間をクリック
-      </p>
     {/if}
   </div>
 </div>

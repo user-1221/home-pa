@@ -37,6 +37,10 @@ import {
   getBlockingTimetableEvents,
   type TimetableEvent,
 } from "$lib/features/calendar/services/timetable-events.ts";
+import {
+  subtractBlockersFromGaps,
+  type TimeBlocker,
+} from "../services/gap-computation/gap-modifier.ts";
 
 // ============================================================================
 // REACTIVE TIME STATE
@@ -338,6 +342,22 @@ class UnifiedGapState {
   private lastRegeneratedVersion = $state(0);
 
   // ============================================================================
+  // Blocker State (for availableGaps computation)
+  // ============================================================================
+
+  /**
+   * Accepted memos that block time slots
+   * Updated via setBlockers() from schedule.ts
+   */
+  private _acceptedBlockers = $state<Map<string, TimeBlocker>>(new Map());
+
+  /**
+   * Moved suggestions that block time slots
+   * Updated via setBlockers() from schedule.ts
+   */
+  private _movedBlockers = $state<TimeBlocker[]>([]);
+
+  // ============================================================================
   // Loading State (exposed for consumers)
   // ============================================================================
 
@@ -529,6 +549,35 @@ class UnifiedGapState {
   }
 
   /**
+   * Available gaps after subtracting blockers (accepted + moved suggestions)
+   * Used for schedule regeneration - new suggestions only fill truly available gaps.
+   */
+  get availableGaps(): Gap[] {
+    return subtractBlockersFromGaps(
+      this.enrichedGaps,
+      this._acceptedBlockers,
+      this._movedBlockers,
+    );
+  }
+
+  /**
+   * Gaps available for drag operations (only accepted suggestions subtracted)
+   *
+   * During drag, other pending/moved suggestions should NOT block movement.
+   * Only accepted suggestions and calendar events are hard blockers.
+   * After drag completes, overlapping moved suggestions are removed and
+   * regeneration fills the remaining gaps.
+   */
+  get gapsForDrag(): Gap[] {
+    // Only subtract accepted blockers, not moved ones
+    return subtractBlockersFromGaps(
+      this.enrichedGaps,
+      this._acceptedBlockers,
+      [], // No moved blockers during drag
+    );
+  }
+
+  /**
    * Whether regeneration is needed
    * True when gaps have changed since last regeneration
    */
@@ -574,6 +623,20 @@ class UnifiedGapState {
    */
   forceRegeneration(): void {
     this.gapVersion++;
+  }
+
+  /**
+   * Update blocker state for availableGaps computation
+   *
+   * Called by schedule.ts after any change to accepted/moved suggestions.
+   * This triggers reactive updates to availableGaps.
+   *
+   * @param accepted - Map of memoId -> time blocker info
+   * @param moved - Array of moved suggestion time blockers
+   */
+  setBlockers(accepted: Map<string, TimeBlocker>, moved: TimeBlocker[]): void {
+    this._acceptedBlockers = accepted;
+    this._movedBlockers = moved;
   }
 
   /**

@@ -21,77 +21,65 @@
 
   let { currentMonth, selectedDate, events, eventRowMap, onSelectDate }: Props =
     $props();
+
+  const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
+
+  // Calculate number of weeks needed for this month
+  let calendarDays = $derived(getCalendarDays(currentMonth));
+  let numWeeks = $derived(Math.ceil(calendarDays.length / 7));
 </script>
 
 <div
-  class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-base-300 bg-base-200"
+  class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-base-300/50 bg-base-200/50 shadow-sm backdrop-blur-sm"
 >
   <!-- Weekday Header -->
   <div
-    class="grid flex-shrink-0 grid-cols-7 border-b border-base-300 bg-base-100"
+    class="grid flex-shrink-0 grid-cols-7 border-b border-base-300/50 bg-base-100/80"
   >
-    <div
-      class="p-2 text-center text-sm font-medium text-[var(--color-text-secondary)]"
-    >
-      日
-    </div>
-    <div
-      class="p-2 text-center text-sm font-medium text-[var(--color-text-secondary)]"
-    >
-      月
-    </div>
-    <div
-      class="p-2 text-center text-sm font-medium text-[var(--color-text-secondary)]"
-    >
-      火
-    </div>
-    <div
-      class="p-2 text-center text-sm font-medium text-[var(--color-text-secondary)]"
-    >
-      水
-    </div>
-    <div
-      class="p-2 text-center text-sm font-medium text-[var(--color-text-secondary)]"
-    >
-      木
-    </div>
-    <div
-      class="p-2 text-center text-sm font-medium text-[var(--color-text-secondary)]"
-    >
-      金
-    </div>
-    <div
-      class="p-2 text-center text-sm font-medium text-[var(--color-text-secondary)]"
-    >
-      土
-    </div>
+    {#each weekdays as weekday, i (weekday)}
+      <div
+        class="p-2.5 text-center text-xs font-medium tracking-wide text-base-content/60
+          {i === 0 ? 'text-error/70' : ''}
+          {i === 6 ? 'text-info/70' : ''}"
+      >
+        {weekday}
+      </div>
+    {/each}
   </div>
 
-  <!-- Calendar Days Grid -->
-  <div class="grid flex-1 grid-cols-7 overflow-y-auto">
-    {#each getCalendarDays(currentMonth) as day (day.getTime())}
+  <!-- Calendar Days Grid - rows fill available space equally -->
+  <div
+    class="grid min-h-0 flex-1 grid-cols-7"
+    style="grid-template-rows: repeat({numWeeks}, minmax(0, 1fr));"
+  >
+    {#each calendarDays as day, dayIndex (day.getTime())}
+      {@const dayOfWeek = day.getDay()}
+      <!-- Cell wrapper: no padding, handles borders and background -->
       <div
-        class="relative flex min-h-[72px] cursor-pointer flex-col border bg-base-100 p-1 transition-all duration-200 ease-out hover:bg-base-200
-          {isToday(day) ? 'bg-[var(--color-primary-100)]/50' : ''}
+        class="group relative flex min-h-0 cursor-pointer flex-col border-r border-b bg-base-100/60 transition-colors duration-200 ease-out hover:bg-base-200/80
+          {isToday(day) ? 'bg-[var(--color-primary)]/5' : ''}
           {isSelected(day, selectedDate)
-          ? 'border-[var(--color-primary)] bg-base-300'
-          : 'border-base-300'}
+          ? 'z-10 border-[var(--color-primary)]/50 bg-[var(--color-primary)]/10 ring-1 ring-[var(--color-primary)]/30'
+          : 'border-base-300/30'}
           {!isCurrentMonth(day, currentMonth) ? 'opacity-40' : ''}"
         onclick={() => onSelectDate(day)}
-        onkeydown={(e) => e.key === "Enter" && onSelectDate(day)}
+        onkeydown={(e: KeyboardEvent) => e.key === "Enter" && onSelectDate(day)}
         role="button"
         tabindex="0"
       >
+        <!-- Date number with padding -->
         <div
-          class="flex h-7 flex-shrink-0 items-center justify-start pl-1 text-[0.85rem] font-normal {isToday(
-            day,
-          )
-            ? 'w-7 justify-center rounded-full bg-[var(--color-primary)] font-medium text-white'
+          class="flex h-7 flex-shrink-0 items-center justify-start p-1 text-[0.85rem] font-normal
+            {dayOfWeek === 0 ? 'text-error/80' : ''}
+            {dayOfWeek === 6 ? 'text-info/80' : ''}
+            {isToday(day)
+            ? 'w-7 justify-center rounded-full bg-[var(--color-primary)] font-semibold text-white'
             : ''}"
         >
           {day.getDate()}
         </div>
-        <div class="relative mt-1 min-h-[36px] flex-1">
+        <!-- Events container: no horizontal padding so bars can extend edge-to-edge -->
+        <div class="relative min-h-0 flex-1 overflow-hidden">
           {#each getEventsForDate(events, day) as truncatedEvent (truncatedEvent.id)}
             {@const originalEvent =
               events.find((e) => e.id === truncatedEvent.id) || truncatedEvent}
@@ -103,15 +91,22 @@
             )}
             {@const showLabel = isFirstDayOfEvent(originalEvent, day)}
             {@const rowIndex = eventRowMap.get(truncatedEvent.id) ?? 0}
+            <!-- Event bar: extends past cell edges for seamless multi-day connection -->
             <div
-              class="absolute right-0 left-0 h-4 cursor-pointer overflow-hidden px-1 py-0.5 text-[0.625rem] leading-[12px] font-medium text-ellipsis whitespace-nowrap text-base-100 transition-transform duration-200 hover:z-[1] hover:translate-y-[-1px] hover:shadow-md
-                {barPosition === 'start' ? '-mr-px rounded-l' : ''}
-                {barPosition === 'middle' ? '-mx-px' : ''}
-                {barPosition === 'end' ? '-ml-px rounded-r' : ''}
-                {barPosition === 'single' ? 'rounded' : ''}"
+              class="absolute h-[18px] cursor-pointer overflow-hidden py-0.5 text-[0.625rem] leading-[14px] font-medium text-ellipsis whitespace-nowrap text-white/95
+                {barPosition === 'start'
+                ? '-right-[1px] left-1 rounded-l-sm pl-1'
+                : ''}
+                {barPosition === 'middle' ? '-right-[1px] -left-[1px]' : ''}
+                {barPosition === 'end'
+                ? 'right-1 -left-[1px] rounded-r-sm'
+                : ''}
+                {barPosition === 'single'
+                ? 'right-1 left-1 rounded-sm px-1'
+                : ''}"
               style="background-color: {getEventColor(
                 truncatedEvent,
-              )}; top: {rowIndex * 18}px;"
+              )}; top: {rowIndex * 20}px;"
             >
               {#if showLabel}
                 <span class="flex items-center gap-1">

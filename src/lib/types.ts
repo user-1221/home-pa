@@ -83,10 +83,10 @@ export interface MemoStatus {
 export interface RoutineState {
   acceptedToday: boolean; // If true, task is done for the day (unless missed)
   completedToday: boolean; // Actually completed (not just accepted)
-  completedCountThisWeek: number; // Count of completions this week
+  completedCountThisPeriod: number; // Count of completions this period (day/week/month)
   lastCompletedDay: Date | null; // Date of last completion
-  wasCappedThisWeek: boolean; // True if 0.5 display cap was ever active this week
-  weekStartDate: Date | null; // Start of current tracking week
+  wasCappedThisPeriod: boolean; // True if display cap was ever active this period
+  periodStartDate: Date | null; // Start of current tracking period
 }
 
 /**

@@ -437,7 +437,9 @@
                       type="date"
                       class="input-bordered input input-sm flex-1"
                       value={range.start}
-                      onchange={(e) =>
+                      onchange={(
+                        e: Event & { currentTarget: HTMLInputElement },
+                      ) =>
                         updateExceptionRange(
                           index,
                           "start",
@@ -449,7 +451,9 @@
                       type="date"
                       class="input-bordered input input-sm flex-1"
                       value={range.end}
-                      onchange={(e) =>
+                      onchange={(
+                        e: Event & { currentTarget: HTMLInputElement },
+                      ) =>
                         updateExceptionRange(
                           index,
                           "end",
@@ -587,7 +591,8 @@
             showCellEditor = false;
             editingCell = null;
           }}
-          onkeydown={(e) => e.key === "Escape" && (showCellEditor = false)}
+          onkeydown={(e: KeyboardEvent) =>
+            e.key === "Escape" && (showCellEditor = false)}
           role="button"
           tabindex="-1"
           aria-label="Close cell editor"
@@ -598,7 +603,7 @@
     <div
       class="modal-backdrop bg-black/40 backdrop-blur-sm"
       onclick={onClose}
-      onkeydown={(e) => e.key === "Escape" && onClose()}
+      onkeydown={(e: KeyboardEvent) => e.key === "Escape" && onClose()}
       role="button"
       tabindex="-1"
       aria-label="Close timetable popup"

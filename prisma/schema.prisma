@@ -156,12 +156,13 @@ model Memo {
   // ============================================================================
   
   // Routine state (ルーティン type)
+  // Note: DB fields use "Week" naming but app logic handles day/week/month periods
   routineAcceptedToday      Boolean?   // If true, task is done for the day
   routineCompletedToday     Boolean?   // Actually completed (not just accepted)
-  routineCompletedCountWeek Int?       // Count of completions this week
+  routineCompletedCountWeek Int?       // Count of completions this period (day/week/month)
   routineLastCompletedDay   DateTime?  // Date of last completion
-  routineWasCappedThisWeek  Boolean?   // True if display cap was active
-  routineWeekStartDate      DateTime?  // Start of current tracking week
+  routineWasCappedThisWeek  Boolean?   // True if display cap was active this period
+  routineWeekStartDate      DateTime?  // Start of current tracking period
   
   // Backlog state (バックログ type)
   backlogAcceptedToday      Boolean?   // If true, task treated as done for day

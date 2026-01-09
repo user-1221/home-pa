@@ -41,10 +41,10 @@ const RoutineStateSchema = v.optional(
   v.object({
     acceptedToday: v.boolean(),
     completedToday: v.boolean(),
-    completedCountThisWeek: v.number(),
+    completedCountThisPeriod: v.number(),
     lastCompletedDay: v.nullable(v.string()),
-    wasCappedThisWeek: v.boolean(),
-    weekStartDate: v.nullable(v.string()),
+    wasCappedThisPeriod: v.boolean(),
+    periodStartDate: v.nullable(v.string()),
   }),
 );
 
@@ -152,16 +152,17 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
       lastActivity: memo.lastActivity?.toISOString(),
       importance: memo.importance as "low" | "medium" | "high" | undefined,
       // Type-specific state
+      // Note: DB still uses week-based fields, but we map to period-based fields for the app
       routineState:
         memo.type === "ルーティン" && memo.routineWeekStartDate !== null
           ? {
               acceptedToday: memo.routineAcceptedToday ?? false,
               completedToday: memo.routineCompletedToday ?? false,
-              completedCountThisWeek: memo.routineCompletedCountWeek ?? 0,
+              completedCountThisPeriod: memo.routineCompletedCountWeek ?? 0,
               lastCompletedDay:
                 memo.routineLastCompletedDay?.toISOString() ?? null,
-              wasCappedThisWeek: memo.routineWasCappedThisWeek ?? false,
-              weekStartDate: memo.routineWeekStartDate?.toISOString() ?? null,
+              wasCappedThisPeriod: memo.routineWasCappedThisWeek ?? false,
+              periodStartDate: memo.routineWeekStartDate?.toISOString() ?? null,
             }
           : undefined,
       backlogState:
@@ -211,16 +212,16 @@ export const createMemo = command(MemoInputSchema, async (input) => {
           ? new Date(input.lastActivity)
           : undefined,
         importance: input.importance,
-        // Routine state
+        // Routine state (app uses period-based fields, DB uses week-based naming)
         routineAcceptedToday: input.routineState?.acceptedToday,
         routineCompletedToday: input.routineState?.completedToday,
-        routineCompletedCountWeek: input.routineState?.completedCountThisWeek,
+        routineCompletedCountWeek: input.routineState?.completedCountThisPeriod,
         routineLastCompletedDay: input.routineState?.lastCompletedDay
           ? new Date(input.routineState.lastCompletedDay)
           : undefined,
-        routineWasCappedThisWeek: input.routineState?.wasCappedThisWeek,
-        routineWeekStartDate: input.routineState?.weekStartDate
-          ? new Date(input.routineState.weekStartDate)
+        routineWasCappedThisWeek: input.routineState?.wasCappedThisPeriod,
+        routineWeekStartDate: input.routineState?.periodStartDate
+          ? new Date(input.routineState.periodStartDate)
           : undefined,
         // Backlog state
         backlogAcceptedToday: input.backlogState?.acceptedToday,
@@ -261,17 +262,17 @@ export const createMemo = command(MemoInputSchema, async (input) => {
       totalDurationExpected: created.totalDurationExpected ?? undefined,
       lastActivity: created.lastActivity?.toISOString(),
       importance: created.importance as "low" | "medium" | "high" | undefined,
-      // Type-specific state
+      // Type-specific state (DB uses week-based naming, app uses period-based)
       routineState:
         created.type === "ルーティン" && created.routineWeekStartDate !== null
           ? {
               acceptedToday: created.routineAcceptedToday ?? false,
               completedToday: created.routineCompletedToday ?? false,
-              completedCountThisWeek: created.routineCompletedCountWeek ?? 0,
+              completedCountThisPeriod: created.routineCompletedCountWeek ?? 0,
               lastCompletedDay:
                 created.routineLastCompletedDay?.toISOString() ?? null,
-              wasCappedThisWeek: created.routineWasCappedThisWeek ?? false,
-              weekStartDate:
+              wasCappedThisPeriod: created.routineWasCappedThisWeek ?? false,
+              periodStartDate:
                 created.routineWeekStartDate?.toISOString() ?? null,
             }
           : undefined,
@@ -347,22 +348,23 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
         : null;
     if (input.updates.importance !== undefined)
       updateData.importance = input.updates.importance;
-    // Routine state
+    // Routine state (app uses period-based fields, DB uses week-based naming)
     if (input.updates.routineState !== undefined) {
       updateData.routineAcceptedToday =
         input.updates.routineState.acceptedToday;
       updateData.routineCompletedToday =
         input.updates.routineState.completedToday;
       updateData.routineCompletedCountWeek =
-        input.updates.routineState.completedCountThisWeek;
+        input.updates.routineState.completedCountThisPeriod;
       updateData.routineLastCompletedDay = input.updates.routineState
         .lastCompletedDay
         ? new Date(input.updates.routineState.lastCompletedDay)
         : null;
       updateData.routineWasCappedThisWeek =
-        input.updates.routineState.wasCappedThisWeek;
-      updateData.routineWeekStartDate = input.updates.routineState.weekStartDate
-        ? new Date(input.updates.routineState.weekStartDate)
+        input.updates.routineState.wasCappedThisPeriod;
+      updateData.routineWeekStartDate = input.updates.routineState
+        .periodStartDate
+        ? new Date(input.updates.routineState.periodStartDate)
         : null;
     }
     // Backlog state
@@ -411,17 +413,17 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
       totalDurationExpected: updated.totalDurationExpected ?? undefined,
       lastActivity: updated.lastActivity?.toISOString(),
       importance: updated.importance as "low" | "medium" | "high" | undefined,
-      // Type-specific state
+      // Type-specific state (DB uses week-based naming, app uses period-based)
       routineState:
         updated.type === "ルーティン" && updated.routineWeekStartDate !== null
           ? {
               acceptedToday: updated.routineAcceptedToday ?? false,
               completedToday: updated.routineCompletedToday ?? false,
-              completedCountThisWeek: updated.routineCompletedCountWeek ?? 0,
+              completedCountThisPeriod: updated.routineCompletedCountWeek ?? 0,
               lastCompletedDay:
                 updated.routineLastCompletedDay?.toISOString() ?? null,
-              wasCappedThisWeek: updated.routineWasCappedThisWeek ?? false,
-              weekStartDate:
+              wasCappedThisPeriod: updated.routineWasCappedThisWeek ?? false,
+              periodStartDate:
                 updated.routineWeekStartDate?.toISOString() ?? null,
             }
           : undefined,
@@ -567,17 +569,18 @@ export const logSuggestionComplete = command(
         timeSpentMinutes: updated.timeSpentMinutes,
         completionsThisPeriod: updated.completionsThisPeriod ?? 0,
         lastActivity: updated.lastActivity?.toISOString(),
-        // Return routine state if applicable
+        // Return routine state if applicable (DB uses week-based naming, app uses period-based)
         routineState:
           updated.type === "ルーティン"
             ? {
                 acceptedToday: updated.routineAcceptedToday ?? false,
                 completedToday: updated.routineCompletedToday ?? false,
-                completedCountThisWeek: updated.routineCompletedCountWeek ?? 0,
+                completedCountThisPeriod:
+                  updated.routineCompletedCountWeek ?? 0,
                 lastCompletedDay:
                   updated.routineLastCompletedDay?.toISOString() ?? null,
-                wasCappedThisWeek: updated.routineWasCappedThisWeek ?? false,
-                weekStartDate:
+                wasCappedThisPeriod: updated.routineWasCappedThisWeek ?? false,
+                periodStartDate:
                   updated.routineWeekStartDate?.toISOString() ?? null,
               }
             : undefined,
@@ -662,16 +665,18 @@ export const markMemoAccepted = command(
       return {
         id: updated.id,
         type: updated.type,
+        // DB uses week-based naming, app uses period-based
         routineState:
           updated.type === "ルーティン"
             ? {
                 acceptedToday: updated.routineAcceptedToday ?? false,
                 completedToday: updated.routineCompletedToday ?? false,
-                completedCountThisWeek: updated.routineCompletedCountWeek ?? 0,
+                completedCountThisPeriod:
+                  updated.routineCompletedCountWeek ?? 0,
                 lastCompletedDay:
                   updated.routineLastCompletedDay?.toISOString() ?? null,
-                wasCappedThisWeek: updated.routineWasCappedThisWeek ?? false,
-                weekStartDate:
+                wasCappedThisPeriod: updated.routineWasCappedThisWeek ?? false,
+                periodStartDate:
                   updated.routineWeekStartDate?.toISOString() ?? null,
               }
             : undefined,

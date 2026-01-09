@@ -206,50 +206,89 @@
 </script>
 
 <div
-  class="relative overflow-hidden"
+  class="relative overflow-hidden rounded-xl"
   style="touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;"
 >
   <!-- Action buttons behind (revealed on swipe, mobile only) -->
   <div
-    class="absolute top-0 right-0 bottom-0 flex items-center gap-2 pr-2 md:hidden"
+    class="absolute top-0 right-0 bottom-0 flex items-center gap-2 pr-3 md:hidden"
     style="width: {MAX_SWIPE}px;"
   >
     {#if task.status.completionState !== "completed"}
       <button
-        class="btn btn-square btn-sm btn-success"
+        class="flex h-9 w-9 items-center justify-center rounded-lg bg-success/90 text-white shadow-sm transition-all duration-200 hover:bg-success active:scale-95"
         onclick={handleComplete}
         title="完了"
+        aria-label="Mark complete"
       >
-        ✓
+        <svg
+          class="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2.5"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
       </button>
     {/if}
     <button
-      class="btn btn-square btn-sm btn-primary"
+      class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-primary)]/90 text-white shadow-sm transition-all duration-200 hover:bg-[var(--color-primary)] active:scale-95"
       onclick={handleEdit}
       title="編集"
+      aria-label="Edit task"
     >
-      ✏️
+      <svg
+        class="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+        />
+      </svg>
     </button>
     <button
-      class="btn btn-square btn-sm btn-error"
+      class="flex h-9 w-9 items-center justify-center rounded-lg bg-error/90 text-white shadow-sm transition-all duration-200 hover:bg-error active:scale-95"
       onclick={handleDelete}
       title="削除"
+      aria-label="Delete task"
     >
-      🗑️
+      <svg
+        class="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+        />
+      </svg>
     </button>
   </div>
 
   <!-- Main card content (swipeable on mobile only) -->
   <div
-    class="card relative rounded-l-none rounded-r-xl border border-l-4 border-base-300 bg-base-100 shadow-md transition-all duration-200 card-sm hover:shadow-lg {task.type ===
-    '期限付き'
-      ? 'border-l-[var(--color-warning-100)]'
+    class="relative rounded-xl border border-base-300/50 shadow-sm transition-colors duration-200 ease-out
+      {task.type === '期限付き'
+      ? 'border-l-[3px] border-l-[var(--color-warning-500)]'
       : task.type === 'ルーティン'
-        ? 'border-l-[var(--color-primary-400)]'
-        : 'border-l-base-400'}"
-    class:opacity-60={task.status.completionState === "completed"}
-    class:bg-base-200={task.status.completionState === "completed"}
-    class:shadow-md={translateX < 0}
+        ? 'border-l-[3px] border-l-[var(--color-primary)]'
+        : 'border-l-[3px] border-l-base-content/20'}
+      {task.status.completionState === 'completed'
+      ? 'bg-base-200/60 opacity-50'
+      : 'bg-base-100/95'}"
     style="transform: translateX({translateX}px); transition: {isSwiping
       ? 'none'
       : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'};"
@@ -261,7 +300,7 @@
   >
     {#if isEnriching}
       <div
-        class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-xl bg-base-content/70 backdrop-blur-sm"
+        class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-xl bg-base-content/60 backdrop-blur-sm"
       >
         <span class="loading loading-md loading-spinner text-primary"></span>
         <span class="text-xs font-medium tracking-wide text-base-100"
@@ -270,232 +309,253 @@
       </div>
     {/if}
 
-    <div class="card-body gap-2 p-3">
-      <div class="flex items-center gap-4">
-        <!-- Left column: Content -->
-        <div class="min-w-0 flex-1 self-stretch">
-          <!-- Title, meta, badges stacked and vertically centered -->
-          <div class="flex h-full flex-col justify-center gap-2">
-            <!-- Top: title -->
-            <h3
-              class="card-title truncate text-base"
-              class:line-through={task.status.completionState === "completed"}
-            >
-              {task.title}
-            </h3>
+    <div class="flex gap-3 p-3 md:p-4">
+      <!-- Left column: Content -->
+      <div class="min-w-0 flex-1 self-stretch">
+        <!-- Title, meta, badges stacked and vertically centered -->
+        <div class="flex h-full flex-col justify-center gap-1.5">
+          <!-- Top: title -->
+          <h3
+            class="truncate text-[0.95rem] leading-tight font-medium tracking-tight
+              {task.status.completionState === 'completed'
+              ? 'text-base-content/60 line-through'
+              : 'text-base-content'}"
+          >
+            {task.title}
+          </h3>
 
-            <!-- Middle: meta tags row (single line, no wrapping inside badges) -->
-            <div
-              class="flex flex-nowrap items-center gap-1.5 overflow-hidden text-sm"
-            >
-              {#if task.type === "ルーティン" && routineProgress()}
-                {@const periodLabel = routinePeriodLabel()}
-                {#if periodLabel}
-                  <span
-                    class="badge bg-[var(--color-primary-100)] badge-sm text-[0.7rem] whitespace-nowrap text-[var(--color-primary-800)]"
-                    >{periodLabel}</span
-                  >
-                {/if}
-              {/if}
-              {#if genreLabel()}
+          <!-- Middle: meta tags row (single line, no wrapping inside badges) -->
+          <div class="flex flex-nowrap items-center gap-1.5 overflow-hidden">
+            {#if task.type === "ルーティン" && routineProgress()}
+              {@const periodLabel = routinePeriodLabel()}
+              {#if periodLabel}
                 <span
-                  class="badge bg-[var(--color-surface-100)] badge-sm text-[0.7rem] whitespace-nowrap text-[var(--color-text-primary)]"
-                  >{genreLabel()}</span
+                  class="inline-flex items-center rounded-md bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-[0.65rem] font-medium whitespace-nowrap text-[var(--color-primary)]"
+                  >{periodLabel}</span
                 >
               {/if}
+            {/if}
+            {#if genreLabel()}
               <span
-                class="badge border border-base-300 bg-base-100 badge-sm text-[0.7rem] whitespace-nowrap text-[var(--color-text-secondary)]"
-                >{locationLabel()}</span
+                class="inline-flex items-center rounded-md bg-base-200/80 px-1.5 py-0.5 text-[0.65rem] font-medium whitespace-nowrap text-base-content/70"
+                >{genreLabel()}</span
               >
-              {#if sessionDurationLabel()}
-                <span
-                  class="badge border border-base-300 bg-base-100 badge-sm text-[0.7rem] whitespace-nowrap text-[var(--color-text-secondary)]"
-                  >{sessionDurationLabel()}</span
-                >
-              {/if}
-            </div>
+            {/if}
+            <span
+              class="inline-flex items-center rounded-md bg-base-200/60 px-1.5 py-0.5 text-[0.65rem] font-medium whitespace-nowrap text-base-content/50"
+              >{locationLabel()}</span
+            >
+            {#if sessionDurationLabel()}
+              <span
+                class="inline-flex items-center rounded-md bg-base-200/60 px-1.5 py-0.5 text-[0.65rem] font-medium whitespace-nowrap text-base-content/50"
+                >{sessionDurationLabel()}</span
+              >
+            {/if}
           </div>
         </div>
+      </div>
 
-        <!-- Right column: Circular Progress Indicator and Desktop Action buttons -->
-        <div class="flex shrink-0 flex-col items-center justify-center gap-2">
-          <!-- Circular Progress Indicator -->
-          {#if task.type === "ルーティン" && routineProgress()}
-            {@const prog = routineProgress()}
-            {@const percent = prog?.percent ?? 0}
-            {@const outerRadius = 32}
-            {@const innerRadius = 26}
-            {@const innerCircumference = 2 * Math.PI * innerRadius}
-            {@const offset =
-              innerCircumference - (percent / 100) * innerCircumference}
-            <div class="relative h-20 w-20 shrink-0">
-              <svg class="h-20 w-20 -rotate-90 transform" viewBox="0 0 80 80">
-                <!-- Background ring (outer, 4px border) -->
-                <circle
-                  cx="40"
-                  cy="40"
-                  r={outerRadius}
-                  fill="none"
-                  stroke="rgba(204, 204, 204, 0.35)"
-                  stroke-width="4"
-                />
-                <!-- Progress ring (inner, thicker border, colored for routine) -->
-                <circle
-                  cx="40"
-                  cy="40"
-                  r={innerRadius}
-                  fill="none"
-                  stroke="var(--color-primary-400)"
-                  stroke-width="16"
-                  stroke-dasharray={innerCircumference}
-                  stroke-dashoffset={offset}
-                  stroke-linecap="round"
-                  class="transition-all duration-300"
-                />
-              </svg>
-              <!-- Center text -->
-              <div
-                class="absolute inset-0 flex w-full flex-col items-center justify-center text-center font-semibold text-[var(--color-primary-800)]"
-              >
-                <span
-                  class="text-sm leading-[18px]"
-                  style="font-family: 'Source Code Pro', monospace;"
-                >
-                  {prog?.done}/{prog?.goal}
-                </span>
-              </div>
-            </div>
-          {:else if task.type === "期限付き" && task.deadline}
-            {@const deadlineProg = deadlineProgress()}
-            {@const percent = deadlineProg ? deadlineProg.percent : 0}
-            {@const outerRadius = 32}
-            {@const innerRadius = 26}
-            {@const innerCircumference = 2 * Math.PI * innerRadius}
-            {@const offset =
-              innerCircumference - (percent / 100) * innerCircumference}
-            <div class="relative h-20 w-20 shrink-0">
-              <svg class="h-20 w-20 -rotate-90 transform" viewBox="0 0 80 80">
-                <!-- Background ring (outer, 4px border) -->
-                <circle
-                  cx="40"
-                  cy="40"
-                  r={outerRadius}
-                  fill="none"
-                  stroke="rgba(204, 204, 204, 0.35)"
-                  stroke-width="4"
-                />
-                <!-- Progress ring (inner, thicker border, colored for deadline) -->
-                <circle
-                  cx="40"
-                  cy="40"
-                  r={innerRadius}
-                  fill="none"
-                  stroke="var(--color-warning-500)"
-                  stroke-width="16"
-                  stroke-dasharray={innerCircumference}
-                  stroke-dashoffset={offset}
-                  stroke-linecap="round"
-                  class="transition-all duration-300"
-                />
-              </svg>
-              <!-- Center text: small "あと" label and large remaining days -->
-              <div
-                class="absolute inset-0 flex w-full flex-col items-center justify-center text-center text-[var(--color-primary-800)]"
-              >
-                <span
-                  class="text-[10px] leading-tight font-normal text-base-content/70"
-                  style="font-family: 'Source Code Pro', monospace;"
-                >
-                  あと
-                </span>
-                <span
-                  class="text-lg leading-tight font-semibold"
-                  style="font-family: 'Source Code Pro', monospace;"
-                >
-                  {daysUntilDeadline() !== null
-                    ? Math.abs(daysUntilDeadline() ?? 0)
-                    : "?"}日
-                </span>
-              </div>
-            </div>
-          {:else}
-            {@const prog = timeProgress()}
-            {@const percent = prog.percent}
-            {@const outerRadius = 32}
-            {@const innerRadius = 26}
-            {@const innerCircumference = 2 * Math.PI * innerRadius}
-            {@const offset =
-              innerCircumference - (percent / 100) * innerCircumference}
-            <div class="relative h-20 w-20 shrink-0">
-              <svg class="h-20 w-20 -rotate-90 transform" viewBox="0 0 80 80">
-                <!-- Background ring (outer, 4px border) -->
-                <circle
-                  cx="40"
-                  cy="40"
-                  r={outerRadius}
-                  fill="none"
-                  stroke="rgba(204, 204, 204, 0.35)"
-                  stroke-width="4"
-                />
-                <!-- Progress ring (inner, thicker border, colored for time progress) -->
-                <circle
-                  cx="40"
-                  cy="40"
-                  r={innerRadius}
-                  fill="none"
-                  stroke="var(--color-primary-400)"
-                  stroke-width="16"
-                  stroke-dasharray={innerCircumference}
-                  stroke-dashoffset={offset}
-                  stroke-linecap="round"
-                  class="transition-all duration-300"
-                />
-              </svg>
-              <!-- Center text -->
-              <div
-                class="absolute inset-0 flex w-full flex-col items-center justify-center text-center font-semibold text-[var(--color-primary-800)]"
-              >
-                <span
-                  class="text-sm leading-[18px]"
-                  style="font-family: 'Source Code Pro', monospace;"
-                >
-                  {prog.spent}/{prog.total}
-                </span>
-                <span
-                  class="text-[10px] leading-tight font-normal text-base-content/70"
-                  style="font-family: 'Source Code Pro', monospace;"
-                >
-                  min
-                </span>
-              </div>
-            </div>
-          {/if}
-          <!-- Desktop-only action buttons (hidden on mobile, always visible on desktop) -->
-          <div class="card-actions hidden justify-end md:flex">
-            {#if task.status.completionState !== "completed"}
-              <button
-                class="btn btn-square btn-outline btn-xs btn-success"
-                onclick={handleComplete}
-                title="Mark complete"
-              >
-                ✓
-              </button>
-            {/if}
-            <button
-              class="btn btn-square btn-outline btn-xs btn-primary"
-              onclick={handleEdit}
-              title="Edit"
+      <!-- Right column: Circular Progress Indicator and Desktop Action buttons -->
+      <div class="flex shrink-0 flex-col items-center justify-center gap-1.5">
+        <!-- Circular Progress Indicator -->
+        {#if task.type === "ルーティン" && routineProgress()}
+          {@const prog = routineProgress()}
+          {@const percent = prog?.percent ?? 0}
+          {@const radius = 24}
+          {@const circumference = 2 * Math.PI * radius}
+          {@const offset = circumference - (percent / 100) * circumference}
+          <div class="relative h-16 w-16 shrink-0">
+            <svg class="h-16 w-16 -rotate-90 transform" viewBox="0 0 64 64">
+              <!-- Background ring -->
+              <circle
+                cx="32"
+                cy="32"
+                r={radius}
+                fill="none"
+                stroke="currentColor"
+                stroke-width="6"
+                class="text-base-200"
+              />
+              <!-- Progress ring -->
+              <circle
+                cx="32"
+                cy="32"
+                r={radius}
+                fill="none"
+                stroke="var(--color-primary)"
+                stroke-width="6"
+                stroke-dasharray={circumference}
+                stroke-dashoffset={offset}
+                stroke-linecap="round"
+                class="transition-all duration-300 ease-out"
+              />
+            </svg>
+            <!-- Center text -->
+            <div
+              class="absolute inset-0 flex flex-col items-center justify-center text-center"
             >
-              ✏️
-            </button>
-            <button
-              class="btn btn-square btn-outline btn-xs btn-error"
-              onclick={handleDelete}
-              title="Delete"
-            >
-              🗑️
-            </button>
+              <span class="text-sm font-medium text-base-content tabular-nums">
+                {prog?.done}/{prog?.goal}
+              </span>
+            </div>
           </div>
+        {:else if task.type === "期限付き" && task.deadline}
+          {@const deadlineProg = deadlineProgress()}
+          {@const percent = deadlineProg ? deadlineProg.percent : 0}
+          {@const radius = 24}
+          {@const circumference = 2 * Math.PI * radius}
+          {@const offset = circumference - (percent / 100) * circumference}
+          <div class="relative h-16 w-16 shrink-0">
+            <svg class="h-16 w-16 -rotate-90 transform" viewBox="0 0 64 64">
+              <!-- Background ring -->
+              <circle
+                cx="32"
+                cy="32"
+                r={radius}
+                fill="none"
+                stroke="currentColor"
+                stroke-width="6"
+                class="text-base-200"
+              />
+              <!-- Progress ring (time elapsed toward deadline) -->
+              <circle
+                cx="32"
+                cy="32"
+                r={radius}
+                fill="none"
+                stroke="var(--color-warning-500)"
+                stroke-width="6"
+                stroke-dasharray={circumference}
+                stroke-dashoffset={offset}
+                stroke-linecap="round"
+                class="transition-all duration-300 ease-out"
+              />
+            </svg>
+            <!-- Center text -->
+            <div
+              class="absolute inset-0 flex flex-col items-center justify-center text-center"
+            >
+              <span class="text-[0.6rem] font-normal text-base-content/60"
+                >あと</span
+              >
+              <span
+                class="text-base leading-tight font-medium text-base-content tabular-nums"
+              >
+                {daysUntilDeadline() !== null
+                  ? Math.abs(daysUntilDeadline() ?? 0)
+                  : "?"}日
+              </span>
+            </div>
+          </div>
+        {:else}
+          {@const prog = timeProgress()}
+          {@const percent = prog.percent}
+          {@const radius = 24}
+          {@const circumference = 2 * Math.PI * radius}
+          {@const offset = circumference - (percent / 100) * circumference}
+          <div class="relative h-16 w-16 shrink-0">
+            <svg class="h-16 w-16 -rotate-90 transform" viewBox="0 0 64 64">
+              <!-- Background ring -->
+              <circle
+                cx="32"
+                cy="32"
+                r={radius}
+                fill="none"
+                stroke="currentColor"
+                stroke-width="6"
+                class="text-base-200"
+              />
+              <!-- Progress ring -->
+              <circle
+                cx="32"
+                cy="32"
+                r={radius}
+                fill="none"
+                stroke="var(--color-primary)"
+                stroke-width="6"
+                stroke-dasharray={circumference}
+                stroke-dashoffset={offset}
+                stroke-linecap="round"
+                class="transition-all duration-300 ease-out"
+              />
+            </svg>
+            <!-- Center text -->
+            <div
+              class="absolute inset-0 flex flex-col items-center justify-center text-center"
+            >
+              <span class="text-sm font-medium text-base-content tabular-nums">
+                {prog.spent}/{prog.total}
+              </span>
+              <span class="text-[0.6rem] font-normal text-base-content/60"
+                >min</span
+              >
+            </div>
+          </div>
+        {/if}
+        <!-- Desktop-only action buttons (hidden on mobile, always visible on desktop) -->
+        <div class="hidden items-center gap-1 md:flex">
+          {#if task.status.completionState !== "completed"}
+            <button
+              class="flex h-7 w-7 items-center justify-center rounded-md text-base-content/40 transition-colors duration-200 hover:bg-success/10 hover:text-success"
+              onclick={handleComplete}
+              title="Mark complete"
+              aria-label="Mark complete"
+            >
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            </button>
+          {/if}
+          <button
+            class="flex h-7 w-7 items-center justify-center rounded-md text-base-content/40 transition-colors duration-200 hover:bg-[var(--color-primary)]/10 hover:text-[var(--color-primary)]"
+            onclick={handleEdit}
+            title="Edit"
+            aria-label="Edit task"
+          >
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10"
+              />
+            </svg>
+          </button>
+          <button
+            class="flex h-7 w-7 items-center justify-center rounded-md text-base-content/40 transition-colors duration-200 hover:bg-error/10 hover:text-error"
+            onclick={handleDelete}
+            title="Delete"
+            aria-label="Delete task"
+          >
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"
+              />
+            </svg>
+          </button>
         </div>
       </div>
     </div>

@@ -68,8 +68,6 @@ import type {
 import { createEngine } from "../services/suggestions/index.ts";
 import { unifiedGapState } from "./unified-gaps.svelte.ts";
 import {
-  calculateExtension,
-  getBlockersFromAccepted,
   timeToMinutes,
   minutesToTime,
   findOverlappingSuggestions,
@@ -219,6 +217,34 @@ function signalSyncComplete(): void {
   syncCompletePromise = null;
 }
 
+/**
+ * Sync blocker state to unifiedGapState for availableGaps computation.
+ * Call this after any change to acceptedMemos or movedSuggestions.
+ */
+function syncBlockersToGapState(): void {
+  const accepted = get(acceptedMemos);
+  const moved = get(movedSuggestions);
+
+  // Convert to TimeBlocker format
+  const acceptedBlockers = new Map<
+    string,
+    { startTime: string; endTime: string }
+  >();
+  for (const [memoId, info] of accepted) {
+    acceptedBlockers.set(memoId, {
+      startTime: info.startTime,
+      endTime: info.endTime,
+    });
+  }
+
+  const movedBlockers = moved.map((m) => ({
+    startTime: m.startTime,
+    endTime: m.endTime,
+  }));
+
+  unifiedGapState.setBlockers(acceptedBlockers, movedBlockers);
+}
+
 // ============================================================================
 // Derived Stores
 // ============================================================================
@@ -355,7 +381,7 @@ export function getBlocksForGap(gapId: string): ScheduledBlock[] {
 // Engine Instance
 // ============================================================================
 
-let engine = createEngine();
+const engine = createEngine();
 
 // ============================================================================
 // Schedule Actions
@@ -373,6 +399,7 @@ export const scheduleActions = {
     memos: Memo[],
     options?: {
       gaps?: Gap[];
+      skipLLMEnrichment?: boolean;
     },
   ): Promise<void> {
     // Wait for sync to complete first
@@ -382,9 +409,6 @@ export const scheduleActions = {
     scheduleError.set(null);
 
     try {
-      // Get gaps from unified state if not provided
-      const gaps = options?.gaps ?? unifiedGapState.enrichedGaps;
-
       // Get current moved suggestions to exclude their memoIds
       const currentMoved = get(movedSuggestions);
       const movedMemoIds = new Set(currentMoved.map((m) => m.memoId));
@@ -401,18 +425,19 @@ export const scheduleActions = {
         (m) => !rejected.has(m.id) && !movedMemoIds.has(m.id),
       );
 
-      // Subtract accepted AND moved time slots from gaps
-      // This ensures new suggestions only fill truly available gaps
-      const availableGaps = subtractBlockersFromGaps(
-        gaps,
-        accepted,
-        currentMoved,
-      );
+      // Sync blockers to unified gap state before getting available gaps
+      syncBlockersToGapState();
+
+      // Get available gaps from unified state (already has blockers subtracted)
+      // If custom gaps are provided, use enrichedGaps as the base (caller handles blocker subtraction)
+      const availableGaps = options?.gaps
+        ? unifiedGapState.availableGaps
+        : unifiedGapState.availableGaps;
 
       console.log("[Schedule] Generating schedule:", {
         memos: memos.length,
         filteredMemos: filteredMemos.length,
-        gaps: gaps.length,
+        enrichedGaps: unifiedGapState.enrichedGaps.length,
         availableGaps: availableGaps.length,
         movedSuggestions: currentMoved.length,
         acceptedMemos: accepted.size,
@@ -1087,6 +1112,7 @@ export const scheduleActions = {
     acceptedMemos.set(new Map());
     rejectedMemoIds.set(new Set());
     movedSuggestions.set([]);
+    syncBlockersToGapState();
   },
 
   /**
@@ -1097,6 +1123,7 @@ export const scheduleActions = {
     acceptedMemos.set(new Map());
     rejectedMemoIds.set(new Set());
     movedSuggestions.set([]);
+    syncBlockersToGapState();
   },
 
   /**
@@ -1178,6 +1205,9 @@ export const scheduleActions = {
       // Apply to stores
       acceptedMemos.set(acceptedMap);
       rejectedMemoIds.set(rejectedSet);
+
+      // Sync blockers to gap state for availableGaps computation
+      syncBlockersToGapState();
 
       isSyncLoaded.set(true);
       console.log("[Schedule] Synced data loaded:", {
@@ -1291,101 +1321,6 @@ export const scheduleActions = {
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-/**
- * A time blocker with start/end times
- */
-interface TimeBlocker {
-  startTime: string;
-  endTime: string;
-}
-
-/**
- * Subtract accepted AND moved time slots from gaps
- * Returns new gaps with all occupied slots removed
- *
- * This ensures:
- * - Accepted suggestions block their time slots
- * - Moved suggestions block their new positions
- * - New suggestions only fill truly available gaps
- */
-function subtractBlockersFromGaps(
-  gaps: Gap[],
-  accepted: Map<string, AcceptedMemoInfo>,
-  moved: MovedSuggestion[],
-): Gap[] {
-  // Combine all blockers into a single array
-  const allBlockers: TimeBlocker[] = [
-    ...Array.from(accepted.values()),
-    ...moved.map((m) => ({ startTime: m.startTime, endTime: m.endTime })),
-  ];
-
-  if (allBlockers.length === 0) return gaps;
-
-  const result: Gap[] = [];
-  let gapCounter = 0;
-
-  for (const gap of gaps) {
-    const gapStart = timeToMinutes(gap.start);
-    const gapEnd = timeToMinutes(gap.end);
-
-    // Find blockers that overlap with this gap
-    const overlappingBlockers = allBlockers.filter((b) => {
-      const blockerStart = timeToMinutes(b.startTime);
-      const blockerEnd = timeToMinutes(b.endTime);
-      return blockerStart < gapEnd && blockerEnd > gapStart;
-    });
-
-    if (overlappingBlockers.length === 0) {
-      result.push(gap);
-      continue;
-    }
-
-    // Sort blockers by start time
-    const sortedBlockers = [...overlappingBlockers].sort(
-      (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime),
-    );
-
-    // Find remaining gaps between/around blockers
-    let currentStart = gapStart;
-
-    for (const blocker of sortedBlockers) {
-      const blockerStart = Math.max(timeToMinutes(blocker.startTime), gapStart);
-      const blockerEnd = Math.min(timeToMinutes(blocker.endTime), gapEnd);
-
-      // Gap before this blocker
-      if (blockerStart > currentStart) {
-        const duration = blockerStart - currentStart;
-        if (duration >= 5) {
-          result.push({
-            gapId: `${gap.gapId}-sub-${gapCounter++}`,
-            start: minutesToTime(currentStart),
-            end: minutesToTime(blockerStart),
-            duration,
-            locationLabel: gap.locationLabel,
-          });
-        }
-      }
-      currentStart = Math.max(currentStart, blockerEnd);
-    }
-
-    // Gap after all blockers
-    if (currentStart < gapEnd) {
-      const duration = gapEnd - currentStart;
-      if (duration >= 5) {
-        result.push({
-          gapId: `${gap.gapId}-sub-${gapCounter++}`,
-          start: minutesToTime(currentStart),
-          end: minutesToTime(gapEnd),
-          duration,
-          locationLabel: gap.locationLabel,
-        });
-      }
-    }
-  }
-
-  return result;
-}
 
 function stableSerializeSchedule(schedule: ScheduleResult): string {
   const scheduled = [...schedule.scheduled].sort((a, b) => {

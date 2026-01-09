@@ -136,7 +136,7 @@
       <!-- Sign Up Form -->
       <form
         class="flex flex-col gap-3"
-        onsubmit={(e) => {
+        onsubmit={(e: SubmitEvent) => {
           e.preventDefault();
           signUp();
         }}
@@ -188,7 +188,7 @@
       <!-- Sign In Form -->
       <form
         class="flex flex-col gap-3"
-        onsubmit={(e) => {
+        onsubmit={(e: SubmitEvent) => {
           e.preventDefault();
           signIn();
         }}

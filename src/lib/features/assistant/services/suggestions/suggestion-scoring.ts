@@ -35,7 +35,7 @@ import type {
   BacklogState,
   DurationPoint,
 } from "$lib/types.ts";
-import { isSameDay, isSameWeek } from "./period-utils.ts";
+import { isSameDay, isSameWeek, isSameMonth } from "./period-utils.ts";
 
 // ============================================================================
 // TYPES
@@ -110,37 +110,59 @@ export function initializeRoutineState(
   memo: Memo,
   currentTime: Date,
 ): RoutineState {
-  return (
-    memo.routineState ?? {
-      acceptedToday: false,
-      completedToday: false,
-      completedCountThisWeek: 0,
-      lastCompletedDay: null,
-      wasCappedThisWeek: false,
-      weekStartDate: getWeekStart(currentTime),
-    }
-  );
+  if (memo.routineState) {
+    return memo.routineState;
+  }
+
+  return {
+    acceptedToday: false,
+    completedToday: false,
+    completedCountThisPeriod: 0,
+    lastCompletedDay: null,
+    wasCappedThisPeriod: false,
+    periodStartDate: getPeriodStart(
+      currentTime,
+      memo.recurrenceGoal?.period ?? "week",
+    ),
+  };
 }
 
 /**
- * Get the start of the week (Monday) for a given date
+ * Get the start of a period (day/week/month) for a given date
  */
-function getWeekStart(date: Date): Date {
+function getPeriodStart(date: Date, period: "day" | "week" | "month"): Date {
   const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Monday start
-  return new Date(d.setDate(diff));
+  switch (period) {
+    case "day":
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    case "week": {
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+      return new Date(d.getFullYear(), d.getMonth(), diff);
+    }
+    case "month":
+      return new Date(d.getFullYear(), d.getMonth(), 1);
+  }
 }
 
 /**
- * Check if routine state needs week reset
+ * Check if routine state needs period reset based on task's recurrence period
  */
-function shouldResetRoutineWeek(
+function shouldResetRoutinePeriod(
   state: RoutineState,
   currentTime: Date,
+  period: "day" | "week" | "month",
 ): boolean {
-  if (!state.weekStartDate) return true;
-  return !isSameWeek(state.weekStartDate, currentTime);
+  if (!state.periodStartDate) return true;
+  const periodStart = new Date(state.periodStartDate);
+  switch (period) {
+    case "day":
+      return !isSameDay(periodStart, currentTime);
+    case "week":
+      return !isSameWeek(periodStart, currentTime);
+    case "month":
+      return !isSameMonth(periodStart, currentTime);
+  }
 }
 
 /**
@@ -150,7 +172,7 @@ function shouldResetRoutineWeek(
  * - Growth rate: Δ = 0.9 / ideal_interval_days per day
  * - Ideal interval: 1 day (daily), 7/goal_count days (weekly), 30/goal_count days (monthly)
  * - Score reaches 0.9 at each ideal interval
- * - Display capped at 0.49 when weekly goal met
+ * - Display capped at 0.49 when period goal met (respects day/week/month period)
  *
  * Range: 0.0 – 0.9 (never mandatory)
  */
@@ -178,6 +200,13 @@ export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
       idealIntervalDays = 7 / goalCount;
   }
   const dailyGrowth = 0.9 / idealIntervalDays;
+
+  // Check if we need to reset the period (new day/week/month based on task's period)
+  const needsPeriodReset = shouldResetRoutinePeriod(
+    state,
+    currentTime,
+    goalPeriod,
+  );
 
   // Days since last completion
   let daysSinceCompletion: number;
@@ -208,10 +237,10 @@ export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
   // Calculate base score
   let score = daysSinceCompletion * dailyGrowth;
 
-  // Handle week boundary
-  if (shouldResetRoutineWeek(state, currentTime)) {
-    // New week - check if was capped last week
-    if (state.wasCappedThisWeek) {
+  // Handle period boundary
+  if (needsPeriodReset) {
+    // New period - check if was capped last period
+    if (state.wasCappedThisPeriod) {
       // Case A: Was capped - resume from 0.49 + growth since last completion
       score = 0.49 + daysSinceCompletion * dailyGrowth;
     }
@@ -221,8 +250,8 @@ export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
   // Cap at 0.9 (routine never mandatory)
   score = Math.min(score, 0.9);
 
-  // Weekly goal display cap
-  if (state.completedCountThisWeek >= goalCount) {
+  // Period goal display cap - only apply if still in the same period
+  if (!needsPeriodReset && state.completedCountThisPeriod >= goalCount) {
     // Cap displayed score at 0.49
     score = Math.min(score, 0.49);
   }
@@ -613,21 +642,28 @@ export function markRoutineAccepted(memo: Memo, currentTime: Date): Memo {
   if (memo.type !== "ルーティン") return memo;
 
   const state = initializeRoutineState(memo, currentTime);
+  const goalPeriod = memo.recurrenceGoal?.period ?? "week";
 
-  // Check for week reset
-  const needsWeekReset = shouldResetRoutineWeek(state, currentTime);
+  // Check for period reset based on task's period setting
+  const needsPeriodReset = shouldResetRoutinePeriod(
+    state,
+    currentTime,
+    goalPeriod,
+  );
 
   return {
     ...memo,
     routineState: {
       ...state,
       acceptedToday: true,
-      // Reset week state if needed
-      completedCountThisWeek: needsWeekReset ? 0 : state.completedCountThisWeek,
-      wasCappedThisWeek: needsWeekReset ? false : state.wasCappedThisWeek,
-      weekStartDate: needsWeekReset
-        ? getWeekStart(currentTime)
-        : state.weekStartDate,
+      // Reset period state if needed
+      completedCountThisPeriod: needsPeriodReset
+        ? 0
+        : state.completedCountThisPeriod,
+      wasCappedThisPeriod: needsPeriodReset ? false : state.wasCappedThisPeriod,
+      periodStartDate: needsPeriodReset
+        ? getPeriodStart(currentTime, goalPeriod)
+        : state.periodStartDate,
     },
     lastActivity: currentTime,
   };
@@ -642,14 +678,19 @@ export function markRoutineCompleted(memo: Memo, currentTime: Date): Memo {
   const state = initializeRoutineState(memo, currentTime);
   const goal = memo.recurrenceGoal;
   const goalCount = goal?.count ?? 3;
+  const goalPeriod = goal?.period ?? "week";
 
-  // Check for week reset
-  const needsWeekReset = shouldResetRoutineWeek(state, currentTime);
-  const baseCount = needsWeekReset ? 0 : state.completedCountThisWeek;
+  // Check for period reset based on task's period setting
+  const needsPeriodReset = shouldResetRoutinePeriod(
+    state,
+    currentTime,
+    goalPeriod,
+  );
+  const baseCount = needsPeriodReset ? 0 : state.completedCountThisPeriod;
   const newCount = baseCount + 1;
 
   // Check if cap should be applied
-  const wasCapped = needsWeekReset ? false : state.wasCappedThisWeek;
+  const wasCapped = needsPeriodReset ? false : state.wasCappedThisPeriod;
   const shouldCap = newCount >= goalCount;
 
   return {
@@ -658,12 +699,12 @@ export function markRoutineCompleted(memo: Memo, currentTime: Date): Memo {
       ...state,
       acceptedToday: true,
       completedToday: true,
-      completedCountThisWeek: newCount,
+      completedCountThisPeriod: newCount,
       lastCompletedDay: currentTime,
-      wasCappedThisWeek: wasCapped || shouldCap,
-      weekStartDate: needsWeekReset
-        ? getWeekStart(currentTime)
-        : state.weekStartDate,
+      wasCappedThisPeriod: wasCapped || shouldCap,
+      periodStartDate: needsPeriodReset
+        ? getPeriodStart(currentTime, goalPeriod)
+        : state.periodStartDate,
     },
     lastActivity: currentTime,
   };
@@ -723,8 +764,6 @@ export function recordDeadlineSession(
 export function markBacklogAccepted(memo: Memo, currentTime: Date): Memo {
   if (memo.type !== "バックログ") return memo;
 
-  const state = initializeBacklogState(memo);
-
   return {
     ...memo,
     backlogState: {
@@ -755,7 +794,7 @@ export function markBacklogCompleted(memo: Memo, currentTime: Date): Memo {
  * Reset backlog acceptance for a new day
  * Call this when day changes or when task is marked as "missed"
  */
-export function resetBacklogAcceptance(memo: Memo, currentTime: Date): Memo {
+export function resetBacklogAcceptance(memo: Memo, _currentTime: Date): Memo {
   if (memo.type !== "バックログ") return memo;
 
   const state = initializeBacklogState(memo);

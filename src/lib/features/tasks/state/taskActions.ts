@@ -81,10 +81,10 @@ function jsonToMemo(json: {
   routineState?: {
     acceptedToday: boolean;
     completedToday: boolean;
-    completedCountThisWeek: number;
+    completedCountThisPeriod: number;
     lastCompletedDay: string | null;
-    wasCappedThisWeek: boolean;
-    weekStartDate: string | null;
+    wasCappedThisPeriod: boolean;
+    periodStartDate: string | null;
   };
   backlogState?: {
     acceptedToday: boolean;
@@ -117,13 +117,13 @@ function jsonToMemo(json: {
       ? {
           acceptedToday: json.routineState.acceptedToday,
           completedToday: json.routineState.completedToday,
-          completedCountThisWeek: json.routineState.completedCountThisWeek,
+          completedCountThisPeriod: json.routineState.completedCountThisPeriod,
           lastCompletedDay: json.routineState.lastCompletedDay
             ? new Date(json.routineState.lastCompletedDay)
             : null,
-          wasCappedThisWeek: json.routineState.wasCappedThisWeek,
-          weekStartDate: json.routineState.weekStartDate
-            ? new Date(json.routineState.weekStartDate)
+          wasCappedThisPeriod: json.routineState.wasCappedThisPeriod,
+          periodStartDate: json.routineState.periodStartDate
+            ? new Date(json.routineState.periodStartDate)
             : null,
         }
       : undefined,
@@ -215,10 +215,10 @@ export async function loadTasks(): Promise<void> {
           routineState?: {
             acceptedToday: boolean;
             completedToday: boolean;
-            completedCountThisWeek: number;
+            completedCountThisPeriod: number;
             lastCompletedDay: string | null;
-            wasCappedThisWeek: boolean;
-            weekStartDate: string | null;
+            wasCappedThisPeriod: boolean;
+            periodStartDate: string | null;
           };
           backlogState?: {
             acceptedToday: boolean;
@@ -240,12 +240,13 @@ export async function loadTasks(): Promise<void> {
           updateData.routineState = {
             acceptedToday: reset.routineState.acceptedToday,
             completedToday: reset.routineState.completedToday,
-            completedCountThisWeek: reset.routineState.completedCountThisWeek,
+            completedCountThisPeriod:
+              reset.routineState.completedCountThisPeriod,
             lastCompletedDay:
               reset.routineState.lastCompletedDay?.toISOString() ?? null,
-            wasCappedThisWeek: reset.routineState.wasCappedThisWeek,
-            weekStartDate:
-              reset.routineState.weekStartDate?.toISOString() ?? null,
+            wasCappedThisPeriod: reset.routineState.wasCappedThisPeriod,
+            periodStartDate:
+              reset.routineState.periodStartDate?.toISOString() ?? null,
           };
         }
 
@@ -839,14 +840,14 @@ export const taskActions = {
             ? {
                 acceptedToday: result.routineState.acceptedToday,
                 completedToday: result.routineState.completedToday,
-                completedCountThisWeek:
-                  result.routineState.completedCountThisWeek,
+                completedCountThisPeriod:
+                  result.routineState.completedCountThisPeriod,
                 lastCompletedDay: result.routineState.lastCompletedDay
                   ? new Date(result.routineState.lastCompletedDay)
                   : null,
-                wasCappedThisWeek: result.routineState.wasCappedThisWeek,
-                weekStartDate: result.routineState.weekStartDate
-                  ? new Date(result.routineState.weekStartDate)
+                wasCappedThisPeriod: result.routineState.wasCappedThisPeriod,
+                periodStartDate: result.routineState.periodStartDate
+                  ? new Date(result.routineState.periodStartDate)
                   : null,
               }
             : task.routineState,
@@ -899,14 +900,14 @@ export const taskActions = {
             ? {
                 acceptedToday: result.routineState.acceptedToday,
                 completedToday: result.routineState.completedToday,
-                completedCountThisWeek:
-                  result.routineState.completedCountThisWeek,
+                completedCountThisPeriod:
+                  result.routineState.completedCountThisPeriod,
                 lastCompletedDay: result.routineState.lastCompletedDay
                   ? new Date(result.routineState.lastCompletedDay)
                   : null,
-                wasCappedThisWeek: result.routineState.wasCappedThisWeek,
-                weekStartDate: result.routineState.weekStartDate
-                  ? new Date(result.routineState.weekStartDate)
+                wasCappedThisPeriod: result.routineState.wasCappedThisPeriod,
+                periodStartDate: result.routineState.periodStartDate
+                  ? new Date(result.routineState.periodStartDate)
                   : null,
               }
             : task.routineState,

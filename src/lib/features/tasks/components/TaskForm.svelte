@@ -111,38 +111,53 @@
 {#if $isTaskFormOpen}
   <div
     class="modal-open modal-mobile-fullscreen modal z-[2100] md:modal-middle"
-    onkeydown={(e) => e.key === "Escape" && handleClose()}
+    onkeydown={(e: KeyboardEvent) => e.key === "Escape" && handleClose()}
     role="dialog"
     aria-modal="true"
     aria-label="Task form"
     tabindex="-1"
   >
     <div
-      class="modal-box h-full w-full max-w-[500px] overflow-hidden p-0 md:h-auto md:max-h-[90vh] md:overflow-y-auto"
-      onclick={(e) => e.stopPropagation()}
-      onkeydown={(e) => e.key === "Escape" && handleClose()}
+      class="modal-box h-full w-full max-w-[500px] overflow-hidden rounded-none border-none bg-base-100 p-0 shadow-none md:h-auto md:max-h-[90vh] md:overflow-y-auto md:rounded-2xl md:border md:border-base-300/50 md:shadow-xl"
+      onclick={(e: MouseEvent) => e.stopPropagation()}
+      onkeydown={(e: KeyboardEvent) => e.key === "Escape" && handleClose()}
       role="dialog"
       aria-modal="true"
       tabindex="-1"
     >
+      <!-- Header -->
       <div
-        class="flex flex-shrink-0 items-center justify-between border-b border-base-300 bg-base-100 p-4"
+        class="sticky top-0 z-10 flex min-h-14 flex-shrink-0 items-center justify-between border-b border-base-300/50 bg-base-100/95 px-4 backdrop-blur-md md:min-h-16 md:px-6"
       >
         <button
-          class="btn btn-square btn-ghost btn-sm md:hidden"
+          class="flex h-9 w-9 items-center justify-center rounded-lg text-base-content/60 transition-colors duration-200 hover:bg-base-200 hover:text-base-content md:hidden"
           onclick={handleClose}
           aria-label="Close"
         >
-          ✕
+          <svg
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
         </button>
-        <h3 class="flex-1 text-left text-lg font-medium md:flex-none">
+        <h3
+          class="flex-1 text-center text-base font-medium tracking-tight text-base-content md:flex-none md:text-left md:text-lg"
+        >
           {$taskForm.isEditing ? "タスクを編集" : "新しいタスク"}
         </h3>
         <button
           type="button"
-          class="btn btn-sm btn-primary md:hidden"
+          class="flex h-9 items-center justify-center rounded-lg bg-[var(--color-primary)] px-4 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[var(--color-primary-800)] active:scale-95 disabled:opacity-50 md:hidden"
           disabled={!$isTaskFormValid || $isTaskFormSubmitting}
-          onclick={async (e) => {
+          onclick={async (e: MouseEvent) => {
             e.preventDefault();
             await taskActions.submit();
           }}
@@ -154,11 +169,23 @@
           {/if}
         </button>
         <button
-          class="btn hidden btn-square btn-ghost btn-sm md:flex"
+          class="hidden h-8 w-8 items-center justify-center rounded-lg text-base-content/60 transition-colors duration-200 hover:bg-base-200 hover:text-base-content md:flex"
           onclick={handleClose}
           aria-label="Close"
         >
-          ✕
+          <svg
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
         </button>
       </div>
 
@@ -166,48 +193,39 @@
         onsubmit={handleSubmit}
         class="flex min-h-0 flex-1 flex-col overflow-hidden"
       >
-        <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+        <div
+          class="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4 md:p-6"
+        >
           <!-- Title -->
-          <div class="form-control">
-            <label class="label" for="title">
-              <span
-                class="label-text text-sm text-[var(--color-text-secondary)]"
-                >タイトル</span
-              >
+          <div class="space-y-1.5">
+            <label class="text-sm font-medium text-base-content/70" for="title">
+              タイトル
             </label>
             <input
               id="title"
               type="text"
               placeholder="タスクのタイトルを入力"
               bind:value={$taskForm.title}
-              class="input-bordered input w-full {$taskFormErrors.title
-                ? 'input-error'
+              class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 placeholder:text-base-content/40 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none {$taskFormErrors.title
+                ? 'border-error'
                 : ''}"
             />
             {#if $taskFormErrors.title}
-              <p class="label">
-                <span class="label-text-alt text-[var(--color-error-500)]"
-                  >{$taskFormErrors.title}</span
-                >
-              </p>
+              <p class="text-xs text-error">{$taskFormErrors.title}</p>
             {/if}
           </div>
 
           <!-- Type -->
-          <div class="form-control">
-            <span class="label">
-              <span
-                class="label-text text-sm text-[var(--color-text-secondary)]"
-                >タイプ</span
-              >
-            </span>
+          <div class="space-y-1.5">
+            <span class="text-sm font-medium text-base-content/70">タイプ</span>
             <div class="flex gap-2" role="group" aria-label="タスクタイプ">
               {#each typeOptions as option (option)}
                 <button
                   type="button"
-                  class="btn flex-1 btn-sm {$taskForm.type === option.value
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-                    : 'border-base-300 btn-ghost'} border transition-all duration-200"
+                  class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200
+                    {$taskForm.type === option.value
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                    : 'border-base-300/60 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
                   onclick={() => handleTypeChange(option.value)}
                   aria-pressed={$taskForm.type === option.value}
                 >
@@ -219,39 +237,35 @@
 
           <!-- Deadline -->
           {#if $showDeadlineField}
-            <div class="form-control">
-              <label class="label" for="deadline">
-                <span
-                  class="label-text text-sm text-[var(--color-text-secondary)]"
-                  >期限</span
-                >
+            <div class="space-y-1.5">
+              <label
+                class="text-sm font-medium text-base-content/70"
+                for="deadline"
+              >
+                期限
               </label>
               <input
                 id="deadline"
                 type="date"
                 bind:value={$taskForm.deadline}
-                class="input-bordered input w-full {$taskFormErrors.deadline
-                  ? 'input-error'
+                class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none {$taskFormErrors.deadline
+                  ? 'border-error'
                   : ''}"
               />
               {#if $taskFormErrors.deadline}
-                <p class="label">
-                  <span class="label-text-alt text-[var(--color-error-500)]"
-                    >{$taskFormErrors.deadline}</span
-                  >
-                </p>
+                <p class="text-xs text-error">{$taskFormErrors.deadline}</p>
               {/if}
             </div>
           {/if}
 
           <!-- Recurrence Goal -->
           {#if $showRecurrenceFields}
-            <div class="form-control">
-              <label class="label" for="recurrence-count">
-                <span
-                  class="label-text text-sm text-[var(--color-text-secondary)]"
-                  >目標</span
-                >
+            <div class="space-y-1.5">
+              <label
+                class="text-sm font-medium text-base-content/70"
+                for="recurrence-count"
+              >
+                目標
               </label>
               <div class="flex items-center gap-2">
                 <input
@@ -260,16 +274,14 @@
                   min="1"
                   max="100"
                   bind:value={$taskForm.recurrenceCount}
-                  class="input-bordered input w-[70px] text-center"
+                  class="w-16 rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-center text-base text-base-content transition-colors duration-200 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none"
                   aria-label="回数"
                 />
-                <span class="text-sm text-[var(--color-text-secondary)]"
-                  >回 /</span
-                >
+                <span class="text-sm text-base-content/60">回 /</span>
                 <select
                   id="recurrence-period"
                   bind:value={$taskForm.recurrencePeriod}
-                  class="select-bordered select flex-1"
+                  class="flex-1 rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none"
                   aria-label="期間"
                 >
                   {#each periodOptions as option (option.value)}
@@ -278,30 +290,21 @@
                 </select>
               </div>
               {#if $taskFormErrors.recurrence}
-                <p class="label">
-                  <span class="label-text-alt text-[var(--color-error-500)]"
-                    >{$taskFormErrors.recurrence}</span
-                  >
-                </p>
+                <p class="text-xs text-error">{$taskFormErrors.recurrence}</p>
               {/if}
             </div>
           {/if}
 
           <!-- Location -->
-          <div class="form-control">
-            <span class="label">
-              <span
-                class="label-text text-sm text-[var(--color-text-secondary)]"
-                >場所</span
-              >
-            </span>
+          <div class="space-y-1.5">
+            <span class="text-sm font-medium text-base-content/70">場所</span>
             <div class="flex gap-2" role="group" aria-label="場所">
               {#each locationOptions as option (option.value)}
                 <label
-                  class="btn flex-1 cursor-pointer btn-sm {$taskForm.locationPreference ===
-                  option.value
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-                    : 'border-base-300 btn-ghost'} border transition-all duration-200"
+                  class="flex flex-1 cursor-pointer items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200
+                    {$taskForm.locationPreference === option.value
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                    : 'border-base-300/60 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
                 >
                   <input
                     type="radio"
@@ -322,33 +325,43 @@
           </div>
 
           <!-- Advanced Settings Collapsible -->
-          <div class="mt-2 border-t border-base-300 pt-2">
+          <div class="mt-1 border-t border-base-300/40 pt-3">
             <button
               type="button"
-              class="btn w-full justify-start gap-2 text-[var(--color-text-secondary)] btn-ghost btn-sm"
+              class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-base-content/60 transition-colors duration-200 hover:bg-base-200/50 hover:text-base-content"
               onclick={() => (showAdvancedSettings = !showAdvancedSettings)}
             >
-              <span
-                class="transition-transform duration-200 {showAdvancedSettings
+              <svg
+                class="h-4 w-4 transition-transform duration-200 {showAdvancedSettings
                   ? 'rotate-90'
-                  : ''}">▶</span
+                  : ''}"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
               >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
               詳細設定
             </button>
 
             {#if showAdvancedSettings}
-              <div class="flex flex-col gap-4 pt-3 pl-2">
+              <div class="flex flex-col gap-4 pt-3 pl-1">
                 <!-- Genre -->
-                <div class="form-control">
-                  <label class="label" for="genre">
-                    <span
-                      class="label-text text-sm text-[var(--color-text-secondary)]"
-                      >ジャンル</span
-                    >
+                <div class="space-y-1.5">
+                  <label
+                    class="text-sm font-medium text-base-content/70"
+                    for="genre"
+                  >
+                    ジャンル
                   </label>
                   <select
                     id="genre"
-                    class="select-bordered select w-full"
+                    class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none"
                     bind:value={$taskForm.genre}
                   >
                     <option value="">未設定（AIが推定）</option>
@@ -359,19 +372,17 @@
                 </div>
 
                 <!-- Importance -->
-                <div class="form-control">
-                  <span class="label">
-                    <span
-                      class="label-text text-sm text-[var(--color-text-secondary)]"
-                      >重要度</span
-                    >
-                  </span>
+                <div class="space-y-1.5">
+                  <span class="text-sm font-medium text-base-content/70"
+                    >重要度</span
+                  >
                   <div class="flex gap-2" role="group" aria-label="重要度">
                     <button
                       type="button"
-                      class="btn flex-1 btn-sm {$taskForm.importance === ''
-                        ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-                        : 'border-base-300 btn-ghost'} border transition-all duration-200"
+                      class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200
+                        {$taskForm.importance === ''
+                        ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                        : 'border-base-300/60 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
                       onclick={() =>
                         taskFormActions.updateField("importance", "")}
                     >
@@ -380,10 +391,10 @@
                     {#each importanceOptions as option (option.value)}
                       <button
                         type="button"
-                        class="btn flex-1 btn-sm {$taskForm.importance ===
-                        option.value
-                          ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-                          : 'border-base-300 btn-ghost'} border transition-all duration-200"
+                        class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-200
+                          {$taskForm.importance === option.value
+                          ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                          : 'border-base-300/60 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
                         onclick={() =>
                           taskFormActions.updateField(
                             "importance",
@@ -398,12 +409,12 @@
 
                 <!-- Session Duration & Total Duration (only in edit mode) -->
                 {#if $isTaskFormEditing}
-                  <div class="form-control">
-                    <label class="label" for="sessionDuration">
-                      <span
-                        class="label-text text-sm text-[var(--color-text-secondary)]"
-                        >1回のセッション時間（分）</span
-                      >
+                  <div class="space-y-1.5">
+                    <label
+                      class="text-sm font-medium text-base-content/70"
+                      for="sessionDuration"
+                    >
+                      1回のセッション時間（分）
                     </label>
                     <input
                       id="sessionDuration"
@@ -411,9 +422,11 @@
                       min="5"
                       max="480"
                       placeholder="例: 30"
-                      class="input-bordered input w-full"
+                      class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 placeholder:text-base-content/40 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none"
                       value={$taskForm.sessionDuration ?? ""}
-                      onchange={(e) => {
+                      onchange={(
+                        e: Event & { currentTarget: HTMLInputElement },
+                      ) => {
                         const val = e.currentTarget.value;
                         taskFormActions.updateField(
                           "sessionDuration",
@@ -425,12 +438,12 @@
 
                   <!-- Total Duration: Only show for backlog tasks (removed from routine and deadline) -->
                   {#if $taskForm.type === "バックログ"}
-                    <div class="form-control">
-                      <label class="label" for="totalDuration">
-                        <span
-                          class="label-text text-sm text-[var(--color-text-secondary)]"
-                          >合計所要時間（分）</span
-                        >
+                    <div class="space-y-1.5">
+                      <label
+                        class="text-sm font-medium text-base-content/70"
+                        for="totalDuration"
+                      >
+                        合計所要時間（分）
                       </label>
                       <input
                         id="totalDuration"
@@ -438,9 +451,11 @@
                         min="5"
                         max="9999"
                         placeholder="例: 120"
-                        class="input-bordered input w-full"
+                        class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 placeholder:text-base-content/40 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none"
                         value={$taskForm.totalDurationExpected ?? ""}
-                        onchange={(e) => {
+                        onchange={(
+                          e: Event & { currentTarget: HTMLInputElement },
+                        ) => {
                           const val = e.currentTarget.value;
                           taskFormActions.updateField(
                             "totalDurationExpected",
@@ -458,38 +473,66 @@
           <!-- Enriched Fields Cleared Warning -->
           {#if $taskFormErrors.enrichedFieldsCleared}
             <div
-              class="flex items-center gap-2 rounded-lg border border-[var(--color-warning-500)] bg-[var(--color-warning-100)] p-3"
+              class="flex items-center gap-3 rounded-lg border border-warning/30 bg-warning/10 p-3"
             >
-              <div class="text-xl">⚠️</div>
-              <div class="text-sm text-[var(--color-warning-700)]">
+              <svg
+                class="h-5 w-5 flex-shrink-0 text-warning"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <p class="text-sm text-warning">
                 {$taskFormErrors.enrichedFieldsCleared}
-              </div>
+              </p>
             </div>
           {/if}
 
           <!-- General Error Display -->
           {#if $taskFormErrors.general}
             <div
-              class="flex items-center gap-2 rounded-lg border border-[var(--color-error-500)] bg-[var(--color-error-100)] p-3"
+              class="flex items-center gap-3 rounded-lg border border-error/30 bg-error/10 p-3"
             >
-              <div class="text-xl">⚠️</div>
-              <div class="text-sm text-[var(--color-error-500)]">
+              <svg
+                class="h-5 w-5 flex-shrink-0 text-error"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <p class="text-sm text-error">
                 {$taskFormErrors.general}
-              </div>
+              </p>
             </div>
           {/if}
         </div>
 
         <!-- Desktop Action Bar -->
         <div
-          class="hidden flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 md:flex"
+          class="hidden flex-shrink-0 items-center justify-end gap-3 border-t border-base-300/50 bg-base-100/80 p-4 backdrop-blur-sm md:flex md:p-6"
         >
-          <button type="button" class="btn btn-ghost" onclick={handleClose}>
+          <button
+            type="button"
+            class="rounded-lg px-4 py-2.5 text-sm font-medium text-base-content/70 transition-colors duration-200 hover:bg-base-200 hover:text-base-content"
+            onclick={handleClose}
+          >
             キャンセル
           </button>
           <button
             type="submit"
-            class="btn btn-primary"
+            class="rounded-lg bg-[var(--color-primary)] px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-200 hover:bg-[var(--color-primary-800)] hover:shadow-md active:scale-95 disabled:opacity-50"
             disabled={!$isTaskFormValid || $isTaskFormSubmitting}
           >
             {#if $isTaskFormSubmitting}
@@ -502,6 +545,6 @@
         </div>
       </form>
     </div>
-    <div class="modal-backdrop bg-base-content/40 backdrop-blur-sm"></div>
+    <div class="modal-backdrop bg-base-content/30 backdrop-blur-sm"></div>
   </div>
 {/if}

@@ -166,7 +166,9 @@
                   <input
                     type="time"
                     value={settingsState.activeStartTime}
-                    onchange={(e) =>
+                    onchange={(
+                      e: Event & { currentTarget: HTMLInputElement },
+                    ) =>
                       settingsState.setActiveStartTime(e.currentTarget.value)}
                     class="input-bordered input input-sm w-32"
                   />
@@ -174,8 +176,9 @@
                   <input
                     type="time"
                     value={settingsState.activeEndTime}
-                    onchange={(e) =>
-                      settingsState.setActiveEndTime(e.currentTarget.value)}
+                    onchange={(
+                      e: Event & { currentTarget: HTMLInputElement },
+                    ) => settingsState.setActiveEndTime(e.currentTarget.value)}
                     class="input-bordered input input-sm w-32"
                   />
                 </div>

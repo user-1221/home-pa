@@ -219,92 +219,13 @@
   // Enriched gaps from unified state (includes location labels)
   let enrichedGaps = $derived(unifiedGapState.enrichedGaps);
 
-  // Helper to convert time string to minutes
-  function timeToMinutes(time: string): number {
-    const [h, m] = time.split(":").map(Number);
-    return h * 60 + m;
-  }
+  // Available gaps for schedule regeneration (accepted + moved subtracted)
+  // Note: availableGaps is consumed by schedule.ts via unifiedGapState directly
+  let _availableGaps = $derived(unifiedGapState.availableGaps);
 
-  // Helper to convert minutes to time string
-  function minutesToTime(minutes: number): string {
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-  }
-
-  // Gaps with accepted memos subtracted (for drag interactions)
-  // This ensures pending suggestions can't overlap with accepted ones
-  let availableGaps = $derived.by((): Gap[] => {
-    const accepted = $acceptedMemos;
-    if (accepted.size === 0) return enrichedGaps;
-
-    const result: Gap[] = [];
-    let gapCounter = 0;
-
-    for (const gap of enrichedGaps) {
-      const gapStart = timeToMinutes(gap.start);
-      const gapEnd = timeToMinutes(gap.end);
-
-      // Find blockers that overlap with this gap
-      const overlappingBlockers = Array.from(accepted.values()).filter((a) => {
-        const blockerStart = timeToMinutes(a.startTime);
-        const blockerEnd = timeToMinutes(a.endTime);
-        return blockerStart < gapEnd && blockerEnd > gapStart;
-      });
-
-      if (overlappingBlockers.length === 0) {
-        result.push(gap);
-        continue;
-      }
-
-      // Sort blockers by start time
-      const sortedBlockers = [...overlappingBlockers].sort(
-        (a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime),
-      );
-
-      // Find remaining gaps between/around blockers
-      let currentStart = gapStart;
-
-      for (const blocker of sortedBlockers) {
-        const blockerStart = Math.max(
-          timeToMinutes(blocker.startTime),
-          gapStart,
-        );
-        const blockerEnd = Math.min(timeToMinutes(blocker.endTime), gapEnd);
-
-        // Gap before this blocker
-        if (blockerStart > currentStart) {
-          const duration = blockerStart - currentStart;
-          if (duration >= 5) {
-            result.push({
-              gapId: `${gap.gapId}-sub-${gapCounter++}`,
-              start: minutesToTime(currentStart),
-              end: minutesToTime(blockerStart),
-              duration,
-              locationLabel: gap.locationLabel,
-            });
-          }
-        }
-        currentStart = Math.max(currentStart, blockerEnd);
-      }
-
-      // Gap after all blockers
-      if (currentStart < gapEnd) {
-        const duration = gapEnd - currentStart;
-        if (duration >= 5) {
-          result.push({
-            gapId: `${gap.gapId}-sub-${gapCounter++}`,
-            start: minutesToTime(currentStart),
-            end: minutesToTime(gapEnd),
-            duration,
-            locationLabel: gap.locationLabel,
-          });
-        }
-      }
-    }
-
-    return result;
-  });
+  // Gaps for drag operations (only accepted subtracted, moved suggestions don't block)
+  // During drag, users should be able to drag over other pending suggestions
+  let gapsForDrag = $derived(unifiedGapState.gapsForDrag);
 
   // ============================================================================
   // SCHEDULE REGENERATION
@@ -431,7 +352,7 @@
       newEndTime,
       newGapId,
       taskList,
-      enrichedGaps, // Pass enriched gaps from unified state
+      gapsForDrag, // Pass gapsForDrag to match CircularTimeline's gap IDs
     );
   }
 
@@ -443,7 +364,7 @@
       suggestionId,
       newDuration,
       taskList,
-      enrichedGaps, // Pass enriched gaps for constraint calculation
+      gapsForDrag, // Pass gapsForDrag for constraint calculation
     );
   }
 
@@ -462,7 +383,7 @@
       const pendingData =
         data as import("$lib/features/assistant/state/schedule.ts").PendingSuggestion;
       // Find the gap this suggestion is in to get gapEnd
-      const gap = availableGaps?.find((g) => g.gapId === pendingData.gapId);
+      const gap = gapsForDrag?.find((g) => g.gapId === pendingData.gapId);
       const gapEnd = gap?.end ?? "23:59"; // Fallback to end of day
 
       selectedSuggestion = {
@@ -597,7 +518,7 @@
       newDuration,
       newEndTime,
       taskList,
-      enrichedGaps,
+      gapsForDrag,
     );
 
     // Update the selected suggestion display
@@ -620,7 +541,7 @@
 </script>
 
 <div
-  class="relative flex h-full w-full flex-col overflow-hidden bg-base-200/60 backdrop-blur-sm"
+  class="relative flex h-full w-full flex-col overflow-hidden bg-gradient-to-b from-base-200/80 to-base-200/40"
 >
   <!-- Main Content -->
   <main
@@ -631,7 +552,7 @@
       class="z-10 m-4 flex w-full min-w-0 flex-1 items-stretch justify-center overflow-y-visible"
     >
       <div
-        class="flex min-h-0 w-full flex-1 flex-col items-center gap-4 overflow-y-visible"
+        class="flex min-h-0 w-full flex-1 flex-col items-center gap-6 overflow-y-visible"
       >
         <!-- Info Panel above timeline - always visible -->
         <div class="w-full max-w-2xl px-4">
@@ -646,11 +567,16 @@
           />
         </div>
 
+        <!-- Timeline container with subtle glow effect -->
         <div
           class="relative h-[min(85vw,75vh)] w-[min(85vw,75vh)] flex-shrink-0 overflow-visible"
         >
+          <!-- Subtle ambient glow behind timeline -->
+          <div
+            class="pointer-events-none absolute inset-0 -z-10 rounded-full bg-[var(--color-primary)]/5 blur-3xl"
+          ></div>
           <CircularTimelineCss
-            externalGaps={availableGaps}
+            externalGaps={gapsForDrag}
             pendingSuggestions={filteredPendingSuggestions}
             acceptedMemos={filteredAcceptedForDisplay}
             {getTaskTitle}
@@ -668,37 +594,74 @@
           />
         </div>
 
-        <!-- Events Card using DaisyUI -->
+        <!-- Events Card with refined styling -->
         <div
-          class="card mb-4 w-full max-w-[720px] bg-base-100 shadow-sm card-md"
+          class="card mb-6 w-full max-w-[720px] border border-base-300/50 bg-base-100/80 shadow-lg shadow-base-300/20 backdrop-blur-sm transition-shadow duration-300 hover:shadow-xl hover:shadow-base-300/30"
         >
-          <div class="card-body gap-3">
+          <div class="card-body gap-4 p-6">
             <div
-              class="flex items-center justify-between border-b border-base-300 pb-3"
+              class="flex items-center justify-between border-b border-base-300/50 pb-4"
             >
-              <h3 class="card-title text-xl font-normal">Events</h3>
+              <h3
+                class="flex items-center gap-2 text-lg font-medium tracking-tight"
+              >
+                <svg
+                  class="h-5 w-5 text-[var(--color-primary)]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+                  />
+                </svg>
+                Events
+              </h3>
               <span
-                class="badge border border-[var(--color-primary)] bg-[var(--color-primary-100)] badge-sm text-[var(--color-primary-800)]"
+                class="rounded-full border border-[var(--color-primary)]/20 bg-[var(--color-primary)]/10 px-3 py-1 text-xs font-medium text-[var(--color-primary)]"
                 >{formatDateLabel(dataState.selectedDate)}</span
               >
             </div>
 
             {#if displayEvents.length === 0}
-              <p
-                class="py-6 text-center text-sm text-[var(--color-text-secondary)]"
+              <div
+                class="flex flex-col items-center justify-center py-10 text-base-content/50"
               >
-                この日の予定はありません
-              </p>
+                <svg
+                  class="mb-3 h-10 w-10 opacity-40"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5m-9-6h.008v.008H12v-.008zM12 15h.008v.008H12V15zm0 2.25h.008v.008H12v-.008zM9.75 15h.008v.008H9.75V15zm0 2.25h.008v.008H9.75v-.008zM7.5 15h.008v.008H7.5V15zm0 2.25h.008v.008H7.5v-.008zm6.75-4.5h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008V15zm0 2.25h.008v.008h-.008v-.008zm2.25-4.5h.008v.008H16.5v-.008zm0 2.25h.008v.008H16.5V15z"
+                  />
+                </svg>
+                <p class="text-sm">この日の予定はありません</p>
+              </div>
             {:else}
-              <ul class="list rounded-box">
-                {#each displayEvents as event (event.id)}
+              <ul class="divide-y divide-base-300/30">
+                {#each displayEvents as event, i (event.id)}
                   <li
-                    class="list-row transition-colors duration-200 hover:bg-base-200/50"
+                    class="group flex items-center justify-between py-3 transition-all duration-200 first:pt-0 last:pb-0 hover:translate-x-1"
+                    style="animation: fadeSlideIn 0.3s ease-out {i *
+                      50}ms backwards;"
                   >
-                    <div class="list-col-grow">
+                    <div class="flex items-center gap-3">
+                      <div
+                        class="h-2 w-2 rounded-full bg-[var(--color-primary)]/60 transition-transform duration-200 group-hover:scale-125"
+                      ></div>
                       <span class="text-sm font-medium">{event.title}</span>
                     </div>
-                    <span class="badge badge-ghost text-xs font-medium">
+                    <span
+                      class="rounded-md bg-base-200/80 px-2.5 py-1 text-xs font-medium text-base-content/70 transition-colors duration-200 group-hover:bg-base-300/80"
+                    >
                       {formatEventTime(event)}
                     </span>
                   </li>
@@ -711,3 +674,16 @@
     </section>
   </main>
 </div>
+
+<style>
+  @keyframes fadeSlideIn {
+    from {
+      opacity: 0;
+      transform: translateX(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+</style>

@@ -191,7 +191,7 @@
 
         <form
           class="flex flex-col gap-6"
-          onsubmit={(e) => {
+          onsubmit={(e: SubmitEvent) => {
             e.preventDefault();
             if (mode === "signin") {
               signIn();
