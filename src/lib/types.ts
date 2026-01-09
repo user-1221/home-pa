@@ -87,6 +87,7 @@ export interface RoutineState {
   lastCompletedDay: Date | null; // Date of last completion
   wasCappedThisPeriod: boolean; // True if display cap was ever active this period
   periodStartDate: Date | null; // Start of current tracking period
+  rejectedToday: boolean; // If true, task cannot be regenerated today
 }
 
 /**
@@ -94,6 +95,15 @@ export interface RoutineState {
  */
 export interface DurationPoint {
   day: Date;
+  duration: number; // minutes
+}
+
+/**
+ * Accepted time slot info for deadline tasks
+ */
+export interface AcceptedSlot {
+  startTime: string; // HH:mm format
+  endTime: string; // HH:mm format
   duration: number; // minutes
 }
 
@@ -110,6 +120,8 @@ export interface DeadlineState {
   // For simplicity: store as array of expected points
   expectedDurationPoints: DurationPoint[]; // Baseline expected durations
   smoothedMultiplier: number; // Smoothed adjustment factor (default 1.0)
+  rejectedToday: boolean; // If true, task cannot be regenerated today
+  acceptedSlots: AcceptedSlot[]; // Time slots where this task is accepted
 }
 
 /**
@@ -118,6 +130,7 @@ export interface DeadlineState {
 export interface BacklogState {
   acceptedToday: boolean; // If true, task is treated as done for the day (unless missed)
   lastCompletedDay: Date | null;
+  rejectedToday: boolean; // If true, task cannot be regenerated today
 }
 
 /**

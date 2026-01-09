@@ -45,6 +45,7 @@ const RoutineStateSchema = v.optional(
     lastCompletedDay: v.nullable(v.string()),
     wasCappedThisPeriod: v.boolean(),
     periodStartDate: v.nullable(v.string()),
+    rejectedToday: v.boolean(),
   }),
 );
 
@@ -52,6 +53,20 @@ const BacklogStateSchema = v.optional(
   v.object({
     acceptedToday: v.boolean(),
     lastCompletedDay: v.nullable(v.string()),
+    rejectedToday: v.boolean(),
+  }),
+);
+
+const AcceptedSlotSchema = v.object({
+  startTime: v.string(),
+  endTime: v.string(),
+  duration: v.number(),
+});
+
+const DeadlineStateSchema = v.optional(
+  v.object({
+    rejectedToday: v.boolean(),
+    acceptedSlots: v.array(AcceptedSlotSchema),
   }),
 );
 
@@ -163,6 +178,7 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
                 memo.routineLastCompletedDay?.toISOString() ?? null,
               wasCappedThisPeriod: memo.routineWasCappedThisWeek ?? false,
               periodStartDate: memo.routineWeekStartDate?.toISOString() ?? null,
+              rejectedToday: memo.routineRejectedToday ?? false,
             }
           : undefined,
       backlogState:
@@ -171,6 +187,19 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
               acceptedToday: memo.backlogAcceptedToday ?? false,
               lastCompletedDay:
                 memo.backlogLastCompletedDay?.toISOString() ?? null,
+              rejectedToday: memo.backlogRejectedToday ?? false,
+            }
+          : undefined,
+      deadlineState:
+        memo.type === "期限付き"
+          ? {
+              rejectedToday: memo.deadlineRejectedToday ?? false,
+              acceptedSlots:
+                (memo.deadlineAcceptedSlots as Array<{
+                  startTime: string;
+                  endTime: string;
+                  duration: number;
+                }>) ?? [],
             }
           : undefined,
     }));
@@ -745,6 +774,184 @@ export const resetMemoAcceptedToday = command(
     } catch (err) {
       console.error("[resetMemoAcceptedToday] Error:", err);
       throw new Error("Failed to reset memo accepted state");
+    }
+  },
+);
+
+/**
+ * Mark a memo as rejected (sets rejectedToday = true for all task types)
+ * This prevents the task from reappearing in suggestions for today.
+ */
+export const markMemoRejected = command(
+  v.object({
+    memoId: v.string(),
+  }),
+  async (input) => {
+    const userId = getAuthenticatedUser();
+
+    try {
+      const existing = await prisma.memo.findFirst({
+        where: {
+          id: input.memoId,
+          userId,
+        },
+      });
+
+      if (!existing) {
+        throw new Error("Memo not found");
+      }
+
+      const updateData: Record<string, unknown> = {};
+
+      if (existing.type === "ルーティン") {
+        updateData.routineRejectedToday = true;
+      } else if (existing.type === "バックログ") {
+        updateData.backlogRejectedToday = true;
+      } else if (existing.type === "期限付き") {
+        updateData.deadlineRejectedToday = true;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return { id: existing.id, success: true };
+      }
+
+      await prisma.memo.update({
+        where: { id: input.memoId },
+        data: updateData,
+      });
+
+      console.log(`[markMemoRejected] Marked memo ${input.memoId} as rejected`);
+
+      return { id: input.memoId, success: true };
+    } catch (err) {
+      console.error("[markMemoRejected] Error:", err);
+      throw new Error("Failed to mark memo as rejected");
+    }
+  },
+);
+
+/**
+ * Add an accepted time slot to a deadline task
+ * This is called when a deadline suggestion is accepted with time slot info.
+ */
+export const addDeadlineAcceptedSlot = command(
+  v.object({
+    memoId: v.string(),
+    slot: AcceptedSlotSchema,
+  }),
+  async (input) => {
+    const userId = getAuthenticatedUser();
+
+    try {
+      const existing = await prisma.memo.findFirst({
+        where: {
+          id: input.memoId,
+          userId,
+        },
+      });
+
+      if (!existing) {
+        throw new Error("Memo not found");
+      }
+
+      if (existing.type !== "期限付き") {
+        throw new Error("Memo is not a deadline task");
+      }
+
+      // Get current slots or initialize empty array
+      const currentSlots =
+        (existing.deadlineAcceptedSlots as Array<{
+          startTime: string;
+          endTime: string;
+          duration: number;
+        }>) ?? [];
+
+      // Add new slot
+      const newSlots = [...currentSlots, input.slot];
+
+      await prisma.memo.update({
+        where: { id: input.memoId },
+        data: {
+          deadlineAcceptedSlots: newSlots,
+          lastActivity: new Date(),
+        },
+      });
+
+      console.log(
+        `[addDeadlineAcceptedSlot] Added slot to memo ${input.memoId}:`,
+        input.slot,
+      );
+
+      return {
+        id: input.memoId,
+        acceptedSlots: newSlots,
+      };
+    } catch (err) {
+      console.error("[addDeadlineAcceptedSlot] Error:", err);
+      throw new Error("Failed to add accepted slot");
+    }
+  },
+);
+
+/**
+ * Remove an accepted time slot from a deadline task
+ * Called when user deletes/cancels an accepted deadline suggestion.
+ */
+export const removeDeadlineAcceptedSlot = command(
+  v.object({
+    memoId: v.string(),
+    startTime: v.string(), // Used to identify the slot to remove
+  }),
+  async (input) => {
+    const userId = getAuthenticatedUser();
+
+    try {
+      const existing = await prisma.memo.findFirst({
+        where: {
+          id: input.memoId,
+          userId,
+        },
+      });
+
+      if (!existing) {
+        throw new Error("Memo not found");
+      }
+
+      if (existing.type !== "期限付き") {
+        throw new Error("Memo is not a deadline task");
+      }
+
+      // Get current slots
+      const currentSlots =
+        (existing.deadlineAcceptedSlots as Array<{
+          startTime: string;
+          endTime: string;
+          duration: number;
+        }>) ?? [];
+
+      // Remove the slot with matching startTime
+      const newSlots = currentSlots.filter(
+        (slot) => slot.startTime !== input.startTime,
+      );
+
+      await prisma.memo.update({
+        where: { id: input.memoId },
+        data: {
+          deadlineAcceptedSlots: newSlots,
+        },
+      });
+
+      console.log(
+        `[removeDeadlineAcceptedSlot] Removed slot ${input.startTime} from memo ${input.memoId}`,
+      );
+
+      return {
+        id: input.memoId,
+        acceptedSlots: newSlots,
+      };
+    } catch (err) {
+      console.error("[removeDeadlineAcceptedSlot] Error:", err);
+      throw new Error("Failed to remove accepted slot");
     }
   },
 );

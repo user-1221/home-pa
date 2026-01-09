@@ -231,8 +231,9 @@ export function getCurrentPeriodStart(
  * Call this before scoring to ensure fresh state
  *
  * Handles:
- * - Routine tasks: completionsThisPeriod, acceptedToday, completedToday
- * - Backlog tasks: acceptedToday
+ * - Routine tasks: completionsThisPeriod, acceptedToday, completedToday, rejectedToday
+ * - Backlog tasks: acceptedToday, rejectedToday
+ * - Deadline tasks: rejectedToday, acceptedSlots
  *
  * @param memo - Memo to check and potentially reset
  * @param currentTime - Current time
@@ -297,15 +298,18 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
 
       if (
         needsReset &&
-        (memo.routineState.acceptedToday || memo.routineState.completedToday)
+        (memo.routineState.acceptedToday ||
+          memo.routineState.completedToday ||
+          memo.routineState.rejectedToday)
       ) {
-        // New day - reset acceptedToday and completedToday
+        // New day - reset acceptedToday, completedToday, and rejectedToday
         updated = {
           ...updated,
           routineState: {
             ...updated.routineState!,
             acceptedToday: false,
             completedToday: false,
+            rejectedToday: false,
           },
         };
         hasChanges = true;
@@ -324,15 +328,49 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
     // 2. lastCompletedDay is null but acceptedToday is true (accepted but never completed)
     const needsReset = lastCompleted
       ? !isSameDay(lastCompleted, currentTime)
-      : memo.backlogState.acceptedToday; // Reset orphaned acceptedToday
+      : memo.backlogState.acceptedToday || memo.backlogState.rejectedToday;
 
-    if (needsReset && memo.backlogState.acceptedToday) {
-      // New day - reset acceptedToday
+    if (
+      needsReset &&
+      (memo.backlogState.acceptedToday || memo.backlogState.rejectedToday)
+    ) {
+      // New day - reset acceptedToday and rejectedToday
       updated = {
         ...updated,
         backlogState: {
           ...updated.backlogState!,
           acceptedToday: false,
+          rejectedToday: false,
+        },
+      };
+      hasChanges = true;
+    }
+  }
+
+  // Handle deadline tasks
+  if (memo.type === "期限付き" && memo.deadlineState) {
+    const lastCompleted = memo.deadlineState.lastCompletedDay
+      ? new Date(memo.deadlineState.lastCompletedDay)
+      : null;
+
+    // Reset if:
+    // 1. lastCompletedDay exists and it's a different day, OR
+    // 2. lastCompletedDay is null but has acceptedSlots or rejectedToday
+    const hasAcceptedSlots =
+      memo.deadlineState.acceptedSlots &&
+      memo.deadlineState.acceptedSlots.length > 0;
+    const needsReset = lastCompleted
+      ? !isSameDay(lastCompleted, currentTime)
+      : hasAcceptedSlots || memo.deadlineState.rejectedToday;
+
+    if (needsReset && (hasAcceptedSlots || memo.deadlineState.rejectedToday)) {
+      // New day - reset acceptedSlots and rejectedToday
+      updated = {
+        ...updated,
+        deadlineState: {
+          ...updated.deadlineState!,
+          acceptedSlots: [],
+          rejectedToday: false,
         },
       };
       hasChanges = true;

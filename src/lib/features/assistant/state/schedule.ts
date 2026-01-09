@@ -72,12 +72,7 @@ import {
   minutesToTime,
   findOverlappingSuggestions,
 } from "../services/suggestion-drag.ts";
-import {
-  loadSyncData,
-  saveSuggestionActions,
-  removeSuggestionAction,
-  clearSuggestionActions,
-} from "../services/sync.remote.ts";
+import { loadSyncData } from "../services/sync.remote.ts";
 
 // ============================================================================
 // Types for Suggestion Management
@@ -171,11 +166,47 @@ export const isSyncLoaded = writable<boolean>(false);
 export const isSyncing = writable<boolean>(false);
 
 /**
+ * Tracks the date when synced data was last loaded/reset
+ * Used to detect day boundary crossings while app is running
+ */
+let lastSyncDate: string | null = null;
+
+/**
  * Promise that resolves when sync is complete (or fails)
  * Used to wait for sync before regenerating or calling transit API
  */
 let syncCompleteResolve: (() => void) | null = null;
 let syncCompletePromise: Promise<void> | null = null;
+
+/**
+ * Get today's date as YYYY-MM-DD string
+ */
+function getTodayDateString(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Check if a new day has started since the last sync and clear stores if needed.
+ * This ensures deadline acceptances and rejections reset daily, consistent with
+ * how routine/backlog tasks reset their acceptedToday flags via resetPeriodIfNeeded().
+ */
+function resetStoresIfNewDay(): void {
+  const today = getTodayDateString();
+
+  if (lastSyncDate !== null && lastSyncDate !== today) {
+    console.log(
+      `[Schedule] Day boundary crossed (${lastSyncDate} → ${today}), clearing synced stores`,
+    );
+    acceptedMemos.set(new Map());
+    rejectedMemoIds.set(new Set());
+    movedSuggestions.set([]);
+    // Note: We don't clear server data here since loadSyncData() handles that cleanup
+    // The server-side cleanup happens on next app restart
+  }
+
+  lastSyncDate = today;
+}
 
 /**
  * Wait for sync to complete before proceeding
@@ -405,6 +436,10 @@ export const scheduleActions = {
     // Wait for sync to complete first
     await waitForSync();
 
+    // Check for day boundary crossing and reset stores if needed
+    // This ensures deadline acceptances reset daily like routine/backlog tasks
+    resetStoresIfNewDay();
+
     isScheduleLoading.set(true);
     scheduleError.set(null);
 
@@ -538,7 +573,22 @@ export const scheduleActions = {
     const { taskActions, tasks } = await import(
       "$lib/features/tasks/state/taskActions.ts"
     );
-    await taskActions.markAccepted(block.memoId);
+
+    // Find the memo to check its type
+    const currentTasks = get(tasks);
+    const memo = currentTasks.find((t) => t.id === block.memoId);
+
+    if (memo?.type === "期限付き") {
+      // For deadline tasks, add the accepted slot
+      await taskActions.addAcceptedSlot(block.memoId, {
+        startTime: block.startTime,
+        endTime: block.endTime,
+        duration: block.duration,
+      });
+    } else {
+      // For routine/backlog tasks, mark as accepted
+      await taskActions.markAccepted(block.memoId);
+    }
 
     // Remove from movedSuggestions if it was there
     if (currentMoved.some((m) => m.suggestionId === suggestionId)) {
@@ -547,7 +597,7 @@ export const scheduleActions = {
       );
     }
 
-    // Add to accepted memos store
+    // Add to accepted memos store (for UI/gap calculation)
     const acceptedInfo: AcceptedMemoInfo = {
       memoId: block.memoId,
       startTime: block.startTime,
@@ -568,11 +618,8 @@ export const scheduleActions = {
       block.memoId,
     );
 
-    // Sync to server (fire and forget)
-    scheduleActions.syncAcceptedAction(block.memoId, acceptedInfo);
-
     // Regenerate to fill remaining gaps
-    // Use fresh memos from store (after markAccepted updated the state)
+    // Use fresh memos from store (after markAccepted/addAcceptedSlot updated the state)
     const freshMemos = get(tasks);
     await scheduleActions.regenerate(freshMemos);
   },
@@ -610,11 +657,13 @@ export const scheduleActions = {
       block.memoId,
     );
 
-    // Sync rejected memo to server (fire and forget)
-    scheduleActions.syncRejectedAction(block.memoId);
+    // Persist rejection to memo state
+    const { taskActions, tasks } = await import(
+      "$lib/features/tasks/state/taskActions.ts"
+    );
+    await taskActions.markRejected(block.memoId);
 
     // Regenerate to get new suggestion for the gap
-    const { tasks } = await import("$lib/features/tasks/state/taskActions.ts");
     const freshMemos = get(tasks);
     await scheduleActions.regenerate(freshMemos);
   },
@@ -1004,12 +1053,7 @@ export const scheduleActions = {
 
     console.log("[Schedule] Updated accepted duration:", memoId, newDuration);
 
-    // Sync to server
-    scheduleActions.syncAcceptedAction(memoId, {
-      ...info,
-      duration: newDuration,
-      endTime: newEndTime,
-    });
+    // Note: Acceptance state is persisted on memo, local store is for UI/gap calculation
   },
 
   /**
@@ -1028,9 +1072,6 @@ export const scheduleActions = {
     });
 
     console.log("[Schedule] Deleted accepted memo:", memoId);
-
-    // Remove from server sync (fire and forget)
-    scheduleActions.unsyncAcceptedAction(memoId);
 
     // Reset the memo's acceptedToday flag so it can reappear
     const { taskActions } = await import(
@@ -1063,9 +1104,6 @@ export const scheduleActions = {
       duration,
     });
 
-    // Remove from server sync (fire and forget)
-    scheduleActions.unsyncAcceptedAction(memoId);
-
     // Note: The actual memo update is done via the remote function
     // called from PersonalAssistantView
   },
@@ -1086,9 +1124,6 @@ export const scheduleActions = {
     });
 
     console.log("[Schedule] Missed suggestion:", memoId);
-
-    // Remove from server sync (fire and forget)
-    scheduleActions.unsyncAcceptedAction(memoId);
 
     // Reset the memo's acceptedToday flag so it can reappear
     const { taskActions, tasks } = await import(
@@ -1164,7 +1199,9 @@ export const scheduleActions = {
   /**
    * Load synced data from the server
    * Should be called once when the app initializes
-   * This includes cleanup of expired data (handled server-side)
+   *
+   * Note: Suggestion actions (accepted/rejected) are now stored on memo state,
+   * so this only loads cached transit data.
    */
   async loadSyncedData(): Promise<void> {
     if (get(isSyncLoaded)) {
@@ -1177,43 +1214,17 @@ export const scheduleActions = {
 
     try {
       console.log("[Schedule] Loading synced data...");
-      const data = await loadSyncData({});
+      // Load cached transit data (suggestion actions now stored on memo state)
+      await loadSyncData({});
 
-      // Convert synced actions to local format
-      const acceptedMap = new Map<string, AcceptedMemoInfo>();
-      const rejectedSet = new Set<string>();
-
-      for (const action of data.suggestionActions) {
-        if (
-          action.action === "accepted" &&
-          action.startTime &&
-          action.endTime &&
-          action.duration
-        ) {
-          acceptedMap.set(action.memoId, {
-            memoId: action.memoId,
-            startTime: action.startTime,
-            endTime: action.endTime,
-            duration: action.duration,
-          });
-        } else if (action.action === "rejected") {
-          rejectedSet.add(action.memoId);
-        }
-        // "missed" actions don't need to be loaded - they just remove "accepted"
-      }
-
-      // Apply to stores
-      acceptedMemos.set(acceptedMap);
-      rejectedMemoIds.set(rejectedSet);
+      // Initialize lastSyncDate to track day boundaries
+      lastSyncDate = getTodayDateString();
 
       // Sync blockers to gap state for availableGaps computation
       syncBlockersToGapState();
 
       isSyncLoaded.set(true);
-      console.log("[Schedule] Synced data loaded:", {
-        acceptedMemos: acceptedMap.size,
-        rejectedMemos: rejectedSet.size,
-      });
+      console.log("[Schedule] Synced data loaded");
     } catch (error) {
       console.error("[Schedule] Failed to load synced data:", error);
       // Continue without synced data - will work with fresh state
@@ -1222,71 +1233,6 @@ export const scheduleActions = {
     } finally {
       isSyncing.set(false);
       signalSyncComplete();
-    }
-  },
-
-  /**
-   * Sync an accepted action to the server
-   */
-  async syncAcceptedAction(
-    memoId: string,
-    info: AcceptedMemoInfo,
-  ): Promise<void> {
-    try {
-      await saveSuggestionActions({
-        actions: [
-          {
-            memoId,
-            action: "accepted",
-            startTime: info.startTime,
-            endTime: info.endTime,
-            duration: info.duration,
-          },
-        ],
-      });
-    } catch (error) {
-      console.error("[Schedule] Failed to sync accepted action:", error);
-    }
-  },
-
-  /**
-   * Remove an accepted action from the server
-   */
-  async unsyncAcceptedAction(memoId: string): Promise<void> {
-    try {
-      await removeSuggestionAction({ memoId, action: "accepted" });
-    } catch (error) {
-      console.error("[Schedule] Failed to unsync accepted action:", error);
-    }
-  },
-
-  /**
-   * Sync a rejected action to the server
-   */
-  async syncRejectedAction(memoId: string): Promise<void> {
-    try {
-      await saveSuggestionActions({
-        actions: [
-          {
-            memoId,
-            action: "rejected",
-          },
-        ],
-      });
-    } catch (error) {
-      console.error("[Schedule] Failed to sync rejected action:", error);
-    }
-  },
-
-  /**
-   * Clear all synced data (useful for testing or reset)
-   */
-  async clearSyncedData(): Promise<void> {
-    try {
-      await clearSuggestionActions({});
-      console.log("[Schedule] Cleared all synced data");
-    } catch (error) {
-      console.error("[Schedule] Failed to clear synced data:", error);
     }
   },
 

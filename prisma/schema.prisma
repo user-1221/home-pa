@@ -163,10 +163,16 @@ model Memo {
   routineLastCompletedDay   DateTime?  // Date of last completion
   routineWasCappedThisWeek  Boolean?   // True if display cap was active this period
   routineWeekStartDate      DateTime?  // Start of current tracking period
-  
+  routineRejectedToday      Boolean?   // If true, task cannot be regenerated today
+
   // Backlog state (バックログ type)
   backlogAcceptedToday      Boolean?   // If true, task treated as done for day
   backlogLastCompletedDay   DateTime?  // Date of last completion
+  backlogRejectedToday      Boolean?   // If true, task cannot be regenerated today
+
+  // Deadline state (期限付き type)
+  deadlineRejectedToday     Boolean?   // If true, task cannot be regenerated today
+  deadlineAcceptedSlots     Json?      // Array of {startTime, endTime, duration} for accepted time slots
 
   updatedAt              DateTime @updatedAt
 
@@ -216,35 +222,6 @@ model TimetableCell {
   @@unique([userId, dayOfWeek, slotIndex])
   @@index([userId])
   @@map("timetable_cell")
-}
-
-// ============================================================================
-// Action Sync Pipeline
-// Persists suggestion actions across sessions/devices
-// Cleaned up daily - only today's actions persist
-// ============================================================================
-
-// Simple action tracking for suggestions
-// Actions: "accepted" | "rejected" | "missed"
-// No timestamps needed - presence indicates action was taken today
-// Cleanup happens on new day (all records deleted)
-model SuggestionAction {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId          String
-  
-  memoId          String   // ID of the memo
-  action          String   // "accepted" | "rejected" | "missed"
-  
-  // Time slot info (only for accepted - needed for gap subtraction)
-  startTime       String?  // Start time in HH:mm format
-  endTime         String?  // End time in HH:mm format
-  duration        Int?     // Duration in minutes
-  
-  createdAt       DateTime @default(now())
-
-  @@unique([userId, memoId, action])
-  @@index([userId])
-  @@map("suggestion_action")
 }
 
 // Cached transit route info to avoid redundant API calls

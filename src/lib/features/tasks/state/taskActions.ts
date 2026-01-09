@@ -30,6 +30,9 @@ import {
   logSuggestionComplete,
   markMemoAccepted,
   resetMemoAcceptedToday,
+  markMemoRejected,
+  addDeadlineAcceptedSlot,
+  removeDeadlineAcceptedSlot,
 } from "./memo.functions.remote.ts";
 
 // ============================================================================
@@ -78,6 +81,7 @@ function jsonToMemo(json: {
   totalDurationExpected?: number;
   lastActivity?: string;
   importance?: string;
+  // Note: These fields may be partial from server responses that haven't been updated yet
   routineState?: {
     acceptedToday: boolean;
     completedToday: boolean;
@@ -85,10 +89,20 @@ function jsonToMemo(json: {
     lastCompletedDay: string | null;
     wasCappedThisPeriod: boolean;
     periodStartDate: string | null;
+    rejectedToday?: boolean; // Optional for backwards compat with server responses
   };
   backlogState?: {
     acceptedToday: boolean;
     lastCompletedDay: string | null;
+    rejectedToday?: boolean; // Optional for backwards compat with server responses
+  };
+  deadlineState?: {
+    rejectedToday: boolean;
+    acceptedSlots: Array<{
+      startTime: string;
+      endTime: string;
+      duration: number;
+    }>;
   };
 }): Memo {
   return {
@@ -125,6 +139,7 @@ function jsonToMemo(json: {
           periodStartDate: json.routineState.periodStartDate
             ? new Date(json.routineState.periodStartDate)
             : null,
+          rejectedToday: json.routineState.rejectedToday ?? false,
         }
       : undefined,
     backlogState: json.backlogState
@@ -133,6 +148,19 @@ function jsonToMemo(json: {
           lastCompletedDay: json.backlogState.lastCompletedDay
             ? new Date(json.backlogState.lastCompletedDay)
             : null,
+          rejectedToday: json.backlogState.rejectedToday ?? false,
+        }
+      : undefined,
+    deadlineState: json.deadlineState
+      ? {
+          createdDay: new Date(json.createdAt),
+          deadlineDay: json.deadline ? new Date(json.deadline) : new Date(),
+          lastCompletedDay: null,
+          actualDurationPoints: [],
+          expectedDurationPoints: [],
+          smoothedMultiplier: 1.0,
+          rejectedToday: json.deadlineState.rejectedToday ?? false,
+          acceptedSlots: json.deadlineState.acceptedSlots ?? [],
         }
       : undefined,
   };
@@ -219,10 +247,12 @@ export async function loadTasks(): Promise<void> {
             lastCompletedDay: string | null;
             wasCappedThisPeriod: boolean;
             periodStartDate: string | null;
+            rejectedToday: boolean;
           };
           backlogState?: {
             acceptedToday: boolean;
             lastCompletedDay: string | null;
+            rejectedToday: boolean;
           };
         } = {};
 
@@ -247,6 +277,7 @@ export async function loadTasks(): Promise<void> {
             wasCappedThisPeriod: reset.routineState.wasCappedThisPeriod,
             periodStartDate:
               reset.routineState.periodStartDate?.toISOString() ?? null,
+            rejectedToday: reset.routineState.rejectedToday,
           };
         }
 
@@ -255,6 +286,7 @@ export async function loadTasks(): Promise<void> {
             acceptedToday: reset.backlogState.acceptedToday,
             lastCompletedDay:
               reset.backlogState.lastCompletedDay?.toISOString() ?? null,
+            rejectedToday: reset.backlogState.rejectedToday,
           };
         }
 
@@ -835,9 +867,10 @@ export const taskActions = {
           lastActivity: result.lastActivity
             ? new Date(result.lastActivity)
             : task.lastActivity,
-          // Update type-specific state
+          // Update type-specific state (preserve rejectedToday from existing state)
           routineState: result.routineState
             ? {
+                ...task.routineState,
                 acceptedToday: result.routineState.acceptedToday,
                 completedToday: result.routineState.completedToday,
                 completedCountThisPeriod:
@@ -849,14 +882,17 @@ export const taskActions = {
                 periodStartDate: result.routineState.periodStartDate
                   ? new Date(result.routineState.periodStartDate)
                   : null,
+                rejectedToday: task.routineState?.rejectedToday ?? false,
               }
             : task.routineState,
           backlogState: result.backlogState
             ? {
+                ...task.backlogState,
                 acceptedToday: result.backlogState.acceptedToday,
                 lastCompletedDay: result.backlogState.lastCompletedDay
                   ? new Date(result.backlogState.lastCompletedDay)
                   : null,
+                rejectedToday: task.backlogState?.rejectedToday ?? false,
               }
             : task.backlogState,
         };
@@ -898,6 +934,7 @@ export const taskActions = {
           lastActivity: new Date(),
           routineState: result.routineState
             ? {
+                ...task.routineState,
                 acceptedToday: result.routineState.acceptedToday,
                 completedToday: result.routineState.completedToday,
                 completedCountThisPeriod:
@@ -909,14 +946,17 @@ export const taskActions = {
                 periodStartDate: result.routineState.periodStartDate
                   ? new Date(result.routineState.periodStartDate)
                   : null,
+                rejectedToday: task.routineState?.rejectedToday ?? false,
               }
             : task.routineState,
           backlogState: result.backlogState
             ? {
+                ...task.backlogState,
                 acceptedToday: result.backlogState.acceptedToday,
                 lastCompletedDay: result.backlogState.lastCompletedDay
                   ? new Date(result.backlogState.lastCompletedDay)
                   : null,
+                rejectedToday: task.backlogState?.rejectedToday ?? false,
               }
             : task.backlogState,
         };
@@ -977,6 +1017,155 @@ export const taskActions = {
       return true;
     } catch (err) {
       console.error("[taskActions.resetAccepted] Failed:", err);
+      return false;
+    }
+  },
+
+  /**
+   * Mark a task as rejected (sets rejectedToday = true)
+   * This prevents the task from reappearing in suggestions for today.
+   *
+   * Called when user skips/rejects a suggestion.
+   */
+  async markRejected(memoId: string): Promise<boolean> {
+    try {
+      await markMemoRejected({ memoId });
+
+      // Update local store
+      tasks.update((currentTasks) => {
+        const index = currentTasks.findIndex((t) => t.id === memoId);
+        if (index === -1) return currentTasks;
+
+        const task = currentTasks[index];
+        const newTasks = [...currentTasks];
+
+        if (task.type === "ルーティン" && task.routineState) {
+          newTasks[index] = {
+            ...task,
+            routineState: {
+              ...task.routineState,
+              rejectedToday: true,
+            },
+          };
+        } else if (task.type === "バックログ" && task.backlogState) {
+          newTasks[index] = {
+            ...task,
+            backlogState: {
+              ...task.backlogState,
+              rejectedToday: true,
+            },
+          };
+        } else if (task.type === "期限付き" && task.deadlineState) {
+          newTasks[index] = {
+            ...task,
+            deadlineState: {
+              ...task.deadlineState,
+              rejectedToday: true,
+            },
+          };
+        }
+
+        return newTasks;
+      });
+
+      console.log(
+        `[taskActions.markRejected] Marked task ${memoId} as rejected`,
+      );
+      return true;
+    } catch (err) {
+      console.error("[taskActions.markRejected] Failed:", err);
+      return false;
+    }
+  },
+
+  /**
+   * Add an accepted time slot for a deadline task
+   * Called when user accepts a deadline suggestion with specific time slot.
+   *
+   * @param memoId - ID of the deadline task
+   * @param slot - Time slot info (startTime, endTime, duration)
+   */
+  async addAcceptedSlot(
+    memoId: string,
+    slot: { startTime: string; endTime: string; duration: number },
+  ): Promise<boolean> {
+    try {
+      const result = await addDeadlineAcceptedSlot({ memoId, slot });
+
+      // Update local store
+      tasks.update((currentTasks) => {
+        const index = currentTasks.findIndex((t) => t.id === memoId);
+        if (index === -1) return currentTasks;
+
+        const task = currentTasks[index];
+        if (task.type !== "期限付き" || !task.deadlineState)
+          return currentTasks;
+
+        const newTasks = [...currentTasks];
+        newTasks[index] = {
+          ...task,
+          deadlineState: {
+            ...task.deadlineState,
+            acceptedSlots: result.acceptedSlots,
+          },
+          lastActivity: new Date(),
+        };
+
+        return newTasks;
+      });
+
+      console.log(
+        `[taskActions.addAcceptedSlot] Added slot to task ${memoId}:`,
+        slot,
+      );
+      return true;
+    } catch (err) {
+      console.error("[taskActions.addAcceptedSlot] Failed:", err);
+      return false;
+    }
+  },
+
+  /**
+   * Remove an accepted time slot from a deadline task
+   * Called when user cancels/deletes an accepted deadline suggestion.
+   *
+   * @param memoId - ID of the deadline task
+   * @param startTime - Start time of the slot to remove (used as identifier)
+   */
+  async removeAcceptedSlot(
+    memoId: string,
+    startTime: string,
+  ): Promise<boolean> {
+    try {
+      const result = await removeDeadlineAcceptedSlot({ memoId, startTime });
+
+      // Update local store
+      tasks.update((currentTasks) => {
+        const index = currentTasks.findIndex((t) => t.id === memoId);
+        if (index === -1) return currentTasks;
+
+        const task = currentTasks[index];
+        if (task.type !== "期限付き" || !task.deadlineState)
+          return currentTasks;
+
+        const newTasks = [...currentTasks];
+        newTasks[index] = {
+          ...task,
+          deadlineState: {
+            ...task.deadlineState,
+            acceptedSlots: result.acceptedSlots,
+          },
+        };
+
+        return newTasks;
+      });
+
+      console.log(
+        `[taskActions.removeAcceptedSlot] Removed slot ${startTime} from task ${memoId}`,
+      );
+      return true;
+    } catch (err) {
+      console.error("[taskActions.removeAcceptedSlot] Failed:", err);
       return false;
     }
   },

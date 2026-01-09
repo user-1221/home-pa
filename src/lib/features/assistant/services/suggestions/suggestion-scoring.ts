@@ -124,6 +124,7 @@ export function initializeRoutineState(
       currentTime,
       memo.recurrenceGoal?.period ?? "week",
     ),
+    rejectedToday: false,
   };
 }
 
@@ -292,6 +293,8 @@ export function initializeDeadlineState(
     actualDurationPoints: [],
     expectedDurationPoints,
     smoothedMultiplier: 1.0,
+    rejectedToday: false,
+    acceptedSlots: [],
   };
 }
 
@@ -427,6 +430,7 @@ export function initializeBacklogState(memo: Memo): BacklogState {
     memo.backlogState ?? {
       acceptedToday: false,
       lastCompletedDay: memo.lastActivity ? new Date(memo.lastActivity) : null,
+      rejectedToday: false,
     }
   );
 }
@@ -764,9 +768,11 @@ export function recordDeadlineSession(
 export function markBacklogAccepted(memo: Memo, currentTime: Date): Memo {
   if (memo.type !== "バックログ") return memo;
 
+  const currentState = initializeBacklogState(memo);
   return {
     ...memo,
     backlogState: {
+      ...currentState,
       acceptedToday: true,
       lastCompletedDay: currentTime, // Set as if completed today
     },
@@ -780,9 +786,11 @@ export function markBacklogAccepted(memo: Memo, currentTime: Date): Memo {
 export function markBacklogCompleted(memo: Memo, currentTime: Date): Memo {
   if (memo.type !== "バックログ") return memo;
 
+  const currentState = initializeBacklogState(memo);
   return {
     ...memo,
     backlogState: {
+      ...currentState,
       acceptedToday: true,
       lastCompletedDay: currentTime,
     },
