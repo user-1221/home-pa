@@ -71,4 +71,5 @@ export interface EventUpdateInput {
   timeLabel?: "all-day" | "some-timing" | "timed";
   tzid?: string;
   recurrence?: unknown;
+  color?: string;
 }

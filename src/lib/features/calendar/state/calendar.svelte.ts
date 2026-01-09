@@ -275,6 +275,7 @@ class CalendarState {
         timeLabel: event.timeLabel ?? "all-day",
         tzid: event.tzid,
         recurrence: event.recurrence,
+        color: event.color,
       });
 
       const created: Event = {
@@ -332,6 +333,7 @@ class CalendarState {
         updateInput.recurrence = updates.recurrence;
       if (updates.icalData !== undefined)
         updateInput.icalData = updates.icalData;
+      if (updates.color !== undefined) updateInput.color = updates.color;
 
       const updatedJson = await updateEventRemote({
         id,

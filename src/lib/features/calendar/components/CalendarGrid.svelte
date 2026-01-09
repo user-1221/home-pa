@@ -59,7 +59,7 @@
         class="group relative flex min-h-0 cursor-pointer flex-col border-r border-b bg-base-100/60 transition-colors duration-200 ease-out hover:bg-base-200/80
           {isToday(day) ? 'bg-[var(--color-primary)]/5' : ''}
           {isSelected(day, selectedDate)
-          ? 'z-10 border-[var(--color-primary)]/50 bg-[var(--color-primary)]/10 ring-1 ring-[var(--color-primary)]/30'
+          ? 'z-10 border-base-300/30 bg-base-300'
           : 'border-base-300/30'}
           {!isCurrentMonth(day, currentMonth) ? 'opacity-40' : ''}"
         onclick={() => onSelectDate(day)}

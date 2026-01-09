@@ -892,7 +892,7 @@
               (activeDatePicker =
                 activeDatePicker === "start" ? null : "start")}
           />
-          <div>
+          <div class="flex flex-col">
             <label class="label" for="event-start-time">
               <span
                 class="label-text text-sm text-[var(--color-text-secondary)]"
@@ -937,7 +937,7 @@
             onclick={() =>
               (activeDatePicker = activeDatePicker === "end" ? null : "end")}
           />
-          <div>
+          <div class="flex flex-col">
             <label class="label" for="event-end-time">
               <span
                 class="label-text text-sm text-[var(--color-text-secondary)]"

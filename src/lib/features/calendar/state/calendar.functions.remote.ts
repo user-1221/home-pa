@@ -223,6 +223,7 @@ export const updateEvent = command(EventUpdateSchema, async (input) => {
     if (input.updates.tzid !== undefined) updates.tzid = input.updates.tzid;
     if (input.updates.recurrence !== undefined)
       updates.recurrence = input.updates.recurrence;
+    if (input.updates.color !== undefined) updates.color = input.updates.color;
 
     // Convert to database update format
     const dbUpdates = appEventToDbUpdate(updates, existing);

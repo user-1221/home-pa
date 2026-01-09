@@ -55,6 +55,7 @@ export async function createEventApi(event: Omit<Event, "id">): Promise<Event> {
     timeLabel: event.timeLabel ?? "all-day",
     tzid: event.tzid,
     recurrence: event.recurrence,
+    color: event.color,
   });
   return eventFromJSON(createdJson);
 }
@@ -76,6 +77,7 @@ export async function updateEventApi(
   if (updates.timeLabel !== undefined) body.timeLabel = updates.timeLabel;
   if (updates.tzid !== undefined) body.tzid = updates.tzid;
   if (updates.recurrence !== undefined) body.recurrence = updates.recurrence;
+  if (updates.color !== undefined) body.color = updates.color;
 
   const updatedJson = await updateEvent({ id, updates: body });
   return eventFromJSON(updatedJson);

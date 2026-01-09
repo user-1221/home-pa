@@ -304,7 +304,7 @@
                 {#each timetableEvents as ttEvent (ttEvent.id)}
                   {@const isBlocking = ttEvent.workAllowed === "作業不可"}
                   <div
-                    class="absolute right-1 left-1 min-h-[20px] overflow-hidden rounded-md border-l-[3px] px-1.5 py-1"
+                    class="absolute right-1 left-1 min-h-[20px] overflow-hidden rounded-r-md border-l-[3px] px-1.5 py-1"
                     style="
                       top: {getTimetableEventPosition(ttEvent)}px;
                       height: {getTimetableEventHeight(ttEvent)}px;
@@ -343,7 +343,7 @@
               >
                 {#each column as event (event.id)}
                   <div
-                    class="event-card absolute right-1 left-1 min-h-[24px] cursor-pointer overflow-hidden rounded-md border-l-[3px] px-2 py-1 shadow-sm transition-all duration-200 hover:z-10 hover:shadow-lg"
+                    class="event-card absolute right-1 left-1 min-h-[24px] cursor-pointer overflow-hidden rounded-r-md border-l-[3px] px-2 py-1 shadow-sm transition-all duration-200 hover:z-10 hover:shadow-lg"
                     onclick={() => handleEventClick(event)}
                     onkeydown={(e: KeyboardEvent) =>
                       e.key === "Enter" && handleEventClick(event)}

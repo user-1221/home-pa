@@ -203,7 +203,7 @@
 </script>
 
 <div
-  class="relative overflow-hidden rounded-xl"
+  class="relative overflow-hidden rounded-r-xl"
   style="touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;"
 >
   <!-- Action buttons behind (revealed on swipe, mobile only) -->
@@ -277,7 +277,7 @@
 
   <!-- Main card content (swipeable on mobile only) -->
   <div
-    class="relative rounded-xl border border-base-300/50 shadow-sm transition-colors duration-200 ease-out
+    class="relative rounded-r-xl border border-base-300/50 shadow-sm transition-colors duration-200 ease-out
       {task.type === '期限付き'
       ? 'border-l-[3px] border-l-[var(--color-warning-500)]'
       : task.type === 'ルーティン'
