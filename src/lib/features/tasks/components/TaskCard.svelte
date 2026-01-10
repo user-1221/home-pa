@@ -285,7 +285,7 @@
         : 'border-l-[3px] border-l-base-content/20'}
       {task.status.completionState === 'completed'
       ? 'bg-base-200/60 opacity-50'
-      : 'bg-base-100/95'}"
+      : 'bg-base-100'}"
     style="transform: translateX({translateX}px); transition: {isSwiping
       ? 'none'
       : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'};"

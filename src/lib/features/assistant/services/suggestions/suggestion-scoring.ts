@@ -125,6 +125,7 @@ export function initializeRoutineState(
       memo.recurrenceGoal?.period ?? "week",
     ),
     rejectedToday: false,
+    acceptedSlot: null,
   };
 }
 
@@ -431,6 +432,7 @@ export function initializeBacklogState(memo: Memo): BacklogState {
       acceptedToday: false,
       lastCompletedDay: memo.lastActivity ? new Date(memo.lastActivity) : null,
       rejectedToday: false,
+      acceptedSlot: null,
     }
   );
 }

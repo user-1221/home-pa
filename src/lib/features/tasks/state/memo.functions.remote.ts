@@ -36,6 +36,13 @@ const MemoStatusSchema = v.object({
   periodStartDate: v.optional(v.string()),
 });
 
+// Accepted slot schema (shared by all task types)
+const AcceptedSlotSchema = v.object({
+  startTime: v.string(),
+  endTime: v.string(),
+  duration: v.number(),
+});
+
 // Type-specific state schemas
 const RoutineStateSchema = v.optional(
   v.object({
@@ -46,6 +53,7 @@ const RoutineStateSchema = v.optional(
     wasCappedThisPeriod: v.boolean(),
     periodStartDate: v.nullable(v.string()),
     rejectedToday: v.boolean(),
+    acceptedSlot: v.nullable(AcceptedSlotSchema),
   }),
 );
 
@@ -54,14 +62,9 @@ const BacklogStateSchema = v.optional(
     acceptedToday: v.boolean(),
     lastCompletedDay: v.nullable(v.string()),
     rejectedToday: v.boolean(),
+    acceptedSlot: v.nullable(AcceptedSlotSchema),
   }),
 );
-
-const AcceptedSlotSchema = v.object({
-  startTime: v.string(),
-  endTime: v.string(),
-  duration: v.number(),
-});
 
 const DeadlineStateSchema = v.optional(
   v.object({
@@ -179,6 +182,12 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
               wasCappedThisPeriod: memo.routineWasCappedThisWeek ?? false,
               periodStartDate: memo.routineWeekStartDate?.toISOString() ?? null,
               rejectedToday: memo.routineRejectedToday ?? false,
+              acceptedSlot:
+                (memo.routineAcceptedSlot as {
+                  startTime: string;
+                  endTime: string;
+                  duration: number;
+                } | null) ?? null,
             }
           : undefined,
       backlogState:
@@ -188,6 +197,12 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
               lastCompletedDay:
                 memo.backlogLastCompletedDay?.toISOString() ?? null,
               rejectedToday: memo.backlogRejectedToday ?? false,
+              acceptedSlot:
+                (memo.backlogAcceptedSlot as {
+                  startTime: string;
+                  endTime: string;
+                  duration: number;
+                } | null) ?? null,
             }
           : undefined,
       deadlineState:
@@ -395,6 +410,7 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
         .periodStartDate
         ? new Date(input.updates.routineState.periodStartDate)
         : null;
+      updateData.routineAcceptedSlot = input.updates.routineState.acceptedSlot;
     }
     // Backlog state
     if (input.updates.backlogState !== undefined) {
@@ -404,6 +420,7 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
         .lastCompletedDay
         ? new Date(input.updates.backlogState.lastCompletedDay)
         : null;
+      updateData.backlogAcceptedSlot = input.updates.backlogState.acceptedSlot;
     }
 
     const updated = await prisma.memo.update({
@@ -634,10 +651,13 @@ export const logSuggestionComplete = command(
  * This is called when a user accepts a suggestion without completing it yet.
  * The acceptedToday flag causes the scoring function to treat the task as
  * "done for today" (score drops to ~0), preventing duplicate suggestions.
+ *
+ * Also stores the accepted time slot for persistence across page reloads.
  */
 export const markMemoAccepted = command(
   v.object({
     memoId: v.string(),
+    slot: v.optional(AcceptedSlotSchema),
   }),
   async (input) => {
     const userId = getAuthenticatedUser();
@@ -669,6 +689,7 @@ export const markMemoAccepted = command(
           !existingWeekStart || !isSameWeek(existingWeekStart, now);
 
         updateData.routineAcceptedToday = true;
+        updateData.routineAcceptedSlot = input.slot ?? null;
         updateData.routineLastCompletedDay = now; // Treat as completed for scoring
         updateData.routineWeekStartDate = needsWeekReset
           ? weekStart
@@ -680,6 +701,7 @@ export const markMemoAccepted = command(
         }
       } else if (existing.type === "バックログ") {
         updateData.backlogAcceptedToday = true;
+        updateData.backlogAcceptedSlot = input.slot ?? null;
         updateData.backlogLastCompletedDay = now; // Treat as completed for scoring
       }
       // Deadline tasks don't have acceptedToday - they use a different mechanism
@@ -707,6 +729,12 @@ export const markMemoAccepted = command(
                 wasCappedThisPeriod: updated.routineWasCappedThisWeek ?? false,
                 periodStartDate:
                   updated.routineWeekStartDate?.toISOString() ?? null,
+                acceptedSlot:
+                  (updated.routineAcceptedSlot as {
+                    startTime: string;
+                    endTime: string;
+                    duration: number;
+                  } | null) ?? null,
               }
             : undefined,
         backlogState:
@@ -715,6 +743,12 @@ export const markMemoAccepted = command(
                 acceptedToday: updated.backlogAcceptedToday ?? false,
                 lastCompletedDay:
                   updated.backlogLastCompletedDay?.toISOString() ?? null,
+                acceptedSlot:
+                  (updated.backlogAcceptedSlot as {
+                    startTime: string;
+                    endTime: string;
+                    duration: number;
+                  } | null) ?? null,
               }
             : undefined,
       };
@@ -753,8 +787,10 @@ export const resetMemoAcceptedToday = command(
       if (existing.type === "ルーティン") {
         updateData.routineAcceptedToday = false;
         updateData.routineCompletedToday = false;
+        updateData.routineAcceptedSlot = null;
       } else if (existing.type === "バックログ") {
         updateData.backlogAcceptedToday = false;
+        updateData.backlogAcceptedSlot = null;
       }
 
       if (Object.keys(updateData).length === 0) {

@@ -164,11 +164,13 @@ model Memo {
   routineWasCappedThisWeek  Boolean?   // True if display cap was active this period
   routineWeekStartDate      DateTime?  // Start of current tracking period
   routineRejectedToday      Boolean?   // If true, task cannot be regenerated today
+  routineAcceptedSlot       Json?      // Single slot: {startTime, endTime, duration}
 
   // Backlog state (バックログ type)
   backlogAcceptedToday      Boolean?   // If true, task treated as done for day
   backlogLastCompletedDay   DateTime?  // Date of last completion
   backlogRejectedToday      Boolean?   // If true, task cannot be regenerated today
+  backlogAcceptedSlot       Json?      // Single slot: {startTime, endTime, duration}
 
   // Deadline state (期限付き type)
   deadlineRejectedToday     Boolean?   // If true, task cannot be regenerated today

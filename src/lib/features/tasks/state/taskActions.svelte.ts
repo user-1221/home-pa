@@ -69,11 +69,21 @@ function jsonToMemo(json: {
     wasCappedThisPeriod: boolean;
     periodStartDate: string | null;
     rejectedToday?: boolean;
+    acceptedSlot?: {
+      startTime: string;
+      endTime: string;
+      duration: number;
+    } | null;
   };
   backlogState?: {
     acceptedToday: boolean;
     lastCompletedDay: string | null;
     rejectedToday?: boolean;
+    acceptedSlot?: {
+      startTime: string;
+      endTime: string;
+      duration: number;
+    } | null;
   };
   deadlineState?: {
     rejectedToday: boolean;
@@ -119,6 +129,7 @@ function jsonToMemo(json: {
             ? new Date(json.routineState.periodStartDate)
             : null,
           rejectedToday: json.routineState.rejectedToday ?? false,
+          acceptedSlot: json.routineState.acceptedSlot ?? null,
         }
       : undefined,
     backlogState: json.backlogState
@@ -128,6 +139,7 @@ function jsonToMemo(json: {
             ? new Date(json.backlogState.lastCompletedDay)
             : null,
           rejectedToday: json.backlogState.rejectedToday ?? false,
+          acceptedSlot: json.backlogState.acceptedSlot ?? null,
         }
       : undefined,
     deadlineState: json.deadlineState
@@ -388,11 +400,21 @@ class TaskState {
               wasCappedThisPeriod: boolean;
               periodStartDate: string | null;
               rejectedToday: boolean;
+              acceptedSlot: {
+                startTime: string;
+                endTime: string;
+                duration: number;
+              } | null;
             };
             backlogState?: {
               acceptedToday: boolean;
               lastCompletedDay: string | null;
               rejectedToday: boolean;
+              acceptedSlot: {
+                startTime: string;
+                endTime: string;
+                duration: number;
+              } | null;
             };
           } = {};
 
@@ -418,6 +440,7 @@ class TaskState {
               periodStartDate:
                 reset.routineState.periodStartDate?.toISOString() ?? null,
               rejectedToday: reset.routineState.rejectedToday,
+              acceptedSlot: reset.routineState.acceptedSlot,
             };
           }
 
@@ -427,6 +450,7 @@ class TaskState {
               lastCompletedDay:
                 reset.backlogState.lastCompletedDay?.toISOString() ?? null,
               rejectedToday: reset.backlogState.rejectedToday,
+              acceptedSlot: reset.backlogState.acceptedSlot,
             };
           }
 
@@ -763,7 +787,7 @@ class TaskState {
           lastActivity: result.lastActivity
             ? new Date(result.lastActivity)
             : task.lastActivity,
-          // Update type-specific state (preserve rejectedToday from existing state)
+          // Update type-specific state (preserve rejectedToday and acceptedSlot from existing state)
           routineState: result.routineState
             ? {
                 ...task.routineState,
@@ -779,6 +803,7 @@ class TaskState {
                   ? new Date(result.routineState.periodStartDate)
                   : null,
                 rejectedToday: task.routineState?.rejectedToday ?? false,
+                acceptedSlot: task.routineState?.acceptedSlot ?? null,
               }
             : task.routineState,
           backlogState: result.backlogState
@@ -789,6 +814,7 @@ class TaskState {
                   ? new Date(result.backlogState.lastCompletedDay)
                   : null,
                 rejectedToday: task.backlogState?.rejectedToday ?? false,
+                acceptedSlot: task.backlogState?.acceptedSlot ?? null,
               }
             : task.backlogState,
         };
@@ -813,10 +839,16 @@ class TaskState {
    * preventing duplicate suggestions from appearing.
    *
    * Called when user accepts a suggestion (before completion).
+   *
+   * @param memoId - ID of the task to mark as accepted
+   * @param slot - Optional time slot info for persistence across reloads
    */
-  async markAccepted(memoId: string): Promise<boolean> {
+  async markAccepted(
+    memoId: string,
+    slot?: { startTime: string; endTime: string; duration: number },
+  ): Promise<boolean> {
     try {
-      const result = await markMemoAccepted({ memoId });
+      const result = await markMemoAccepted({ memoId, slot });
 
       // Update local store
       const index = this.items.findIndex((t) => t.id === memoId);
@@ -841,6 +873,7 @@ class TaskState {
                   ? new Date(result.routineState.periodStartDate)
                   : null,
                 rejectedToday: task.routineState?.rejectedToday ?? false,
+                acceptedSlot: result.routineState.acceptedSlot ?? null,
               }
             : task.routineState,
           backlogState: result.backlogState
@@ -851,6 +884,7 @@ class TaskState {
                   ? new Date(result.backlogState.lastCompletedDay)
                   : null,
                 rejectedToday: task.backlogState?.rejectedToday ?? false,
+                acceptedSlot: result.backlogState.acceptedSlot ?? null,
               }
             : task.backlogState,
         };
@@ -886,6 +920,7 @@ class TaskState {
               ...task.routineState,
               acceptedToday: false,
               completedToday: false,
+              acceptedSlot: null,
             },
           };
         } else if (task.type === "バックログ" && task.backlogState) {
@@ -894,6 +929,7 @@ class TaskState {
             backlogState: {
               ...task.backlogState,
               acceptedToday: false,
+              acceptedSlot: null,
             },
           };
         }
@@ -1281,7 +1317,10 @@ export const taskActions = {
   cancel: () => taskState.cancel(),
   logProgress: (memoId: string, durationMinutes: number) =>
     taskState.logProgress(memoId, durationMinutes),
-  markAccepted: (memoId: string) => taskState.markAccepted(memoId),
+  markAccepted: (
+    memoId: string,
+    slot?: { startTime: string; endTime: string; duration: number },
+  ) => taskState.markAccepted(memoId, slot),
   resetAccepted: (memoId: string) => taskState.resetAccepted(memoId),
   markRejected: (memoId: string) => taskState.markRejected(memoId),
   addAcceptedSlot: (

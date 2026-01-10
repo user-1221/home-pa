@@ -300,9 +300,10 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
         needsReset &&
         (memo.routineState.acceptedToday ||
           memo.routineState.completedToday ||
-          memo.routineState.rejectedToday)
+          memo.routineState.rejectedToday ||
+          memo.routineState.acceptedSlot)
       ) {
-        // New day - reset acceptedToday, completedToday, and rejectedToday
+        // New day - reset acceptedToday, completedToday, rejectedToday, and acceptedSlot
         updated = {
           ...updated,
           routineState: {
@@ -310,6 +311,7 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
             acceptedToday: false,
             completedToday: false,
             rejectedToday: false,
+            acceptedSlot: null,
           },
         };
         hasChanges = true;
@@ -328,19 +330,24 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
     // 2. lastCompletedDay is null but acceptedToday is true (accepted but never completed)
     const needsReset = lastCompleted
       ? !isSameDay(lastCompleted, currentTime)
-      : memo.backlogState.acceptedToday || memo.backlogState.rejectedToday;
+      : memo.backlogState.acceptedToday ||
+        memo.backlogState.rejectedToday ||
+        memo.backlogState.acceptedSlot;
 
     if (
       needsReset &&
-      (memo.backlogState.acceptedToday || memo.backlogState.rejectedToday)
+      (memo.backlogState.acceptedToday ||
+        memo.backlogState.rejectedToday ||
+        memo.backlogState.acceptedSlot)
     ) {
-      // New day - reset acceptedToday and rejectedToday
+      // New day - reset acceptedToday, rejectedToday, and acceptedSlot
       updated = {
         ...updated,
         backlogState: {
           ...updated.backlogState!,
           acceptedToday: false,
           rejectedToday: false,
+          acceptedSlot: null,
         },
       };
       hasChanges = true;

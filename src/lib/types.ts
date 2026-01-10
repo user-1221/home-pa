@@ -88,6 +88,7 @@ export interface RoutineState {
   wasCappedThisPeriod: boolean; // True if display cap was ever active this period
   periodStartDate: Date | null; // Start of current tracking period
   rejectedToday: boolean; // If true, task cannot be regenerated today
+  acceptedSlot: AcceptedSlot | null; // Time slot info for today's accepted suggestion
 }
 
 /**
@@ -131,6 +132,7 @@ export interface BacklogState {
   acceptedToday: boolean; // If true, task is treated as done for the day (unless missed)
   lastCompletedDay: Date | null;
   rejectedToday: boolean; // If true, task cannot be regenerated today
+  acceptedSlot: AcceptedSlot | null; // Time slot info for today's accepted suggestion
 }
 
 /**

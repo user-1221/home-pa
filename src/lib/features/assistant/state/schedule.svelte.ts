@@ -583,8 +583,12 @@ class ScheduleState {
         duration: block.duration,
       });
     } else {
-      // For routine/backlog tasks, mark as accepted
-      await taskActions.markAccepted(block.memoId);
+      // For routine/backlog tasks, mark as accepted with slot info for persistence
+      await taskActions.markAccepted(block.memoId, {
+        startTime: block.startTime,
+        endTime: block.endTime,
+        duration: block.duration,
+      });
     }
 
     // Remove from movedSuggestions if it was there
@@ -1173,11 +1177,71 @@ class ScheduleState {
   // ==========================================================================
 
   /**
+   * Rebuild acceptedMemos map from persisted memo state
+   * Called during initialization after memos are loaded from database.
+   *
+   * This restores accepted suggestions that were persisted before page reload:
+   * - Deadline tasks: Uses acceptedSlots array
+   * - Routine tasks: Uses single acceptedSlot
+   * - Backlog tasks: Uses single acceptedSlot
+   */
+  rebuildAcceptedMemosFromState(memos: Memo[]): void {
+    const newMap = new Map<string, AcceptedMemoInfo>();
+
+    for (const memo of memos) {
+      // Deadline tasks - can have multiple accepted slots
+      if (
+        memo.type === "期限付き" &&
+        memo.deadlineState?.acceptedSlots &&
+        memo.deadlineState.acceptedSlots.length > 0
+      ) {
+        // For deadline tasks, use the first slot (UI shows one at a time)
+        const slot = memo.deadlineState.acceptedSlots[0];
+        newMap.set(memo.id, {
+          memoId: memo.id,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          duration: slot.duration,
+        });
+      }
+
+      // Routine tasks - single accepted slot
+      if (memo.type === "ルーティン" && memo.routineState?.acceptedSlot) {
+        const slot = memo.routineState.acceptedSlot;
+        newMap.set(memo.id, {
+          memoId: memo.id,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          duration: slot.duration,
+        });
+      }
+
+      // Backlog tasks - single accepted slot
+      if (memo.type === "バックログ" && memo.backlogState?.acceptedSlot) {
+        const slot = memo.backlogState.acceptedSlot;
+        newMap.set(memo.id, {
+          memoId: memo.id,
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          duration: slot.duration,
+        });
+      }
+    }
+
+    this.acceptedMemos = newMap;
+    this.syncBlockersToGapState();
+
+    console.log(
+      `[Schedule] Rebuilt acceptedMemos from state: ${newMap.size} entries`,
+    );
+  }
+
+  /**
    * Load synced data from the server
    * Should be called once when the app initializes
    *
    * Note: Suggestion actions (accepted/rejected) are now stored on memo state,
-   * so this only loads cached transit data.
+   * so this only loads cached transit data, then rebuilds acceptedMemos from memo state.
    */
   async loadSyncedData(): Promise<void> {
     if (this.isSyncLoaded) {
@@ -1196,8 +1260,12 @@ class ScheduleState {
       // Initialize lastSyncDate to track day boundaries
       this.lastSyncDate = getTodayDateString();
 
-      // Sync blockers to gap state for availableGaps computation
-      this.syncBlockersToGapState();
+      // Rebuild acceptedMemos from persisted memo state
+      // This restores accepted suggestions after page reload
+      const { taskState } = await import(
+        "$lib/features/tasks/state/taskActions.svelte.ts"
+      );
+      this.rebuildAcceptedMemosFromState(taskState.items);
 
       this.isSyncLoaded = true;
       console.log("[Schedule] Synced data loaded");
