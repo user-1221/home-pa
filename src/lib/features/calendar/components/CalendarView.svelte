@@ -91,6 +91,8 @@
             originalEventId: occ.masterEventId,
             // New sliding window fields
             isForever: occ.isForever,
+            // Color from master event
+            color: occ.color,
           }) as Event & {
             eventId: string;
             isRecurring: boolean;

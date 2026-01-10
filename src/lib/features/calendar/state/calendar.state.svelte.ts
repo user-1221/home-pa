@@ -413,6 +413,7 @@ class CalendarStateClass {
                 timeLabel: event.timeLabel ?? "all-day",
                 isForever,
                 recurrenceId: occ.recurrenceId,
+                color: event.color,
               };
             },
           );

@@ -30,6 +30,8 @@ export interface ExpandedOccurrence {
   isForever: boolean;
   /** Recurrence ID from iCal */
   recurrenceId?: string;
+  /** Event color (inherited from master event) */
+  color?: string;
 }
 
 export interface CalendarState {

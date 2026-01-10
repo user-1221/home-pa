@@ -61,6 +61,8 @@ export interface ExpandedOccurrence {
   isForever: boolean;
   /** Recurrence ID from iCal */
   recurrenceId?: string;
+  /** Event color (inherited from master event) */
+  color?: string;
 }
 
 interface DateWindow {
@@ -666,6 +668,7 @@ class CalendarState {
                 timeLabel: event.timeLabel ?? "all-day",
                 isForever,
                 recurrenceId: occ.recurrenceId,
+                color: event.color,
               };
             },
           );
