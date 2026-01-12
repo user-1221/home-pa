@@ -239,6 +239,26 @@ export const updateEvent = command(EventUpdateSchema, async (input) => {
       data: dbUpdates,
     });
 
+    // Trigger recalculation of linked deadline tasks if event times changed
+    if (
+      input.updates.start !== undefined ||
+      input.updates.end !== undefined ||
+      input.updates.icalData !== undefined
+    ) {
+      try {
+        const { recalculateEventLinkedDeadlines } = await import(
+          "$lib/features/tasks/state/memo.functions.remote"
+        );
+        await recalculateEventLinkedDeadlines({ calendarEventId: input.id });
+      } catch (recalcError) {
+        // Log but don't fail the event update
+        console.warn(
+          "[updateEvent] Failed to recalculate linked deadlines:",
+          recalcError,
+        );
+      }
+    }
+
     const appEvent = dbEventToAppEvent(updated);
     return eventToJSON(appEvent);
   } catch (err) {
@@ -273,6 +293,19 @@ export const deleteEvent = command(
       await prisma.calendarEvent.delete({
         where: { id: input.id },
       });
+
+      // Orphan any linked deadline tasks (remove event link, keep task)
+      try {
+        const { recalculateEventLinkedDeadlines } = await import(
+          "$lib/features/tasks/state/memo.functions.remote"
+        );
+        await recalculateEventLinkedDeadlines({ calendarEventId: input.id });
+      } catch (orphanError) {
+        console.warn(
+          "[deleteEvent] Failed to orphan linked tasks:",
+          orphanError,
+        );
+      }
 
       return { success: true };
     } catch (err) {

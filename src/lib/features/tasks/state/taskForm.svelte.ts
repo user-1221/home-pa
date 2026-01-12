@@ -13,6 +13,10 @@ import type {
   ImportanceLevel,
   RecurrenceGoal,
 } from "../../../types.ts";
+import type {
+  EventLinkType,
+  EventDeadlineOffset,
+} from "../types/event-link.ts";
 
 // ============================================================================
 // Types
@@ -35,6 +39,17 @@ export interface TaskEditData {
 }
 
 /**
+ * Event link data for form (links deadline task to calendar event or timetable)
+ */
+export interface TaskFormEventLink {
+  type: EventLinkType;
+  calendarEventId?: string;
+  timetableCellId?: string;
+  eventTitle: string; // For display in form
+  offset: EventDeadlineOffset;
+}
+
+/**
  * Task form data interface
  */
 export interface TaskFormData {
@@ -54,6 +69,8 @@ export interface TaskFormData {
   originalGenre?: string;
   originalSessionDuration?: number;
   originalTotalDurationExpected?: number;
+  // Event link (for deadline tasks linked to calendar events or timetable)
+  eventLink: TaskFormEventLink | null;
 }
 
 /**
@@ -87,6 +104,7 @@ const initialFormState: TaskFormData = {
   originalGenre: undefined,
   originalSessionDuration: undefined,
   originalTotalDurationExpected: undefined,
+  eventLink: null,
 };
 
 // ============================================================================
@@ -129,6 +147,9 @@ class TaskFormState {
   originalSessionDuration = $state<number | undefined>(undefined);
   originalTotalDurationExpected = $state<number | undefined>(undefined);
 
+  // Event link (for deadline tasks linked to calendar events or timetable)
+  eventLink = $state<TaskFormEventLink | null>(null);
+
   // ============================================================================
   // Derived State (getters)
   // ============================================================================
@@ -147,8 +168,9 @@ class TaskFormState {
     // Must have title
     if (!this.title.trim()) return false;
 
-    // If 期限付き, must have deadline
-    if (this.type === "期限付き" && !this.deadline) return false;
+    // If 期限付き, must have deadline OR eventLink (deadline will be calculated from event)
+    if (this.type === "期限付き" && !this.deadline && !this.eventLink)
+      return false;
 
     // No validation errors
     if (Object.keys(this.errors).length > 0) return false;
@@ -217,6 +239,7 @@ class TaskFormState {
       originalGenre: this.originalGenre,
       originalSessionDuration: this.originalSessionDuration,
       originalTotalDurationExpected: this.originalTotalDurationExpected,
+      eventLink: this.eventLink,
     };
   }
 
@@ -277,6 +300,9 @@ class TaskFormState {
         break;
       case "originalTotalDurationExpected":
         this.originalTotalDurationExpected = value as number | undefined;
+        break;
+      case "eventLink":
+        this.eventLink = value as TaskFormEventLink | null;
         break;
     }
 
@@ -343,6 +369,7 @@ class TaskFormState {
     this.originalSessionDuration = initialFormState.originalSessionDuration;
     this.originalTotalDurationExpected =
       initialFormState.originalTotalDurationExpected;
+    this.eventLink = initialFormState.eventLink;
     this.errors = {};
     this.isSubmitting = false;
   }
@@ -417,11 +444,32 @@ class TaskFormState {
     // Reset type-specific fields when changing type
     if (type !== "期限付き") {
       this.deadline = "";
+      this.eventLink = null; // Clear event link when changing away from deadline type
     }
     if (type !== "ルーティン") {
       this.recurrenceCount = 1;
       this.recurrencePeriod = "week";
     }
+  }
+
+  /**
+   * Set event link for deadline tasks
+   */
+  setEventLink(eventLink: TaskFormEventLink | null): void {
+    this.eventLink = eventLink;
+    // When setting event link, switch to deadline type
+    if (eventLink) {
+      this.type = "期限付き";
+      // Clear manual deadline since it will be calculated from event
+      this.deadline = "";
+    }
+  }
+
+  /**
+   * Clear event link
+   */
+  clearEventLink(): void {
+    this.eventLink = null;
   }
 }
 

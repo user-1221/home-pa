@@ -348,6 +348,26 @@
                 >{sessionDurationLabel()}</span
               >
             {/if}
+            {#if task.eventLink}
+              <span
+                class="inline-flex items-center gap-0.5 rounded-md bg-info/10 px-1.5 py-0.5 text-[0.65rem] font-medium whitespace-nowrap text-info"
+              >
+                <svg
+                  class="h-2.5 w-2.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                  />
+                </svg>
+                イベント連携
+              </span>
+            {/if}
           </div>
         </div>
       </div>

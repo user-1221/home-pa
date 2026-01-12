@@ -12,6 +12,7 @@
     getVisibleTimetableEvents,
     type TimetableEvent,
   } from "../services/timetable-events.ts";
+  import TagEventDialog from "$lib/features/tasks/components/TagEventDialog.svelte";
 
   interface Props {
     events: Event[];
@@ -24,6 +25,33 @@
   // Timetable events state
   let timetableEvents = $state<TimetableEvent[]>([]);
   let _timetableLoaded = $state(false);
+
+  // Tag dialog state
+  let tagDialogOpen = $state(false);
+  let tagSourceType = $state<"calendar" | "timetable">("calendar");
+  let tagCalendarEvent = $state<Event | undefined>(undefined);
+  let tagTimetableEvent = $state<TimetableEvent | undefined>(undefined);
+
+  function openTagDialog(type: "calendar", event: Event): void;
+  function openTagDialog(type: "timetable", event: TimetableEvent): void;
+  function openTagDialog(
+    type: "calendar" | "timetable",
+    event: Event | TimetableEvent,
+  ): void {
+    tagSourceType = type;
+    if (type === "calendar") {
+      tagCalendarEvent = event as Event;
+      tagTimetableEvent = undefined;
+    } else {
+      tagTimetableEvent = event as TimetableEvent;
+      tagCalendarEvent = undefined;
+    }
+    tagDialogOpen = true;
+  }
+
+  function closeTagDialog() {
+    tagDialogOpen = false;
+  }
 
   // Timeline container reference and height tracking
   let timelineContainer: HTMLDivElement | undefined = $state();
@@ -304,7 +332,7 @@
                 {#each timetableEvents as ttEvent (ttEvent.id)}
                   {@const isBlocking = ttEvent.workAllowed === "作業不可"}
                   <div
-                    class="absolute right-1 left-1 min-h-[20px] overflow-hidden rounded-r-md border-l-[3px] px-1.5 py-1"
+                    class="group absolute right-1 left-1 min-h-[20px] overflow-hidden rounded-r-md border-l-[3px] px-1.5 py-1"
                     style="
                       top: {getTimetableEventPosition(ttEvent)}px;
                       height: {getTimetableEventHeight(ttEvent)}px;
@@ -314,6 +342,29 @@
                       border-left-color: {getTimetableEventColor(ttEvent)};
                     "
                   >
+                    <!-- Tag button -->
+                    <button
+                      class="absolute top-0.5 right-0.5 flex h-5 w-5 items-center justify-center rounded bg-base-100/80 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-base-100"
+                      onclick={(e: MouseEvent) => {
+                        e.stopPropagation();
+                        openTagDialog("timetable", ttEvent);
+                      }}
+                      aria-label="タスクを作成"
+                    >
+                      <svg
+                        class="h-3 w-3 text-base-content/70"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                        />
+                      </svg>
+                    </button>
                     <div
                       class="overflow-hidden text-[11px] font-medium text-ellipsis whitespace-nowrap"
                       style="color: {isBlocking
@@ -343,7 +394,7 @@
               >
                 {#each column as event (event.id)}
                   <div
-                    class="event-card absolute right-1 left-1 min-h-[24px] cursor-pointer overflow-hidden rounded-r-md border-l-[3px] px-2 py-1 shadow-sm transition-all duration-200 hover:z-10 hover:shadow-lg"
+                    class="event-card group absolute right-1 left-1 min-h-[24px] cursor-pointer overflow-hidden rounded-r-md border-l-[3px] px-2 py-1 shadow-sm transition-all duration-200 hover:z-10 hover:shadow-lg"
                     onclick={() => handleEventClick(event)}
                     onkeydown={(e: KeyboardEvent) =>
                       e.key === "Enter" && handleEventClick(event)}
@@ -361,6 +412,29 @@
                       border-left-color: {getEventColor(event)};
                     "
                   >
+                    <!-- Tag button -->
+                    <button
+                      class="absolute top-0.5 right-0.5 flex h-5 w-5 items-center justify-center rounded bg-base-100/80 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-base-100"
+                      onclick={(e: MouseEvent) => {
+                        e.stopPropagation();
+                        openTagDialog("calendar", event);
+                      }}
+                      aria-label="タスクを作成"
+                    >
+                      <svg
+                        class="h-3 w-3 text-base-content/70"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                        />
+                      </svg>
+                    </button>
                     <div
                       class="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap"
                       style="color: color-mix(in srgb, {getEventColor(
@@ -391,3 +465,12 @@
     </div>
   </div>
 </div>
+
+<!-- Tag event dialog -->
+<TagEventDialog
+  isOpen={tagDialogOpen}
+  sourceType={tagSourceType}
+  calendarEvent={tagCalendarEvent}
+  timetableEvent={tagTimetableEvent}
+  onClose={closeTagDialog}
+/>

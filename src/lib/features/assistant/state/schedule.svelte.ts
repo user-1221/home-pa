@@ -232,23 +232,30 @@ class ScheduleState {
   get pendingSuggestions(): PendingSuggestion[] {
     const scheduled = this.result?.scheduled ?? [];
     const movedIds = new Set(this.movedSuggestions.map((m) => m.suggestionId));
+    const acceptedMemoIds = new Set(this.acceptedMemos.keys());
 
-    // Include scheduled blocks (excluding moved ones) and moved suggestions
+    // Include scheduled blocks (excluding moved ones AND accepted ones) and moved suggestions
+    // IMPORTANT: Filter out accepted memos to prevent duplicate keys in CircularTimelineCss
     const fromScheduled = scheduled
-      .filter((b) => !movedIds.has(b.suggestionId))
+      .filter(
+        (b) => !movedIds.has(b.suggestionId) && !acceptedMemoIds.has(b.memoId),
+      )
       .map((b): PendingSuggestion => ({ ...b, isPending: true }));
 
-    const fromMoved = this.movedSuggestions.map(
-      (m): PendingSuggestion => ({
-        suggestionId: m.suggestionId,
-        memoId: m.memoId,
-        gapId: m.gapId,
-        startTime: m.startTime,
-        endTime: m.endTime,
-        duration: m.duration,
-        isPending: true,
-      }),
-    );
+    // Also filter moved suggestions to exclude accepted memos
+    const fromMoved = this.movedSuggestions
+      .filter((m) => !acceptedMemoIds.has(m.memoId))
+      .map(
+        (m): PendingSuggestion => ({
+          suggestionId: m.suggestionId,
+          memoId: m.memoId,
+          gapId: m.gapId,
+          startTime: m.startTime,
+          endTime: m.endTime,
+          duration: m.duration,
+          isPending: true,
+        }),
+      );
 
     return [...fromScheduled, ...fromMoved];
   }
@@ -1265,6 +1272,23 @@ class ScheduleState {
       const { taskState } = await import(
         "$lib/features/tasks/state/taskActions.svelte.ts"
       );
+
+      // Wait for tasks to load (they may be loading in parallel from +layout.svelte)
+      // Poll until taskState.isLoading is false (max 10 seconds)
+      const maxWaitMs = 10000;
+      const pollIntervalMs = 100;
+      let waitedMs = 0;
+      while (taskState.isLoading && waitedMs < maxWaitMs) {
+        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+        waitedMs += pollIntervalMs;
+      }
+
+      if (waitedMs >= maxWaitMs) {
+        console.warn(
+          "[Schedule] Timeout waiting for tasks to load, proceeding with empty items",
+        );
+      }
+
       this.rebuildAcceptedMemosFromState(taskState.items);
 
       this.isSyncLoaded = true;

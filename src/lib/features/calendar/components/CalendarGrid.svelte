@@ -68,15 +68,17 @@
         tabindex="0"
       >
         <!-- Date number with padding -->
-        <div
-          class="flex h-7 flex-shrink-0 items-center justify-start p-1 text-[0.85rem] font-normal
-            {dayOfWeek === 0 ? 'text-error/80' : ''}
-            {dayOfWeek === 6 ? 'text-info/80' : ''}
-            {isToday(day)
-            ? 'w-7 justify-center rounded-full bg-[var(--color-primary)] font-semibold text-white'
-            : ''}"
-        >
-          {day.getDate()}
+        <div class="flex h-7 flex-shrink-0 items-center justify-center p-1">
+          <span
+            class="flex h-6 w-6 items-center justify-center text-[0.85rem] font-normal
+              {dayOfWeek === 0 ? 'text-error/80' : ''}
+              {dayOfWeek === 6 ? 'text-info/80' : ''}
+              {isToday(day)
+              ? 'rounded-full bg-[var(--color-primary)] font-semibold text-white'
+              : ''}"
+          >
+            {day.getDate()}
+          </span>
         </div>
         <!-- Events container: no horizontal padding so bars can extend edge-to-edge -->
         <div class="relative min-h-0 flex-1 overflow-hidden">
@@ -93,20 +95,16 @@
             {@const rowIndex = eventRowMap.get(truncatedEvent.id) ?? 0}
             <!-- Event bar: extends past cell edges for seamless multi-day connection -->
             <div
-              class="absolute h-[18px] cursor-pointer overflow-hidden py-0.5 text-[0.625rem] leading-[14px] font-medium text-ellipsis whitespace-nowrap text-white/95
-                {barPosition === 'start'
-                ? '-right-[1px] left-1 rounded-l-sm pl-1'
-                : ''}
+              class="absolute h-[18px] cursor-pointer overflow-hidden py-0.5 text-[0.7rem] leading-[14px] font-medium text-ellipsis whitespace-nowrap
+                {barPosition === 'start' ? '-right-[1px] left-1 pl-1' : ''}
                 {barPosition === 'middle' ? '-right-[1px] -left-[1px]' : ''}
-                {barPosition === 'end'
-                ? 'right-1 -left-[1px] rounded-r-sm'
-                : ''}
-                {barPosition === 'single'
-                ? 'right-1 left-1 rounded-sm px-1'
-                : ''}"
-              style="background-color: {getEventColor(
+                {barPosition === 'end' ? 'right-1 -left-[1px]' : ''}
+                {barPosition === 'single' ? 'right-1 left-1 px-1' : ''}"
+              style="background-color: color-mix(in srgb, {getEventColor(
                 truncatedEvent,
-              )}; top: {rowIndex * 20}px;"
+              )} 20%, transparent); color: color-mix(in srgb, {getEventColor(
+                truncatedEvent,
+              )} 85%, black); top: {rowIndex * 20}px;"
             >
               {#if showLabel}
                 <span class="flex items-center gap-1">

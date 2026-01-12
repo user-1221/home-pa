@@ -14,6 +14,11 @@
     calculateMinDurationForDots,
     MIN_DOTS_FOR_DRAG,
   } from "../services/suggestions/suggestion-scheduler.ts";
+  import { focusState } from "$lib/features/focus/state/index.ts";
+  import {
+    StartNowButton,
+    DurationPicker,
+  } from "$lib/features/focus/components/index.ts";
 
   interface Props {
     selectedItem:
@@ -154,15 +159,6 @@
     }
   }
 
-  function handleComplete() {
-    if (selectedItem?.type === "accepted-suggestion") {
-      dispatch("complete", {
-        memoId: selectedItem.memoId,
-        duration: selectedItem.data.duration,
-      });
-    }
-  }
-
   function handleMissed() {
     if (selectedItem?.type === "accepted-suggestion") {
       dispatch("missed", { memoId: selectedItem.memoId });
@@ -176,21 +172,46 @@
   }
 
   /**
+   * Get current time in HH:mm format
+   */
+  function getCurrentHHmm(): string {
+    const nowDate = new globalThis.Date();
+    const nowHours = nowDate.getHours().toString().padStart(2, "0");
+    const nowMins = nowDate.getMinutes().toString().padStart(2, "0");
+    return `${nowHours}:${nowMins}`;
+  }
+
+  /**
    * Check if an accepted suggestion is in the past
    * Uses string comparison of HH:mm format times
    * @param endTime - End time in HH:mm format
    */
   function isInPast(endTime: string): boolean {
-    // Get current time in HH:mm format
-    const nowMs = Date.now();
-    const nowDate = new globalThis.Date(nowMs);
-    const nowHours = nowDate.getHours().toString().padStart(2, "0");
-    const nowMins = nowDate.getMinutes().toString().padStart(2, "0");
-    const nowTime = `${nowHours}:${nowMins}`;
-
+    const nowTime = getCurrentHHmm();
     // Simple string comparison works for HH:mm format
     return nowTime > endTime;
   }
+
+  /**
+   * Check if current time is within an accepted suggestion's time range
+   * @param startTime - Start time in HH:mm format
+   * @param endTime - End time in HH:mm format
+   */
+  function isInCurrent(startTime: string, endTime: string): boolean {
+    const nowTime = getCurrentHHmm();
+    return nowTime >= startTime && nowTime < endTime;
+  }
+
+  /**
+   * Check if this suggestion is currently being tracked
+   */
+  let isBeingTracked = $derived.by(() => {
+    if (selectedItem?.type !== "accepted-suggestion") return false;
+    return (
+      focusState.activeSession?.memoId === selectedItem.memoId &&
+      focusState.isActive
+    );
+  });
 
   // Badge config based on item type
   let badgeConfig = $derived.by(() => {
@@ -389,98 +410,120 @@
         </div>
       {:else if selectedItem.type === "accepted-suggestion"}
         <!-- Accepted Suggestion -->
-        <div class="flex items-start justify-between gap-3">
-          <div class="flex min-w-0 flex-1 flex-col gap-2">
-            <div class="flex items-center gap-2">
-              <span class="badge flex-shrink-0 badge-sm {badgeConfig.class}">
-                {badgeConfig.label}
-              </span>
-              <h3
-                class="truncate text-base font-medium text-[var(--color-text-primary)]"
+        <div class="flex flex-col gap-3">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex min-w-0 flex-1 flex-col gap-2">
+              <div class="flex items-center gap-2">
+                <span class="badge flex-shrink-0 badge-sm {badgeConfig.class}">
+                  {badgeConfig.label}
+                </span>
+                {#if isBeingTracked}
+                  <span
+                    class="badge flex-shrink-0 border border-primary/30 bg-primary/15 badge-sm text-primary"
+                  >
+                    集中中
+                  </span>
+                {/if}
+                <h3
+                  class="truncate text-base font-medium text-[var(--color-text-primary)]"
+                >
+                  {selectedItem.title}
+                </h3>
+              </div>
+              <p
+                class="font-mono text-sm tracking-tight text-[var(--color-text-secondary)]"
               >
-                {selectedItem.title}
-              </h3>
+                {selectedItem.data.startTime} - {selectedItem.data.endTime}
+                <span class="ml-2 text-[var(--color-text-muted)]">
+                  ({formatDuration(selectedItem.data.duration)})
+                </span>
+              </p>
             </div>
-            <p
-              class="font-mono text-sm tracking-tight text-[var(--color-text-secondary)]"
-            >
-              {selectedItem.data.startTime} - {selectedItem.data.endTime}
-              <span class="ml-2 text-[var(--color-text-muted)]">
-                ({formatDuration(selectedItem.data.duration)})
-              </span>
-            </p>
-          </div>
-          <!-- Action buttons -->
-          <div class="flex flex-shrink-0 gap-2">
-            {#if isInPast(selectedItem.data.endTime)}
-              <!-- Past: Complete or Missed -->
-              <button
-                class="flex h-9 w-9 items-center justify-center rounded-lg bg-success/10 text-success transition-all duration-200 hover:bg-success hover:text-success-content active:scale-95"
-                onclick={handleComplete}
-                title="完了"
-                aria-label="完了"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2.5"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              </button>
-              <button
-                class="flex h-9 w-9 items-center justify-center rounded-lg bg-base-200 text-base-content/60 transition-all duration-200 hover:bg-base-300 active:scale-95"
-                onclick={handleMissed}
-                title="未達成"
-                aria-label="未達成"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            {:else}
-              <!-- Future: Delete only -->
-              <button
-                class="flex h-9 w-9 items-center justify-center rounded-lg bg-error/10 text-error transition-all duration-200 hover:bg-error hover:text-error-content active:scale-95"
-                onclick={handleDelete}
-                title="削除"
-                aria-label="削除"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  class="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="2"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-              </button>
+            <!-- Action buttons - delete for future/current, missed for past -->
+            {#if !isBeingTracked}
+              <div class="flex flex-shrink-0 gap-2">
+                {#if !isInCurrent(selectedItem.data.startTime, selectedItem.data.endTime) && isInPast(selectedItem.data.endTime)}
+                  <!-- Past: show missed button only -->
+                  <button
+                    class="flex h-9 w-9 items-center justify-center rounded-lg bg-base-200 text-base-content/60 transition-all duration-200 hover:bg-base-300 active:scale-95"
+                    onclick={handleMissed}
+                    title="未達成"
+                    aria-label="未達成"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                {:else}
+                  <!-- Future/Current: show delete button -->
+                  <button
+                    class="flex h-9 w-9 items-center justify-center rounded-lg bg-error/10 text-error transition-all duration-200 hover:bg-error hover:text-error-content active:scale-95"
+                    onclick={handleDelete}
+                    title="削除"
+                    aria-label="削除"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                  </button>
+                {/if}
+              </div>
             {/if}
           </div>
+
+          <!-- Action area based on state -->
+          {#if isBeingTracked}
+            <!-- Currently tracking: show elapsed time -->
+            <div
+              class="flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2"
+            >
+              <span class="text-sm text-[var(--color-text-secondary)]">
+                経過時間
+              </span>
+              <span class="font-mono text-sm font-medium text-primary">
+                {formatDuration(focusState.elapsedWorkMinutes)}
+              </span>
+            </div>
+          {:else if isInCurrent(selectedItem.data.startTime, selectedItem.data.endTime)}
+            <!-- Current time range: show Start Now button -->
+            <StartNowButton
+              memoId={selectedItem.memoId}
+              title={selectedItem.title}
+              endTime={selectedItem.data.endTime}
+            />
+          {:else if isInPast(selectedItem.data.endTime)}
+            <!-- Past: show Duration Picker -->
+            <DurationPicker
+              plannedDuration={selectedItem.data.duration}
+              onSelect={(minutes) =>
+                dispatch("complete", {
+                  memoId: selectedItem.memoId,
+                  duration: minutes,
+                })}
+            />
+          {/if}
         </div>
       {:else if selectedItem.type === "drag-preview"}
         <!-- Drag Preview -->

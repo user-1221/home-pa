@@ -73,6 +73,17 @@ const DeadlineStateSchema = v.optional(
   }),
 );
 
+// Event link schema for event-tagged deadline tasks
+const EventLinkSchema = v.optional(
+  v.object({
+    type: v.picklist(["calendar", "timetable"]),
+    calendarEventId: v.optional(v.string()),
+    timetableCellId: v.optional(v.string()),
+    offset: v.picklist(["same_day_after", "1_day_before", "1_day_after"]),
+    trackedOccurrenceDate: v.optional(v.string()),
+  }),
+);
+
 const MemoInputSchema = v.object({
   title: v.string(),
   genre: v.optional(v.string()),
@@ -93,6 +104,8 @@ const MemoInputSchema = v.object({
   // Type-specific state
   routineState: RoutineStateSchema,
   backlogState: BacklogStateSchema,
+  // Event link (for event-tagged deadline tasks)
+  eventLink: EventLinkSchema,
 });
 
 const MemoUpdateSchema = v.object({
@@ -171,8 +184,9 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
       importance: memo.importance as "low" | "medium" | "high" | undefined,
       // Type-specific state
       // Note: DB still uses week-based fields, but we map to period-based fields for the app
+      // Always return routineState for routine tasks (even with defaults) to support accepted slot persistence
       routineState:
-        memo.type === "ルーティン" && memo.routineWeekStartDate !== null
+        memo.type === "ルーティン"
           ? {
               acceptedToday: memo.routineAcceptedToday ?? false,
               completedToday: memo.routineCompletedToday ?? false,
@@ -217,6 +231,20 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
                 }>) ?? [],
             }
           : undefined,
+      // Event link (for event-tagged deadline tasks)
+      eventLink: memo.eventLinkType
+        ? {
+            type: memo.eventLinkType as "calendar" | "timetable",
+            calendarEventId: memo.linkedCalendarEventId ?? undefined,
+            timetableCellId: memo.linkedTimetableCellId ?? undefined,
+            offset: memo.eventDeadlineOffset as
+              | "same_day_after"
+              | "1_day_before"
+              | "1_day_after",
+            trackedOccurrenceDate:
+              memo.trackedOccurrenceDate?.toISOString() ?? undefined,
+          }
+        : undefined,
     }));
   } catch (err) {
     console.error("[fetchMemos] Error:", err);
@@ -272,6 +300,14 @@ export const createMemo = command(MemoInputSchema, async (input) => {
         backlogLastCompletedDay: input.backlogState?.lastCompletedDay
           ? new Date(input.backlogState.lastCompletedDay)
           : undefined,
+        // Event link
+        eventLinkType: input.eventLink?.type,
+        linkedCalendarEventId: input.eventLink?.calendarEventId,
+        linkedTimetableCellId: input.eventLink?.timetableCellId,
+        eventDeadlineOffset: input.eventLink?.offset,
+        trackedOccurrenceDate: input.eventLink?.trackedOccurrenceDate
+          ? new Date(input.eventLink.trackedOccurrenceDate)
+          : undefined,
       },
     });
 
@@ -307,8 +343,9 @@ export const createMemo = command(MemoInputSchema, async (input) => {
       lastActivity: created.lastActivity?.toISOString(),
       importance: created.importance as "low" | "medium" | "high" | undefined,
       // Type-specific state (DB uses week-based naming, app uses period-based)
+      // Always return routineState for routine tasks to support accepted slot persistence
       routineState:
-        created.type === "ルーティン" && created.routineWeekStartDate !== null
+        created.type === "ルーティン"
           ? {
               acceptedToday: created.routineAcceptedToday ?? false,
               completedToday: created.routineCompletedToday ?? false,
@@ -318,6 +355,13 @@ export const createMemo = command(MemoInputSchema, async (input) => {
               wasCappedThisPeriod: created.routineWasCappedThisWeek ?? false,
               periodStartDate:
                 created.routineWeekStartDate?.toISOString() ?? null,
+              rejectedToday: created.routineRejectedToday ?? false,
+              acceptedSlot:
+                (created.routineAcceptedSlot as {
+                  startTime: string;
+                  endTime: string;
+                  duration: number;
+                } | null) ?? null,
             }
           : undefined,
       backlogState:
@@ -326,8 +370,29 @@ export const createMemo = command(MemoInputSchema, async (input) => {
               acceptedToday: created.backlogAcceptedToday ?? false,
               lastCompletedDay:
                 created.backlogLastCompletedDay?.toISOString() ?? null,
+              rejectedToday: created.backlogRejectedToday ?? false,
+              acceptedSlot:
+                (created.backlogAcceptedSlot as {
+                  startTime: string;
+                  endTime: string;
+                  duration: number;
+                } | null) ?? null,
             }
           : undefined,
+      // Event link
+      eventLink: created.eventLinkType
+        ? {
+            type: created.eventLinkType as "calendar" | "timetable",
+            calendarEventId: created.linkedCalendarEventId ?? undefined,
+            timetableCellId: created.linkedTimetableCellId ?? undefined,
+            offset: created.eventDeadlineOffset as
+              | "same_day_after"
+              | "1_day_before"
+              | "1_day_after",
+            trackedOccurrenceDate:
+              created.trackedOccurrenceDate?.toISOString() ?? undefined,
+          }
+        : undefined,
     };
   } catch (err) {
     console.error("[createMemo] Error:", err);
@@ -460,8 +525,9 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
       lastActivity: updated.lastActivity?.toISOString(),
       importance: updated.importance as "low" | "medium" | "high" | undefined,
       // Type-specific state (DB uses week-based naming, app uses period-based)
+      // Always return routineState for routine tasks to support accepted slot persistence
       routineState:
-        updated.type === "ルーティン" && updated.routineWeekStartDate !== null
+        updated.type === "ルーティン"
           ? {
               acceptedToday: updated.routineAcceptedToday ?? false,
               completedToday: updated.routineCompletedToday ?? false,
@@ -471,6 +537,13 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
               wasCappedThisPeriod: updated.routineWasCappedThisWeek ?? false,
               periodStartDate:
                 updated.routineWeekStartDate?.toISOString() ?? null,
+              rejectedToday: updated.routineRejectedToday ?? false,
+              acceptedSlot:
+                (updated.routineAcceptedSlot as {
+                  startTime: string;
+                  endTime: string;
+                  duration: number;
+                } | null) ?? null,
             }
           : undefined,
       backlogState:
@@ -479,6 +552,13 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
               acceptedToday: updated.backlogAcceptedToday ?? false,
               lastCompletedDay:
                 updated.backlogLastCompletedDay?.toISOString() ?? null,
+              rejectedToday: updated.backlogRejectedToday ?? false,
+              acceptedSlot:
+                (updated.backlogAcceptedSlot as {
+                  startTime: string;
+                  endTime: string;
+                  duration: number;
+                } | null) ?? null,
             }
           : undefined,
     };
@@ -595,10 +675,17 @@ export const logSuggestionComplete = command(
         updateData.routineWeekStartDate = needsWeekReset
           ? weekStart
           : existingWeekStart;
+        // Preserve existing acceptedSlot (needed for rebuildAcceptedMemosFromState on reload)
+        // Don't overwrite if it already exists
       } else if (existing.type === "バックログ") {
         updateData.backlogAcceptedToday = true;
         updateData.backlogLastCompletedDay = now;
+        // Preserve existing acceptedSlot (needed for rebuildAcceptedMemosFromState on reload)
+        // Don't overwrite if it already exists
       }
+      // Note: Deadline tasks (期限付き) don't need special handling here
+      // Their acceptedSlots are managed separately via addDeadlineAcceptedSlot/removeDeadlineAcceptedSlot
+      // and are preserved by Prisma since we don't explicitly clear them
 
       // Update memo with progress
       const updated = await prisma.memo.update({
@@ -729,6 +816,7 @@ export const markMemoAccepted = command(
                 wasCappedThisPeriod: updated.routineWasCappedThisWeek ?? false,
                 periodStartDate:
                   updated.routineWeekStartDate?.toISOString() ?? null,
+                rejectedToday: updated.routineRejectedToday ?? false,
                 acceptedSlot:
                   (updated.routineAcceptedSlot as {
                     startTime: string;
@@ -743,6 +831,7 @@ export const markMemoAccepted = command(
                 acceptedToday: updated.backlogAcceptedToday ?? false,
                 lastCompletedDay:
                   updated.backlogLastCompletedDay?.toISOString() ?? null,
+                rejectedToday: updated.backlogRejectedToday ?? false,
                 acceptedSlot:
                   (updated.backlogAcceptedSlot as {
                     startTime: string;
@@ -1013,3 +1102,286 @@ function getWeekNumber(date: Date): number {
   );
   return Math.ceil((days + startOfYear.getDay() + 1) / 7);
 }
+
+// ============================================================================
+// EVENT-LINKED DEADLINE FUNCTIONS
+// ============================================================================
+
+/**
+ * Advance an event-linked deadline task to the next occurrence
+ * Called when the task is marked complete (rolling deadline)
+ */
+export const advanceEventLinkedDeadline = command(
+  v.object({
+    memoId: v.string(),
+  }),
+  async (input) => {
+    const userId = getAuthenticatedUser();
+
+    try {
+      const existing = await prisma.memo.findFirst({
+        where: {
+          id: input.memoId,
+          userId,
+        },
+      });
+
+      if (!existing) {
+        throw new Error("Memo not found");
+      }
+
+      // Only process event-linked deadline tasks
+      if (!existing.eventLinkType || existing.type !== "期限付き") {
+        return { id: input.memoId, advanced: false };
+      }
+
+      const offset = existing.eventDeadlineOffset as
+        | "same_day_after"
+        | "1_day_before"
+        | "1_day_after";
+      const currentTracked = existing.trackedOccurrenceDate ?? new Date();
+
+      let newDeadline: Date | null = null;
+      let newTrackedOccurrence: Date | null = null;
+
+      if (
+        existing.eventLinkType === "calendar" &&
+        existing.linkedCalendarEventId
+      ) {
+        // Fetch the linked calendar event
+        const calendarEvent = await prisma.calendarEvent.findFirst({
+          where: { id: existing.linkedCalendarEventId },
+        });
+
+        if (calendarEvent && calendarEvent.icalData) {
+          // Dynamic import to avoid circular dependencies
+          const { getNextCalendarOccurrence, calculateDeadlineFromOccurrence } =
+            await import("../services/event-deadline-service");
+
+          // Build Event object for the service
+          const eventForCalc = {
+            id: calendarEvent.id,
+            title: calendarEvent.summary,
+            start: calendarEvent.dtstart,
+            end: calendarEvent.dtend ?? calendarEvent.dtstart,
+            icalData: calendarEvent.icalData,
+            recurrence: calendarEvent.hasRecurrence
+              ? { type: "RRULE" as const, rrule: calendarEvent.rrule ?? "" }
+              : { type: "NONE" as const },
+          };
+
+          const nextOcc = getNextCalendarOccurrence(
+            eventForCalc,
+            currentTracked,
+          );
+          if (nextOcc) {
+            newDeadline = calculateDeadlineFromOccurrence(
+              nextOcc.startDate,
+              nextOcc.endDate,
+              offset,
+            );
+            newTrackedOccurrence = nextOcc.startDate;
+          }
+        }
+      } else if (
+        existing.eventLinkType === "timetable" &&
+        existing.linkedTimetableCellId
+      ) {
+        // Fetch timetable cell and config
+        const cell = await prisma.timetableCell.findFirst({
+          where: { id: existing.linkedTimetableCellId },
+        });
+        const config = await prisma.timetableConfig.findFirst({
+          where: { userId },
+        });
+
+        if (cell && config) {
+          const {
+            getNextTimetableOccurrence,
+            calculateDeadlineFromOccurrence,
+          } = await import("../services/event-deadline-service");
+
+          const timetableConfig = {
+            dayStartTime: config.dayStartTime,
+            lunchStartTime: config.lunchStartTime,
+            lunchEndTime: config.lunchEndTime,
+            breakDuration: config.breakDuration,
+            cellDuration: config.cellDuration,
+            exceptionRanges:
+              (config.exceptionRanges as Array<{
+                start: string;
+                end: string;
+              }>) ?? [],
+          };
+
+          const cellData = {
+            id: cell.id,
+            dayOfWeek: cell.dayOfWeek,
+            slotIndex: cell.slotIndex,
+            title: cell.title,
+            attendance: cell.attendance,
+            workAllowed: cell.workAllowed,
+          };
+
+          const nextOcc = getNextTimetableOccurrence(
+            cellData,
+            timetableConfig,
+            currentTracked,
+          );
+          if (nextOcc) {
+            newDeadline = calculateDeadlineFromOccurrence(
+              nextOcc.startDate,
+              nextOcc.endDate,
+              offset,
+            );
+            newTrackedOccurrence = nextOcc.startDate;
+          }
+        }
+      }
+
+      if (newDeadline && newTrackedOccurrence) {
+        await prisma.memo.update({
+          where: { id: input.memoId },
+          data: {
+            deadline: newDeadline,
+            trackedOccurrenceDate: newTrackedOccurrence,
+            // Reset completion state for next cycle
+            completionState: "not_started",
+            deadlineAcceptedSlots: [], // Clear accepted slots
+            deadlineRejectedToday: false,
+          },
+        });
+
+        console.log(
+          `[advanceEventLinkedDeadline] Advanced memo ${input.memoId} to next occurrence: ${newTrackedOccurrence.toISOString()}`,
+        );
+
+        return {
+          id: input.memoId,
+          advanced: true,
+          newDeadline: newDeadline.toISOString(),
+          newTrackedOccurrence: newTrackedOccurrence.toISOString(),
+        };
+      }
+
+      // No next occurrence found
+      console.log(
+        `[advanceEventLinkedDeadline] No next occurrence found for memo ${input.memoId}`,
+      );
+      return { id: input.memoId, advanced: false };
+    } catch (err) {
+      console.error("[advanceEventLinkedDeadline] Error:", err);
+      throw new Error("Failed to advance deadline");
+    }
+  },
+);
+
+/**
+ * Recalculate deadline for all event-linked memos linked to a specific calendar event
+ * Called when the source event is updated/moved
+ */
+export const recalculateEventLinkedDeadlines = command(
+  v.object({
+    calendarEventId: v.string(),
+  }),
+  async (input) => {
+    const userId = getAuthenticatedUser();
+
+    try {
+      // Find all memos linked to this calendar event
+      const linkedMemos = await prisma.memo.findMany({
+        where: {
+          userId,
+          linkedCalendarEventId: input.calendarEventId,
+          completionState: { not: "completed" },
+        },
+      });
+
+      if (linkedMemos.length === 0) {
+        return { updated: 0 };
+      }
+
+      // Fetch the calendar event
+      const calendarEvent = await prisma.calendarEvent.findFirst({
+        where: { id: input.calendarEventId },
+      });
+
+      if (!calendarEvent) {
+        // Event was deleted - orphan the linked tasks
+        await prisma.memo.updateMany({
+          where: {
+            userId,
+            linkedCalendarEventId: input.calendarEventId,
+          },
+          data: {
+            eventLinkType: null,
+            linkedCalendarEventId: null,
+            eventDeadlineOffset: null,
+            trackedOccurrenceDate: null,
+          },
+        });
+        console.log(
+          `[recalculateEventLinkedDeadlines] Orphaned ${linkedMemos.length} memos - source event deleted`,
+        );
+        return { updated: linkedMemos.length, orphaned: true };
+      }
+
+      const { getNextCalendarOccurrence, calculateDeadlineFromOccurrence } =
+        await import("../services/event-deadline-service");
+
+      let updatedCount = 0;
+
+      for (const memo of linkedMemos) {
+        const offset = memo.eventDeadlineOffset as
+          | "same_day_after"
+          | "1_day_before"
+          | "1_day_after";
+
+        // Use the currently tracked occurrence as reference point
+        // If the event moved, we recalculate from where we were tracking
+        const referenceDate = memo.trackedOccurrenceDate
+          ? new Date(memo.trackedOccurrenceDate.getTime() - 24 * 60 * 60 * 1000) // Day before tracked
+          : new Date();
+
+        const eventForCalc = {
+          id: calendarEvent.id,
+          title: calendarEvent.summary,
+          start: calendarEvent.dtstart,
+          end: calendarEvent.dtend ?? calendarEvent.dtstart,
+          icalData: calendarEvent.icalData,
+          recurrence: calendarEvent.hasRecurrence
+            ? { type: "RRULE" as const, rrule: calendarEvent.rrule ?? "" }
+            : { type: "NONE" as const },
+        };
+
+        const nextOcc = getNextCalendarOccurrence(eventForCalc, referenceDate);
+        if (nextOcc) {
+          const newDeadline = calculateDeadlineFromOccurrence(
+            nextOcc.startDate,
+            nextOcc.endDate,
+            offset,
+          );
+
+          await prisma.memo.update({
+            where: { id: memo.id },
+            data: {
+              deadline: newDeadline,
+              trackedOccurrenceDate: nextOcc.startDate,
+            },
+          });
+
+          updatedCount++;
+        }
+      }
+
+      console.log(
+        `[recalculateEventLinkedDeadlines] Updated ${updatedCount} memos for event ${input.calendarEventId}`,
+      );
+
+      return { updated: updatedCount };
+    } catch (err) {
+      console.error("[recalculateEventLinkedDeadlines] Error:", err);
+      throw new Error("Failed to recalculate deadlines");
+    }
+  },
+);

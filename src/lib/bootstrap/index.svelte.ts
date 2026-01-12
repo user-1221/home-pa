@@ -71,6 +71,13 @@ export {
   type MovedSuggestion,
 } from "../features/assistant/state/schedule.svelte.ts";
 
+// Focus state (Pomodoro & real-time tracking)
+export {
+  focusState,
+  type FocusSession,
+  type PomodoroState,
+} from "../features/focus/state/index.ts";
+
 // Task state
 export {
   taskState,

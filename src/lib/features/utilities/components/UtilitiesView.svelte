@@ -9,6 +9,7 @@
 
   import { TransitView } from "$lib/features/transit/components/index.ts";
   import { ProgressMemoView } from "$lib/features/progress-memo/components/index.ts";
+  import { PomodoroView } from "$lib/features/focus/components/index.ts";
   import SettingsPopup from "./SettingsPopup.svelte";
 
   // Mini app definitions
@@ -21,6 +22,13 @@
   }
 
   const miniApps: MiniApp[] = [
+    {
+      id: "pomodoro",
+      name: "Pomodoro",
+      icon: "🍅",
+      description: "Focus timer",
+      color: "var(--color-error-500)",
+    },
     {
       id: "transit",
       name: "Transit",
@@ -142,7 +150,9 @@
     <div
       class="modal-box h-full w-full max-w-2xl p-0 md:h-auto md:max-h-[80vh]"
     >
-      {#if activeMiniApp === "transit"}
+      {#if activeMiniApp === "pomodoro"}
+        <PomodoroView onClose={closeMiniApp} />
+      {:else if activeMiniApp === "transit"}
         <TransitView onClose={closeMiniApp} />
       {:else if activeMiniApp === "progress-memo"}
         <ProgressMemoView onClose={closeMiniApp} />

@@ -1,5 +1,7 @@
 // Core data models for M1 specification
 
+import type { EventLinkData } from "$lib/features/tasks/types/event-link";
+
 // Recurrence types for recurring events
 export interface RecurrenceRuleRFC {
   rrule: string;
@@ -183,6 +185,11 @@ export interface Memo {
   routineState?: RoutineState; // Only for ルーティン type
   deadlineState?: DeadlineState; // Only for 期限付き type
   backlogState?: BacklogState; // Only for バックログ type
+
+  // ============================================================================
+  // EVENT LINK (for event-tagged deadline tasks)
+  // ============================================================================
+  eventLink?: EventLinkData; // Links task to calendar event or timetable cell
 }
 
 /**

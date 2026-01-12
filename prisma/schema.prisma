@@ -176,11 +176,22 @@ model Memo {
   deadlineRejectedToday     Boolean?   // If true, task cannot be regenerated today
   deadlineAcceptedSlots     Json?      // Array of {startTime, endTime, duration} for accepted time slots
 
+  // ============================================================================
+  // EVENT LINK (for event-tagged deadline tasks)
+  // ============================================================================
+  eventLinkType             String?    // "calendar" | "timetable" | null
+  linkedCalendarEventId     String?    @db.ObjectId
+  linkedTimetableCellId     String?    @db.ObjectId
+  eventDeadlineOffset       String?    // "same_day_after" | "1_day_before" | "1_day_after"
+  trackedOccurrenceDate     DateTime?  // Which occurrence we're currently tracking
+
   updatedAt              DateTime @updatedAt
 
   @@index([userId, type])
   @@index([userId, completionState])
   @@index([userId, deadline])
+  @@index([userId, linkedCalendarEventId])
+  @@index([userId, linkedTimetableCellId])
   @@map("memo")
 }
 

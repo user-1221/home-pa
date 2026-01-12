@@ -14,6 +14,7 @@ import type {
   RecurrenceGoal,
   MemoStatus,
 } from "../../../types.ts";
+import type { EventLinkData } from "../types/event-link.ts";
 import {
   taskFormState,
   type TaskFormData,
@@ -33,6 +34,7 @@ import {
   markMemoRejected,
   addDeadlineAcceptedSlot,
   removeDeadlineAcceptedSlot,
+  advanceEventLinkedDeadline,
 } from "./memo.functions.remote.ts";
 
 // ============================================================================
@@ -92,6 +94,13 @@ function jsonToMemo(json: {
       endTime: string;
       duration: number;
     }>;
+  };
+  eventLink?: {
+    type: "calendar" | "timetable";
+    calendarEventId?: string;
+    timetableCellId?: string;
+    offset: "same_day_after" | "1_day_before" | "1_day_after";
+    trackedOccurrenceDate?: string;
   };
 }): Memo {
   return {
@@ -154,6 +163,17 @@ function jsonToMemo(json: {
           acceptedSlots: json.deadlineState.acceptedSlots ?? [],
         }
       : undefined,
+    eventLink: json.eventLink
+      ? {
+          type: json.eventLink.type,
+          calendarEventId: json.eventLink.calendarEventId,
+          timetableCellId: json.eventLink.timetableCellId,
+          offset: json.eventLink.offset,
+          trackedOccurrenceDate: json.eventLink.trackedOccurrenceDate
+            ? new Date(json.eventLink.trackedOccurrenceDate)
+            : undefined,
+        }
+      : undefined,
   };
 }
 
@@ -179,6 +199,17 @@ function memoToJson(memo: Memo) {
     totalDurationExpected: memo.totalDurationExpected,
     lastActivity: memo.lastActivity?.toISOString(),
     importance: memo.importance,
+    // Event link for deadline tasks linked to calendar events or timetable
+    eventLink: memo.eventLink
+      ? {
+          type: memo.eventLink.type,
+          calendarEventId: memo.eventLink.calendarEventId,
+          timetableCellId: memo.eventLink.timetableCellId,
+          offset: memo.eventLink.offset,
+          trackedOccurrenceDate:
+            memo.eventLink.trackedOccurrenceDate?.toISOString(),
+        }
+      : undefined,
   };
 }
 
@@ -202,6 +233,7 @@ function createMemoFromForm(formData: TaskFormData): Memo {
   }
 
   // Parse deadline if deadline type
+  // Note: If eventLink is set, deadline will be calculated by the server
   let deadline: Date | undefined;
   if (formData.type === "期限付き" && formData.deadline) {
     deadline = new Date(formData.deadline);
@@ -216,6 +248,18 @@ function createMemoFromForm(formData: TaskFormData): Memo {
     completionsThisPeriod: 0,
     periodStartDate: now,
   };
+
+  // Build event link if present
+  let eventLink: EventLinkData | undefined;
+  if (formData.eventLink) {
+    eventLink = {
+      type: formData.eventLink.type,
+      calendarEventId: formData.eventLink.calendarEventId,
+      timetableCellId: formData.eventLink.timetableCellId,
+      offset: formData.eventLink.offset,
+      // trackedOccurrenceDate will be set by server when calculating deadline
+    };
+  }
 
   return {
     id: crypto.randomUUID(),
@@ -234,6 +278,8 @@ function createMemoFromForm(formData: TaskFormData): Memo {
     // Preserve genre if manually set (otherwise LLM will fill)
     genre: formData.genre.trim() || undefined,
     // LLM will fill sessionDuration, totalDurationExpected later
+    // Event link for deadline tasks linked to calendar events
+    eventLink,
   };
 }
 
@@ -251,13 +297,21 @@ function validateTaskForm(formData: TaskFormData): {
     errors.title = "タスク名を入力してください";
   }
 
-  // Deadline required for 期限付き
-  if (formData.type === "期限付き" && !formData.deadline) {
+  // Deadline required for 期限付き (unless eventLink is set - deadline will be calculated from event)
+  if (
+    formData.type === "期限付き" &&
+    !formData.deadline &&
+    !formData.eventLink
+  ) {
     errors.deadline = "期限を設定してください";
   }
 
-  // Validate deadline is not in the past
-  if (formData.type === "期限付き" && formData.deadline) {
+  // Validate deadline is not in the past (only when manually set, not for event links)
+  if (
+    formData.type === "期限付き" &&
+    formData.deadline &&
+    !formData.eventLink
+  ) {
     const deadline = new Date(formData.deadline);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -681,7 +735,34 @@ class TaskState {
           },
         },
       });
-      const updatedMemo = jsonToMemo(updatedJson);
+      let updatedMemo = jsonToMemo(updatedJson);
+
+      // For event-linked deadline tasks, advance to next occurrence (rolling deadline)
+      if (existing.eventLink && existing.type === "期限付き") {
+        try {
+          const advanceResult = await advanceEventLinkedDeadline({
+            memoId: taskId,
+          });
+          if (advanceResult.advanced) {
+            // Refetch the updated memo to get new deadline
+            await this.load();
+            const refreshed = this.items.find((t) => t.id === taskId);
+            if (refreshed) {
+              updatedMemo = refreshed;
+              toastState.show(
+                "タスクを完了し、次の締切に更新しました",
+                "success",
+              );
+              return updatedMemo;
+            }
+          }
+        } catch (advanceErr) {
+          console.warn(
+            "[TaskState.markComplete] Failed to advance deadline:",
+            advanceErr,
+          );
+        }
+      }
 
       // Update store
       const index = this.items.findIndex((t) => t.id === taskId);

@@ -6,9 +6,15 @@
     LocationPreference,
     ImportanceLevel,
   } from "$lib/types.ts";
+  import type { EventDeadlineOffset } from "../types/event-link.ts";
+  import { OFFSET_OPTIONS } from "../types/event-link.ts";
+  import EventPickerDialog from "./EventPickerDialog.svelte";
 
   // Advanced settings section state
   let showAdvancedSettings = $state(false);
+
+  // Event picker dialog state
+  let showEventPicker = $state(false);
 
   // Type options
   const typeOptions: { value: MemoType; label: string; description: string }[] =
@@ -235,15 +241,122 @@
               >
                 期限
               </label>
-              <input
-                id="deadline"
-                type="date"
-                bind:value={taskFormState.deadline}
-                class="w-full rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none {taskFormState
-                  .errors.deadline
-                  ? 'border-error'
-                  : ''}"
-              />
+
+              <!-- Show event link if set -->
+              {#if taskFormState.eventLink}
+                <div class="rounded-lg border border-info/30 bg-info/5 p-3">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-1.5 text-xs text-info">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          class="h-3.5 w-3.5"
+                        >
+                          <path
+                            d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
+                          />
+                          <path
+                            d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
+                          />
+                        </svg>
+                        イベント連携
+                      </div>
+                      <div
+                        class="mt-1 truncate text-sm font-medium text-base-content"
+                      >
+                        {taskFormState.eventLink.eventTitle}
+                      </div>
+                      <div class="mt-0.5 text-xs text-base-content/60">
+                        {taskFormState.eventLink.type === "calendar"
+                          ? "カレンダー予定"
+                          : "時間割"}
+                        • {OFFSET_OPTIONS.find(
+                          (o) => o.value === taskFormState.eventLink?.offset,
+                        )?.label ?? ""}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="flex h-6 w-6 items-center justify-center rounded text-base-content/40 transition-colors hover:bg-base-200 hover:text-base-content"
+                      onclick={() => taskFormState.clearEventLink()}
+                      aria-label="イベント連携を解除"
+                    >
+                      <svg
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                  <!-- Offset selector -->
+                  <div class="mt-2 border-t border-info/20 pt-2">
+                    <select
+                      class="w-full rounded border border-base-300/60 bg-base-100 px-2 py-1.5 text-sm text-base-content focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]/20 focus:outline-none"
+                      value={taskFormState.eventLink.offset}
+                      onchange={(
+                        e: Event & { currentTarget: HTMLSelectElement },
+                      ) => {
+                        if (taskFormState.eventLink) {
+                          taskFormState.setEventLink({
+                            ...taskFormState.eventLink,
+                            offset: e.currentTarget
+                              .value as EventDeadlineOffset,
+                          });
+                        }
+                      }}
+                    >
+                      {#each OFFSET_OPTIONS as opt (opt.value)}
+                        <option value={opt.value}>{opt.label}</option>
+                      {/each}
+                    </select>
+                  </div>
+                </div>
+              {:else}
+                <!-- Manual deadline input or event link button -->
+                <div class="flex gap-2">
+                  <input
+                    id="deadline"
+                    type="date"
+                    bind:value={taskFormState.deadline}
+                    class="flex-1 rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-base text-base-content transition-colors duration-200 focus:border-[var(--color-primary)] focus:ring-2 focus:ring-[var(--color-primary)]/20 focus:outline-none {taskFormState
+                      .errors.deadline
+                      ? 'border-error'
+                      : ''}"
+                  />
+                  <button
+                    type="button"
+                    class="flex items-center gap-1.5 rounded-lg border border-base-300/60 bg-base-100 px-3 py-2.5 text-sm text-base-content/70 transition-colors hover:bg-base-200 hover:text-base-content"
+                    onclick={() => (showEventPicker = true)}
+                    aria-label="イベントから選択"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      class="h-4 w-4"
+                    >
+                      <path
+                        d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
+                      />
+                      <path
+                        d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
+                      />
+                    </svg>
+                    連携
+                  </button>
+                </div>
+              {/if}
+
               {#if taskFormState.errors.deadline}
                 <p class="text-xs text-error">
                   {taskFormState.errors.deadline}
@@ -541,3 +654,13 @@
     <div class="modal-backdrop bg-base-content/30 backdrop-blur-sm"></div>
   </div>
 {/if}
+
+<!-- Event Picker Dialog -->
+<EventPickerDialog
+  isOpen={showEventPicker}
+  onClose={() => (showEventPicker = false)}
+  onSelect={(eventLink) => {
+    taskFormState.setEventLink(eventLink);
+    showEventPicker = false;
+  }}
+/>
