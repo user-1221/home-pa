@@ -12,6 +12,7 @@
     getNextCalendarOccurrence,
     getNextTimetableOccurrence,
     calculateDeadlineFromOccurrence,
+    calculateSuggestionAvailableFrom,
   } from "../services/event-deadline-service";
   import { loadTimetableData } from "$lib/features/calendar/services/timetable-events";
   import { toastState } from "$lib/bootstrap/toast.svelte";
@@ -55,6 +56,7 @@
     try {
       let deadline: Date;
       let trackedOccurrence: Date;
+      let occurrenceEnd: Date;
 
       if (sourceType === "calendar" && calendarEvent) {
         // For calendar events
@@ -65,6 +67,7 @@
           return;
         }
         trackedOccurrence = nextOcc.startDate;
+        occurrenceEnd = nextOcc.endDate;
         deadline = calculateDeadlineFromOccurrence(
           nextOcc.startDate,
           nextOcc.endDate,
@@ -87,6 +90,7 @@
           return;
         }
         trackedOccurrence = nextOcc.startDate;
+        occurrenceEnd = nextOcc.endDate;
         deadline = calculateDeadlineFromOccurrence(
           nextOcc.startDate,
           nextOcc.endDate,
@@ -97,6 +101,12 @@
         isSubmitting = false;
         return;
       }
+
+      // Calculate when suggestion should become available
+      const suggestionAvailableFrom = calculateSuggestionAvailableFrom(
+        occurrenceEnd,
+        selectedOffset,
+      );
 
       // Create the memo with event link
       const now = new Date();
@@ -119,6 +129,7 @@
           offset: selectedOffset,
           trackedOccurrenceDate: trackedOccurrence.toISOString(),
         },
+        suggestionAvailableFrom: suggestionAvailableFrom?.toISOString(),
       });
 
       // Reload tasks to show the new one

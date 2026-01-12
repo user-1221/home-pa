@@ -336,6 +336,14 @@ function generateExpectedDurationCurve(
  * Range: 0.1 – 1.0
  */
 export function calculateDeadlineNeed(memo: Memo, currentTime: Date): number {
+  // Check if task has a delayed suggestion start (dormant until event ends)
+  if (
+    memo.suggestionAvailableFrom &&
+    currentTime < new Date(memo.suggestionAvailableFrom)
+  ) {
+    return 0; // Return 0 (hidden) - task is dormant until event timing is met
+  }
+
   const state = initializeDeadlineState(memo, currentTime);
 
   const created = new Date(state.createdDay);

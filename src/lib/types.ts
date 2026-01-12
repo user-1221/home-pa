@@ -190,6 +190,7 @@ export interface Memo {
   // EVENT LINK (for event-tagged deadline tasks)
   // ============================================================================
   eventLink?: EventLinkData; // Links task to calendar event or timetable cell
+  suggestionAvailableFrom?: Date; // When suggestion can start appearing (null = immediately)
 }
 
 /**

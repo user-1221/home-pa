@@ -184,6 +184,7 @@ model Memo {
   linkedTimetableCellId     String?    @db.ObjectId
   eventDeadlineOffset       String?    // "same_day_after" | "1_day_before" | "1_day_after"
   trackedOccurrenceDate     DateTime?  // Which occurrence we're currently tracking
+  suggestionAvailableFrom   DateTime?  // When suggestion can start appearing (null = immediately)
 
   updatedAt              DateTime @updatedAt
 

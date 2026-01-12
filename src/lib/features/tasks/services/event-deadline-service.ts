@@ -400,6 +400,38 @@ export function getNextTimetableOccurrence(
 // ============================================================================
 
 /**
+ * Calculate when suggestion should become available based on offset type
+ *
+ * @param occurrenceEnd - When the event occurrence ends
+ * @param offset - The offset type
+ * @returns Date when suggestion can start appearing, or null for immediate availability
+ */
+export function calculateSuggestionAvailableFrom(
+  occurrenceEnd: Date,
+  offset: EventDeadlineOffset,
+): Date | null {
+  switch (offset) {
+    case "1_day_before":
+      // Available immediately after task creation
+      return null;
+
+    case "same_day_after":
+      // Available only after event ends
+      return occurrenceEnd;
+
+    case "1_day_after": {
+      // Available starting midnight of next day (翌日中)
+      // Practical visibility is governed by gap availability,
+      // so midnight is just the logical boundary
+      const nextDay = new Date(occurrenceEnd);
+      nextDay.setDate(nextDay.getDate() + 1);
+      nextDay.setHours(0, 0, 0, 0);
+      return nextDay;
+    }
+  }
+}
+
+/**
  * Calculate deadline from event occurrence and offset
  *
  * @param occurrenceStart - When the event occurrence starts
@@ -413,11 +445,12 @@ export function calculateDeadlineFromOccurrence(
   offset: EventDeadlineOffset,
 ): Date {
   switch (offset) {
-    case "same_day_after":
+    case "same_day_after": {
       // Deadline is end of the day the event ends
       const sameDay = new Date(occurrenceEnd);
       sameDay.setHours(23, 59, 59, 999);
       return sameDay;
+    }
 
     case "1_day_before":
       // Deadline is 24 hours before event starts

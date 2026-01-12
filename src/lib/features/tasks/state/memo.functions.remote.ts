@@ -106,6 +106,8 @@ const MemoInputSchema = v.object({
   backlogState: BacklogStateSchema,
   // Event link (for event-tagged deadline tasks)
   eventLink: EventLinkSchema,
+  // Suggestion availability timing (for event-linked tasks)
+  suggestionAvailableFrom: v.optional(v.string()),
 });
 
 const MemoUpdateSchema = v.object({
@@ -245,6 +247,9 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
               memo.trackedOccurrenceDate?.toISOString() ?? undefined,
           }
         : undefined,
+      // Suggestion availability timing
+      suggestionAvailableFrom:
+        memo.suggestionAvailableFrom?.toISOString() ?? undefined,
     }));
   } catch (err) {
     console.error("[fetchMemos] Error:", err);
@@ -307,6 +312,10 @@ export const createMemo = command(MemoInputSchema, async (input) => {
         eventDeadlineOffset: input.eventLink?.offset,
         trackedOccurrenceDate: input.eventLink?.trackedOccurrenceDate
           ? new Date(input.eventLink.trackedOccurrenceDate)
+          : undefined,
+        // Suggestion availability timing
+        suggestionAvailableFrom: input.suggestionAvailableFrom
+          ? new Date(input.suggestionAvailableFrom)
           : undefined,
       },
     });
@@ -1143,6 +1152,7 @@ export const advanceEventLinkedDeadline = command(
 
       let newDeadline: Date | null = null;
       let newTrackedOccurrence: Date | null = null;
+      let newOccurrenceEnd: Date | null = null;
 
       if (
         existing.eventLinkType === "calendar" &&
@@ -1181,6 +1191,7 @@ export const advanceEventLinkedDeadline = command(
               offset,
             );
             newTrackedOccurrence = nextOcc.startDate;
+            newOccurrenceEnd = nextOcc.endDate;
           }
         }
       } else if (
@@ -1235,16 +1246,27 @@ export const advanceEventLinkedDeadline = command(
               offset,
             );
             newTrackedOccurrence = nextOcc.startDate;
+            newOccurrenceEnd = nextOcc.endDate;
           }
         }
       }
 
-      if (newDeadline && newTrackedOccurrence) {
+      if (newDeadline && newTrackedOccurrence && newOccurrenceEnd) {
+        // Calculate new suggestionAvailableFrom for the next occurrence
+        const { calculateSuggestionAvailableFrom } = await import(
+          "../services/event-deadline-service"
+        );
+        const newSuggestionAvailableFrom = calculateSuggestionAvailableFrom(
+          newOccurrenceEnd,
+          offset,
+        );
+
         await prisma.memo.update({
           where: { id: input.memoId },
           data: {
             deadline: newDeadline,
             trackedOccurrenceDate: newTrackedOccurrence,
+            suggestionAvailableFrom: newSuggestionAvailableFrom,
             // Reset completion state for next cycle
             completionState: "not_started",
             deadlineAcceptedSlots: [], // Clear accepted slots

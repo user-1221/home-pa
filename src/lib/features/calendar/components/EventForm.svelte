@@ -664,7 +664,7 @@
         } else if (activeDatePicker === "start" && startDateCalendarRef) {
           startDateCalendarRef.scrollIntoView({
             behavior: "smooth",
-            block: "nearest",
+            block: "center",
             inline: "nearest",
           });
         } else if (activeDatePicker === "end" && endDateCalendarRef) {
@@ -879,80 +879,6 @@
           bind:value={eventAddress}
           placeholder="場所を入力（任意）"
         />
-      </div>
-
-      <!-- Importance -->
-      <div class="form-control">
-        <span class="label">
-          <span class="label-text text-sm text-[var(--color-text-secondary)]"
-            >重要度</span
-          >
-        </span>
-        <div class="flex gap-2" role="group" aria-label="重要度">
-          <button
-            type="button"
-            class="btn flex-1 btn-sm {eventImportance === 'low'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-              : 'border-base-300 btn-ghost'} border transition-all duration-200"
-            onclick={() => (eventImportance = "low")}
-          >
-            ⭐
-          </button>
-          <button
-            type="button"
-            class="btn flex-1 btn-sm {eventImportance === 'medium'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-              : 'border-base-300 btn-ghost'} border transition-all duration-200"
-            onclick={() => (eventImportance = "medium")}
-          >
-            ⭐⭐
-          </button>
-          <button
-            type="button"
-            class="btn flex-1 btn-sm {eventImportance === 'high'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-              : 'border-base-300 btn-ghost'} border transition-all duration-200"
-            onclick={() => (eventImportance = "high")}
-          >
-            ⭐⭐⭐
-          </button>
-        </div>
-      </div>
-
-      <!-- Color Picker -->
-      <div class="form-control">
-        <span class="label">
-          <span class="label-text text-sm text-[var(--color-text-secondary)]"
-            >カラー</span
-          >
-        </span>
-        <div class="flex flex-wrap gap-2" role="group" aria-label="カラー選択">
-          <!-- Auto color option -->
-          <button
-            type="button"
-            class="flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 {eventColor ===
-            undefined
-              ? 'ring-opacity-30 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
-              : 'border-base-300 hover:border-base-content/30'}"
-            onclick={() => (eventColor = undefined)}
-            title="自動"
-          >
-            <span class="text-xs text-base-content/60">自動</span>
-          </button>
-          {#each EVENT_COLOR_PALETTE as color (color.key)}
-            <button
-              type="button"
-              class="h-8 w-8 rounded-full border-2 transition-all duration-200 {eventColor ===
-              color.key
-                ? 'ring-opacity-30 scale-110 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
-                : 'border-transparent hover:scale-105'}"
-              style="background-color: {color.value};"
-              onclick={() => (eventColor = color.key)}
-              title={color.label}
-              aria-label={color.label}
-            ></button>
-          {/each}
-        </div>
       </div>
 
       <!-- Time Label Switches -->
@@ -1430,6 +1356,80 @@
           </div>
         </div>
       {/if}
+
+      <!-- Importance -->
+      <div class="form-control">
+        <span class="label">
+          <span class="label-text text-sm text-[var(--color-text-secondary)]"
+            >重要度</span
+          >
+        </span>
+        <div class="flex gap-2" role="group" aria-label="重要度">
+          <button
+            type="button"
+            class="btn flex-1 btn-sm {eventImportance === 'low'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+              : 'border-base-300 btn-ghost'} border transition-all duration-200"
+            onclick={() => (eventImportance = "low")}
+          >
+            ⭐
+          </button>
+          <button
+            type="button"
+            class="btn flex-1 btn-sm {eventImportance === 'medium'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+              : 'border-base-300 btn-ghost'} border transition-all duration-200"
+            onclick={() => (eventImportance = "medium")}
+          >
+            ⭐⭐
+          </button>
+          <button
+            type="button"
+            class="btn flex-1 btn-sm {eventImportance === 'high'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+              : 'border-base-300 btn-ghost'} border transition-all duration-200"
+            onclick={() => (eventImportance = "high")}
+          >
+            ⭐⭐⭐
+          </button>
+        </div>
+      </div>
+
+      <!-- Color Picker -->
+      <div class="form-control">
+        <span class="label">
+          <span class="label-text text-sm text-[var(--color-text-secondary)]"
+            >カラー</span
+          >
+        </span>
+        <div class="flex flex-wrap gap-2" role="group" aria-label="カラー選択">
+          <!-- Auto color option -->
+          <button
+            type="button"
+            class="flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 {eventColor ===
+            undefined
+              ? 'ring-opacity-30 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
+              : 'border-base-300 hover:border-base-content/30'}"
+            onclick={() => (eventColor = undefined)}
+            title="自動"
+          >
+            <span class="text-xs text-base-content/60">自動</span>
+          </button>
+          {#each EVENT_COLOR_PALETTE as color (color.key)}
+            <button
+              type="button"
+              class="h-8 w-8 rounded-full border-2 transition-all duration-200 {eventColor ===
+              color.key
+                ? 'ring-opacity-30 scale-110 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
+                : 'border-transparent hover:scale-105'}"
+              style="background-color: {color.value};"
+              onclick={() => (eventColor = color.key)}
+              title={color.label}
+              aria-label={color.label}
+            ></button>
+          {/each}
+        </div>
+      </div>
     </div>
 
     <!-- General Error Display -->

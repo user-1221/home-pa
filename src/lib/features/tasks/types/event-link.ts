@@ -18,6 +18,7 @@ export interface EventLinkData {
   timetableCellId?: string; // For timetable items
   offset: EventDeadlineOffset;
   trackedOccurrenceDate?: Date; // Which occurrence we're tracking
+  suggestionAvailableFrom?: Date; // When suggestion can start appearing (null = immediately)
 }
 
 /** Input for creating event-tagged task */
