@@ -450,12 +450,6 @@ function _validateEventForm(formData: EventFormData): {
     if (startDate >= endDate) {
       errors.end = "終了時間は開始時間より後にしてください";
     }
-
-    // Check if event is in the past (only for specific-time events)
-    const now = new Date();
-    if (startDate < now) {
-      errors.start = "過去の時間に予定を作成することはできません";
-    }
   }
 
   return {

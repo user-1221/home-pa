@@ -164,10 +164,6 @@ class EventFormState {
         if (startDate >= endDate) {
           errors.end = "終了時間は開始時間より後にしてください";
         }
-        const now = new Date();
-        if (startDate < now) {
-          errors.start = "過去の時間に予定を作成することはできません";
-        }
       }
     }
 
@@ -379,9 +375,10 @@ class EventFormState {
     const dateStr = `${yyyy}-${mm}-${dd}`;
 
     this.reset();
-    this.timeLabel = "all-day";
-    this.start = dateStr;
-    this.end = dateStr;
+    // Default to timed mode with 12:00-13:00
+    this.timeLabel = "timed";
+    this.start = `${dateStr}T12:00`;
+    this.end = `${dateStr}T13:00`;
   }
 }
 

@@ -5,6 +5,7 @@
     label?: string;
     class?: string;
     active?: boolean; // Whether this picker is currently active
+    disabled?: boolean; // Whether the picker is disabled (greyed out)
     onclick?: () => void;
   }
 
@@ -14,6 +15,7 @@
     label,
     class: className = "",
     active = false,
+    disabled = false,
     onclick,
   }: Props = $props();
 
@@ -39,8 +41,9 @@
     id="{id}-btn"
     class="input-bordered input flex w-full items-center justify-between text-left transition-colors {active
       ? 'ring-opacity-30 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
-      : ''}"
-    {onclick}
+      : ''} {disabled ? 'cursor-not-allowed opacity-50' : ''}"
+    onclick={disabled ? undefined : onclick}
+    {disabled}
   >
     <span class={value ? "" : "text-base-content/50"}>{displayValue()}</span>
     <svg

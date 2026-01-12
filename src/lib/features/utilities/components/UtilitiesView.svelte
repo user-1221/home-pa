@@ -27,21 +27,21 @@
       name: "Pomodoro",
       icon: "🍅",
       description: "Focus timer",
-      color: "var(--color-error-500)",
+      color: "#DC2626",
     },
     {
       id: "transit",
       name: "Transit",
       icon: "🚃",
       description: "Train & bus schedules",
-      color: "var(--color-primary)",
+      color: "#7BBEBB",
     },
     {
       id: "progress-memo",
       name: "Progress Memo",
       icon: "📊",
       description: "Track goals & habits",
-      color: "var(--color-success-500)",
+      color: "#2AB388",
     },
   ];
 
@@ -99,22 +99,33 @@
   </div>
 
   <!-- Mini Apps Grid -->
-  <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
+  <div class="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4">
     {#each miniApps as app (app.id)}
       <button
-        class="group card bg-base-100 shadow-sm transition-all duration-200 card-sm hover:shadow-md active:scale-95"
+        class="group relative overflow-hidden rounded-xl border border-base-300/60 bg-base-100 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-base-300 hover:shadow-md active:scale-[0.98]"
         onclick={() => openMiniApp(app.id)}
       >
-        <div class="card-body items-center gap-3 p-6 text-center">
+        <!-- Subtle gradient overlay on hover -->
+        <div
+          class="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+          style="background: linear-gradient(135deg, color-mix(in srgb, {app.color} 6%, transparent), transparent)"
+        ></div>
+
+        <div class="relative flex flex-col items-center gap-4 text-center">
+          <!-- Icon container with refined styling -->
           <div
-            class="flex h-16 w-16 items-center justify-center rounded-2xl text-3xl transition-transform duration-200 group-hover:scale-110"
-            style="background-color: color-mix(in srgb, {app.color} 15%, transparent)"
+            class="relative flex h-14 w-14 items-center justify-center rounded-xl text-2xl transition-all duration-200 group-hover:scale-105"
+            style="background: linear-gradient(145deg, color-mix(in srgb, {app.color} 12%, white), color-mix(in srgb, {app.color} 18%, white)); box-shadow: 0 2px 8px color-mix(in srgb, {app.color} 15%, transparent), inset 0 1px 0 rgba(255,255,255,0.5);"
           >
-            {app.icon}
+            <span class="drop-shadow-sm">{app.icon}</span>
           </div>
-          <div>
-            <span class="block text-sm font-medium">{app.name}</span>
-            <span class="mt-1 block text-xs text-[var(--color-text-muted)]"
+
+          <!-- Text content -->
+          <div class="flex flex-col gap-0.5">
+            <span class="text-sm font-medium tracking-tight text-base-content"
+              >{app.name}</span
+            >
+            <span class="text-xs text-[var(--color-text-secondary)]"
               >{app.description}</span
             >
           </div>
@@ -124,12 +135,14 @@
 
     <!-- Placeholder for future apps -->
     <div
-      class="card border-2 border-dashed border-base-300 bg-transparent opacity-50 card-sm"
+      class="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-base-300/50 bg-transparent p-5 opacity-40"
     >
-      <div class="card-body items-center justify-center gap-2 p-6 text-center">
-        <span class="text-2xl text-[var(--color-text-muted)]">+</span>
-        <span class="text-xs text-[var(--color-text-muted)]">More coming</span>
+      <div
+        class="flex h-14 w-14 items-center justify-center rounded-xl bg-base-200/50"
+      >
+        <span class="text-xl text-[var(--color-text-muted)]">+</span>
       </div>
+      <span class="text-xs text-[var(--color-text-muted)]">More coming</span>
     </div>
   </div>
 </div>

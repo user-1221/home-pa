@@ -45,6 +45,57 @@
   let isGreyState = $derived(timeMode === "default");
   let isEventEditing = $state(false);
   let isManualDateOrTimeEdit = $state(false);
+
+  // Track previous start time for duration preservation
+  let previousStartTime = $state<string>("");
+
+  /**
+   * Calculate time in minutes from HH:mm string
+   */
+  function timeToMinutes(time: string): number {
+    const [h, m] = time.split(":").map(Number);
+    return h * 60 + m;
+  }
+
+  /**
+   * Convert minutes to HH:mm string
+   */
+  function minutesToTime(minutes: number): string {
+    // Handle overflow past midnight
+    const normalizedMinutes = ((minutes % 1440) + 1440) % 1440;
+    const h = Math.floor(normalizedMinutes / 60);
+    const m = normalizedMinutes % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+  }
+
+  /**
+   * Handle start time change with duration preservation
+   */
+  function handleStartTimeChange(newStartTime: string): void {
+    if (
+      eventTimeLabel === "timed" &&
+      previousStartTime &&
+      eventEndTime &&
+      newStartTime
+    ) {
+      // Calculate the original duration
+      const originalStartMinutes = timeToMinutes(previousStartTime);
+      const originalEndMinutes = timeToMinutes(eventEndTime);
+      let duration = originalEndMinutes - originalStartMinutes;
+      // Handle overnight events
+      if (duration < 0) {
+        duration += 1440; // 24 hours in minutes
+      }
+
+      // Calculate new end time preserving duration
+      const newStartMinutes = timeToMinutes(newStartTime);
+      const newEndMinutes = newStartMinutes + duration;
+      eventEndTime = minutesToTime(newEndMinutes);
+    }
+
+    eventStartTime = newStartTime;
+    previousStartTime = newStartTime;
+  }
   // Recurrence state
   let isRecurring = $state(false);
   let recurrenceFrequency = $state<"DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY">(
@@ -97,54 +148,96 @@
   let lastStoreRecurrence = $state<string>("");
   let lastStoreColor = $state<string | undefined>(undefined);
 
-  // Sync from store
+  // Track if we're in a local edit to prevent store sync from overwriting
+  let isLocalEdit = $state(false);
+
+  // Sync from store - only when store values actually changed externally
   $effect(() => {
     const form = eventFormState.formData;
 
-    eventTitle = form.title;
-    lastStoreTitle = form.title;
-
-    if (form.start) {
-      const startDateTime = new Date(form.start);
-      eventStartDate = utcToLocalDateString(startDateTime);
-      eventStartTime = utcToLocalTimeString(startDateTime);
-    } else {
-      eventStartDate = "";
-      eventStartTime = "";
+    // Skip sync during local edits to prevent circular updates
+    if (isLocalEdit) {
+      return;
     }
 
-    if (form.end) {
-      const endDateTime = new Date(form.end);
-      eventEndDate = utcToLocalDateString(endDateTime);
-      eventEndTime = utcToLocalTimeString(endDateTime);
-    } else {
-      eventEndDate = "";
-      eventEndTime = "";
+    // Only sync title if store value changed
+    if (form.title !== lastStoreTitle) {
+      eventTitle = form.title;
+      lastStoreTitle = form.title;
     }
 
-    if (!isManualDateOrTimeEdit) {
-      if (form.timeLabel === "all-day") {
-        eventStartTime = "00:00";
-        eventEndTime = "23:59";
-      } else if (form.timeLabel === "some-timing") {
+    // Only sync dates/times if store values changed AND we're not in manual edit mode
+    if (form.start !== lastStoreStart) {
+      lastStoreStart = form.start;
+      if (form.start) {
+        const startDateTime = new Date(form.start);
+        eventStartDate = utcToLocalDateString(startDateTime);
+        // Only update time if it contains time info (has 'T')
+        if (form.start.includes("T")) {
+          eventStartTime = utcToLocalTimeString(startDateTime);
+          previousStartTime = eventStartTime;
+        }
+      } else {
+        eventStartDate = "";
         eventStartTime = "";
+        previousStartTime = "";
+      }
+    }
+
+    if (form.end !== lastStoreEnd) {
+      lastStoreEnd = form.end;
+      if (form.end) {
+        const endDateTime = new Date(form.end);
+        eventEndDate = utcToLocalDateString(endDateTime);
+        // Only update time if it contains time info (has 'T')
+        if (form.end.includes("T")) {
+          eventEndTime = utcToLocalTimeString(endDateTime);
+        }
+      } else {
+        eventEndDate = "";
         eventEndTime = "";
       }
     }
 
-    eventAddress = form.address || "";
-    lastStoreAddress = form.address || "";
-    eventImportance = form.importance || "medium";
-    lastStoreImportance = form.importance || "medium";
-    eventTimeLabel = form.timeLabel || "all-day";
-    lastStoreTimeLabel = form.timeLabel || "all-day";
-    eventColor = form.color;
-    lastStoreColor = form.color;
-    isEventEditing = form.isEditing;
+    // Sync timeLabel - handle time defaults for mode switches
+    if (form.timeLabel !== lastStoreTimeLabel) {
+      lastStoreTimeLabel = form.timeLabel || "timed";
+      eventTimeLabel = form.timeLabel || "timed";
 
-    // Track start/end for sync guards
-    lastStoreStart = form.start;
-    lastStoreEnd = form.end;
+      // Set timeMode based on timeLabel
+      if (form.timeLabel === "all-day") {
+        timeMode = "all-day";
+        if (!isManualDateOrTimeEdit) {
+          eventStartTime = "00:00";
+          eventEndTime = "23:59";
+          previousStartTime = "00:00";
+        }
+      } else if (form.timeLabel === "some-timing") {
+        timeMode = "some-timing";
+        // Don't clear times for some-timing - keep display values
+      } else {
+        // timed mode is the default
+        timeMode = "default";
+      }
+    }
+
+    // Sync other fields only when changed
+    if ((form.address || "") !== lastStoreAddress) {
+      eventAddress = form.address || "";
+      lastStoreAddress = form.address || "";
+    }
+
+    if ((form.importance || "medium") !== lastStoreImportance) {
+      eventImportance = form.importance || "medium";
+      lastStoreImportance = form.importance || "medium";
+    }
+
+    if (form.color !== lastStoreColor) {
+      eventColor = form.color;
+      lastStoreColor = form.color;
+    }
+
+    isEventEditing = form.isEditing;
 
     // Sync recurrence from store when editing
     const recurrenceStr = JSON.stringify(form.recurrence ?? { type: "NONE" });
@@ -413,10 +506,28 @@
   }
 
   function switchToTimedMode() {
+    isLocalEdit = true;
     timeMode = "default";
     isManualDateOrTimeEdit = true;
     eventTimeLabel = "timed";
+
+    // Set default times to 12:00-13:00 if not already set (for new events or switching from all-day/some-timing)
+    if (
+      !eventStartTime ||
+      eventStartTime === "00:00" ||
+      eventStartTime === ""
+    ) {
+      eventStartTime = "12:00";
+      previousStartTime = "12:00";
+    }
+    if (!eventEndTime || eventEndTime === "23:59" || eventEndTime === "") {
+      eventEndTime = "13:00";
+    }
+
+    // Update tracking vars before calling store
+    lastStoreTimeLabel = "timed";
     eventFormState.switchTimeLabel("timed");
+    isLocalEdit = false;
   }
 
   async function handleDelete(): Promise<void> {
@@ -535,7 +646,8 @@
   }
 
   // Refs for scrolling
-  let calendarSectionRef: HTMLDivElement | undefined = $state();
+  let startDateCalendarRef: HTMLDivElement | undefined = $state();
+  let endDateCalendarRef: HTMLDivElement | undefined = $state();
   let recurrenceEndCalendarRef: HTMLDivElement | undefined = $state();
   let recurrenceSectionRef: HTMLDivElement | undefined = $state();
 
@@ -549,8 +661,14 @@
             block: "center",
             inline: "nearest",
           });
-        } else if (calendarSectionRef) {
-          calendarSectionRef.scrollIntoView({
+        } else if (activeDatePicker === "start" && startDateCalendarRef) {
+          startDateCalendarRef.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+            inline: "nearest",
+          });
+        } else if (activeDatePicker === "end" && endDateCalendarRef) {
+          endDateCalendarRef.scrollIntoView({
             behavior: "smooth",
             block: "center",
             inline: "nearest",
@@ -578,9 +696,9 @@
     if (
       activeDatePicker &&
       !target.closest("#shared-calendar-section") &&
-      !target.closest("#event-start-date-btn") &&
-      !target.closest("#event-end-date-btn") &&
-      !target.closest("#recurrence-end-btn")
+      !target.closest("#event-start-date") &&
+      !target.closest("#event-end-date") &&
+      !target.closest("#recurrence-end")
     ) {
       activeDatePicker = null;
     }
@@ -848,12 +966,29 @@
               : 'border-base-300 btn-ghost'}
               {isGreyState ? 'opacity-60' : ''}"
             onclick={() => {
-              timeMode = "all-day";
-              eventTimeLabel = "all-day";
-              eventFormState.switchTimeLabel("all-day");
-              eventStartTime = "00:00";
-              eventEndTime = "23:59";
-              isManualDateOrTimeEdit = false;
+              isLocalEdit = true;
+              if (timeMode === "all-day") {
+                // Toggle off - return to default timed mode
+                timeMode = "default";
+                eventTimeLabel = "timed";
+                eventStartTime = "12:00";
+                eventEndTime = "13:00";
+                previousStartTime = "12:00";
+                isManualDateOrTimeEdit = true;
+                lastStoreTimeLabel = "timed";
+                eventFormState.switchTimeLabel("timed");
+              } else {
+                // Switch to all-day mode
+                timeMode = "all-day";
+                eventTimeLabel = "all-day";
+                eventStartTime = "00:00";
+                eventEndTime = "23:59";
+                previousStartTime = "00:00";
+                isManualDateOrTimeEdit = false;
+                lastStoreTimeLabel = "all-day";
+                eventFormState.switchTimeLabel("all-day");
+              }
+              isLocalEdit = false;
             }}
           >
             終日
@@ -863,16 +998,29 @@
             class="btn flex-1 transition-all duration-200 btn-sm
               {timeMode === 'some-timing'
               ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
-              : 'border-base-300 btn-ghost'}
-              {isGreyState ? 'opacity-60' : ''}"
+              : 'border-base-300 btn-ghost'}"
             onclick={() => {
-              timeMode = "some-timing";
-              eventTimeLabel = "some-timing";
-              eventFormState.switchTimeLabel("some-timing");
-              const dateString = utcToLocalDateString(dataState.selectedDate);
-              eventStartDate = dateString;
-              eventEndDate = dateString;
-              isManualDateOrTimeEdit = false;
+              isLocalEdit = true;
+              if (timeMode === "some-timing") {
+                // Toggle off - return to default timed mode
+                timeMode = "default";
+                eventTimeLabel = "timed";
+                eventStartTime = "12:00";
+                eventEndTime = "13:00";
+                previousStartTime = "12:00";
+                isManualDateOrTimeEdit = true;
+                lastStoreTimeLabel = "timed";
+                eventFormState.switchTimeLabel("timed");
+              } else {
+                // Switch to some-timing mode - keep existing dates, just grey them out
+                timeMode = "some-timing";
+                eventTimeLabel = "some-timing";
+                // Don't modify dates or times - keep them as-is (displayed greyed)
+                isManualDateOrTimeEdit = false;
+                lastStoreTimeLabel = "some-timing";
+                eventFormState.switchTimeLabel("some-timing");
+              }
+              isLocalEdit = false;
             }}
           >
             どこかのタイミングで
@@ -888,6 +1036,7 @@
             label="開始日"
             bind:value={eventStartDate}
             active={activeDatePicker === "start"}
+            disabled={eventTimeLabel === "some-timing"}
             onclick={() =>
               (activeDatePicker =
                 activeDatePicker === "start" ? null : "start")}
@@ -904,16 +1053,19 @@
               type="time"
               class="input-bordered input w-full {eventFormState.errors.start
                 ? 'input-error'
+                : ''} {eventTimeLabel === 'some-timing'
+                ? 'cursor-not-allowed opacity-50'
                 : ''}"
-              bind:value={eventStartTime}
+              value={eventStartTime}
+              disabled={eventTimeLabel === "some-timing"}
               onfocus={() =>
-                (eventTimeLabel === "all-day" ||
-                  eventTimeLabel === "some-timing") &&
-                switchToTimedMode()}
-              oninput={() =>
-                (eventTimeLabel === "all-day" ||
-                  eventTimeLabel === "some-timing") &&
-                switchToTimedMode()}
+                eventTimeLabel === "all-day" && switchToTimedMode()}
+              oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+                if (eventTimeLabel === "all-day") {
+                  switchToTimedMode();
+                }
+                handleStartTimeChange(e.currentTarget.value);
+              }}
             />
             {#if eventFormState.errors.start}
               <p class="label">
@@ -924,6 +1076,48 @@
             {/if}
           </div>
         </div>
+
+        <!-- Start Date Calendar Picker -->
+        {#if activeDatePicker === "start"}
+          <div
+            id="shared-calendar-section"
+            bind:this={startDateCalendarRef}
+            class="mt-3 flex justify-center"
+          >
+            <div class="rounded-box border border-base-300 bg-base-200 p-3">
+              <div
+                class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
+              >
+                {activePickerLabel()}を選択
+              </div>
+              <calendar-date
+                class="cally bg-base-200"
+                value={eventStartDate}
+                use:calendarChangeAction
+              >
+                <svg
+                  aria-label="Previous"
+                  class="size-4 fill-current"
+                  slot="previous"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+                </svg>
+                <svg
+                  aria-label="Next"
+                  class="size-4 fill-current"
+                  slot="next"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
+                </svg>
+                <calendar-month></calendar-month>
+              </calendar-date>
+            </div>
+          </div>
+        {/if}
       </div>
 
       <!-- Time Settings -->
@@ -934,6 +1128,7 @@
             label="終了日"
             bind:value={eventEndDate}
             active={activeDatePicker === "end"}
+            disabled={eventTimeLabel === "some-timing"}
             onclick={() =>
               (activeDatePicker = activeDatePicker === "end" ? null : "end")}
           />
@@ -949,16 +1144,15 @@
               type="time"
               class="input-bordered input w-full {eventFormState.errors.end
                 ? 'input-error'
+                : ''} {eventTimeLabel === 'some-timing'
+                ? 'cursor-not-allowed opacity-50'
                 : ''}"
               bind:value={eventEndTime}
+              disabled={eventTimeLabel === "some-timing"}
               onfocus={() =>
-                (eventTimeLabel === "all-day" ||
-                  eventTimeLabel === "some-timing") &&
-                switchToTimedMode()}
+                eventTimeLabel === "all-day" && switchToTimedMode()}
               oninput={() =>
-                (eventTimeLabel === "all-day" ||
-                  eventTimeLabel === "some-timing") &&
-                switchToTimedMode()}
+                eventTimeLabel === "all-day" && switchToTimedMode()}
             />
             {#if eventFormState.errors.end}
               <p class="label">
@@ -970,11 +1164,11 @@
           </div>
         </div>
 
-        <!-- Shared Calendar Picker -->
-        {#if activeDatePicker === "start" || activeDatePicker === "end"}
+        <!-- End Date Calendar Picker -->
+        {#if activeDatePicker === "end"}
           <div
             id="shared-calendar-section"
-            bind:this={calendarSectionRef}
+            bind:this={endDateCalendarRef}
             class="mt-3 flex justify-center"
           >
             <div class="rounded-box border border-base-300 bg-base-200 p-3">
@@ -985,9 +1179,7 @@
               </div>
               <calendar-date
                 class="cally bg-base-200"
-                value={activeDatePicker === "start"
-                  ? eventStartDate
-                  : eventEndDate}
+                value={eventEndDate}
                 use:calendarChangeAction
               >
                 <svg

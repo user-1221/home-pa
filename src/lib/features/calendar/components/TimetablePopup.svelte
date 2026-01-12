@@ -278,15 +278,37 @@
     >
       <!-- Header -->
       <div
-        class="flex flex-shrink-0 items-center justify-between border-b border-base-300 p-4"
+        class="flex flex-shrink-0 items-center justify-between border-b border-base-300 bg-base-100 px-5 py-4"
       >
-        <h3 id="timetable-title" class="text-lg font-medium">時間割設定</h3>
+        <div class="flex items-center gap-3">
+          <div
+            class="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-primary-100)]"
+          >
+            <span class="text-base">📅</span>
+          </div>
+          <h3 id="timetable-title" class="text-base font-medium tracking-tight">
+            時間割設定
+          </h3>
+        </div>
         <button
-          class="btn btn-square btn-ghost btn-sm"
+          class="btn btn-circle text-base-content/60 btn-ghost btn-sm hover:text-base-content"
           onclick={onClose}
           aria-label="Close"
         >
-          ✕
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
         </button>
       </div>
 
@@ -298,108 +320,157 @@
         <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <!-- Settings Row -->
           <div
-            class="grid flex-shrink-0 grid-cols-5 gap-3 border-b border-base-300 p-4"
+            class="flex-shrink-0 border-b border-base-300 bg-[var(--color-surface-50)] px-5 py-4"
           >
-            <label class="form-control w-full">
-              <div class="label py-1">
-                <span class="label-text text-xs">開始時間</span>
-              </div>
-              <input
-                type="time"
-                class="input-bordered input input-sm w-full"
-                bind:value={config.dayStartTime}
-                onchange={handleConfigChange}
-              />
-            </label>
-            <label class="form-control w-full">
-              <div class="label py-1">
-                <span class="label-text text-xs">昼休み開始</span>
-              </div>
-              <input
-                type="time"
-                class="input-bordered input input-sm w-full"
-                bind:value={config.lunchStartTime}
-                onchange={handleConfigChange}
-              />
-            </label>
-            <label class="form-control w-full">
-              <div class="label py-1">
-                <span class="label-text text-xs">昼休み終了</span>
-              </div>
-              <input
-                type="time"
-                class="input-bordered input input-sm w-full"
-                bind:value={config.lunchEndTime}
-                onchange={handleConfigChange}
-              />
-            </label>
-            <label class="form-control w-full">
-              <div class="label py-1">
-                <span class="label-text text-xs">授業時間(分)</span>
-              </div>
-              <input
-                type="number"
-                class="input-bordered input input-sm w-full"
-                bind:value={config.cellDuration}
-                onchange={handleConfigChange}
-                min="10"
-                max="180"
-              />
-            </label>
-            <label class="form-control w-full">
-              <div class="label py-1">
-                <span class="label-text text-xs">休憩時間(分)</span>
-              </div>
-              <input
-                type="number"
-                class="input-bordered input input-sm w-full"
-                bind:value={config.breakDuration}
-                onchange={handleConfigChange}
-                min="0"
-                max="60"
-              />
-            </label>
+            <div class="mb-3 flex items-center gap-2">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4 text-[var(--color-text-secondary)]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              <span
+                class="text-xs font-medium text-[var(--color-text-secondary)]"
+                >基本設定</span
+              >
+            </div>
+            <div class="grid grid-cols-5 gap-3">
+              <label class="form-control w-full">
+                <div class="label py-1">
+                  <span
+                    class="label-text text-xs text-[var(--color-text-muted)]"
+                    >開始時間</span
+                  >
+                </div>
+                <input
+                  type="time"
+                  class="input input-sm w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                  bind:value={config.dayStartTime}
+                  onchange={handleConfigChange}
+                />
+              </label>
+              <label class="form-control w-full">
+                <div class="label py-1">
+                  <span
+                    class="label-text text-xs text-[var(--color-text-muted)]"
+                    >昼休み開始</span
+                  >
+                </div>
+                <input
+                  type="time"
+                  class="input input-sm w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                  bind:value={config.lunchStartTime}
+                  onchange={handleConfigChange}
+                />
+              </label>
+              <label class="form-control w-full">
+                <div class="label py-1">
+                  <span
+                    class="label-text text-xs text-[var(--color-text-muted)]"
+                    >昼休み終了</span
+                  >
+                </div>
+                <input
+                  type="time"
+                  class="input input-sm w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                  bind:value={config.lunchEndTime}
+                  onchange={handleConfigChange}
+                />
+              </label>
+              <label class="form-control w-full">
+                <div class="label py-1">
+                  <span
+                    class="label-text text-xs text-[var(--color-text-muted)]"
+                    >授業時間(分)</span
+                  >
+                </div>
+                <input
+                  type="number"
+                  class="input input-sm w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                  bind:value={config.cellDuration}
+                  onchange={handleConfigChange}
+                  min="10"
+                  max="180"
+                />
+              </label>
+              <label class="form-control w-full">
+                <div class="label py-1">
+                  <span
+                    class="label-text text-xs text-[var(--color-text-muted)]"
+                    >休憩時間(分)</span
+                  >
+                </div>
+                <input
+                  type="number"
+                  class="input input-sm w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                  bind:value={config.breakDuration}
+                  onchange={handleConfigChange}
+                  min="0"
+                  max="60"
+                />
+              </label>
+            </div>
           </div>
 
           <!-- Timetable Grid -->
-          <div class="overflow-x-auto p-4">
+          <div class="overflow-x-auto px-5 py-4">
             <table class="table w-full table-fixed">
               <thead>
-                <tr>
-                  <th class="w-16 text-center text-xs">時限</th>
+                <tr class="border-b border-base-300">
+                  <th
+                    class="w-16 bg-transparent py-3 text-center text-xs font-normal text-[var(--color-text-muted)]"
+                    >時限</th
+                  >
                   {#each weekdays as day (day)}
-                    <th class="text-center text-sm font-medium">{day}</th>
+                    <th
+                      class="bg-transparent py-3 text-center text-sm font-medium text-[var(--color-text-primary)]"
+                      >{day}</th
+                    >
                   {/each}
                 </tr>
               </thead>
               <tbody>
                 {#each Array(SLOTS_PER_DAY) as _, slotIndex (slotIndex)}
-                  <tr>
-                    <td class="text-center text-xs text-base-content/60">
+                  <tr class="border-b border-base-200/60">
+                    <td
+                      class="py-2 text-center text-xs text-[var(--color-text-muted)] tabular-nums"
+                    >
                       {getSlotStartTime(slotIndex)}
                     </td>
                     {#each Array(5) as _, dayIndex (dayIndex)}
                       {@const cell = getCell(dayIndex, slotIndex)}
-                      <td
-                        class="cursor-pointer p-1 transition-colors hover:bg-base-300/50"
-                      >
+                      <td class="p-1.5">
                         <button
-                          class="flex h-16 w-full flex-col items-center justify-center rounded-lg p-1 text-xs transition-colors {getCellBgClass(
+                          class="flex h-14 w-full flex-col items-center justify-center rounded-lg border border-transparent p-1.5 text-xs transition-all duration-150 hover:border-base-300 hover:shadow-sm {getCellBgClass(
                             cell,
                           )}"
                           onclick={() => openCellEditor(dayIndex, slotIndex)}
                         >
                           {#if cell && cell.attendance === "出席する"}
-                            <span class="font-medium"
+                            <span class="leading-tight font-medium"
                               >{cell.title || "無題"}</span
                             >
-                            <span class="mt-0.5 opacity-70"
+                            <span
+                              class="mt-0.5 text-[10px] leading-tight opacity-60"
                               >{cell.workAllowed}</span
                             >
                           {:else if cell?.attendance === "出席しない"}
-                            <span class="opacity-50">欠席</span>
+                            <span class="text-[10px] opacity-50">欠席</span>
                           {:else}
-                            <span class="opacity-30">+</span>
+                            <span class="text-base opacity-20">+</span>
                           {/if}
                         </button>
                       </td>
@@ -411,31 +482,69 @@
           </div>
 
           <!-- Exception Ranges -->
-          <div class="border-t border-base-300 p-4">
+          <div class="border-t border-base-300 bg-base-100 px-5 py-4">
             <div class="mb-3 flex items-center justify-between">
-              <h4 class="text-sm font-medium">
-                休講期間（時間割を適用しない期間）
-              </h4>
+              <div class="flex items-center gap-2">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4 text-[var(--color-text-secondary)]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                  />
+                </svg>
+                <h4
+                  class="text-xs font-medium text-[var(--color-text-secondary)]"
+                >
+                  休講期間
+                </h4>
+              </div>
               <button
                 type="button"
-                class="btn btn-ghost btn-xs"
+                class="btn gap-1 text-[var(--color-primary)] btn-ghost btn-xs hover:bg-[var(--color-primary-100)]"
                 onclick={addExceptionRange}
               >
-                + 追加
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-3.5 w-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+                追加
               </button>
             </div>
 
             {#if exceptionRanges.length === 0}
-              <p class="py-2 text-center text-xs text-base-content/50">
-                休講期間は設定されていません
-              </p>
+              <div
+                class="flex items-center justify-center rounded-lg border border-dashed border-base-300 py-4"
+              >
+                <p class="text-xs text-[var(--color-text-muted)]">
+                  休講期間は設定されていません
+                </p>
+              </div>
             {:else}
               <div class="flex flex-col gap-2">
                 {#each exceptionRanges as range, index (index)}
-                  <div class="flex items-center gap-2">
+                  <div
+                    class="flex items-center gap-2 rounded-lg bg-[var(--color-surface-50)] p-2"
+                  >
                     <input
                       type="date"
-                      class="input-bordered input input-sm flex-1"
+                      class="input input-sm flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
                       value={range.start}
                       onchange={(
                         e: Event & { currentTarget: HTMLInputElement },
@@ -446,10 +555,12 @@
                           e.currentTarget.value,
                         )}
                     />
-                    <span class="text-xs text-base-content/60">〜</span>
+                    <span class="text-xs text-[var(--color-text-muted)]"
+                      >〜</span
+                    >
                     <input
                       type="date"
-                      class="input-bordered input input-sm flex-1"
+                      class="input input-sm flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
                       value={range.end}
                       onchange={(
                         e: Event & { currentTarget: HTMLInputElement },
@@ -462,11 +573,24 @@
                     />
                     <button
                       type="button"
-                      class="btn btn-square text-error btn-ghost btn-xs"
+                      class="btn btn-circle text-[var(--color-text-muted)] btn-ghost btn-xs hover:bg-[var(--color-error-100)] hover:text-[var(--color-error-500)]"
                       onclick={() => removeExceptionRange(index)}
                       aria-label="削除"
                     >
-                      ✕
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-3.5 w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
                     </button>
                   </div>
                 {/each}
@@ -476,19 +600,31 @@
 
           <!-- Legend -->
           <div
-            class="flex flex-shrink-0 flex-wrap items-center justify-center gap-4 border-t border-base-300 px-4 py-3 text-xs"
+            class="flex flex-shrink-0 flex-wrap items-center justify-center gap-5 border-t border-base-300 bg-[var(--color-bg-grid)] px-5 py-3"
           >
-            <div class="flex items-center gap-1.5">
-              <div class="h-3 w-3 rounded bg-warning/30"></div>
-              <span>作業不可（タイムラインに表示）</span>
+            <div class="flex items-center gap-2">
+              <div
+                class="h-3 w-3 rounded-sm border border-warning/40 bg-warning/25"
+              ></div>
+              <span class="text-xs text-[var(--color-text-secondary)]"
+                >作業不可</span
+              >
             </div>
-            <div class="flex items-center gap-1.5">
-              <div class="h-3 w-3 rounded bg-success/30"></div>
-              <span>作業可</span>
+            <div class="flex items-center gap-2">
+              <div
+                class="h-3 w-3 rounded-sm border border-success/40 bg-success/25"
+              ></div>
+              <span class="text-xs text-[var(--color-text-secondary)]"
+                >作業可</span
+              >
             </div>
-            <div class="flex items-center gap-1.5">
-              <div class="h-3 w-3 rounded bg-base-200"></div>
-              <span>欠席</span>
+            <div class="flex items-center gap-2">
+              <div
+                class="h-3 w-3 rounded-sm border border-base-300 bg-base-200"
+              ></div>
+              <span class="text-xs text-[var(--color-text-secondary)]"
+                >欠席</span
+              >
             </div>
           </div>
         </div>
@@ -506,32 +642,81 @@
         <div
           class="modal-box flex h-full w-full max-w-sm flex-col overflow-hidden p-0 md:h-auto md:overflow-visible"
         >
-          <h3
-            id="cell-editor-title"
-            class="mb-4 flex-shrink-0 p-4 pb-0 text-lg font-medium"
+          <!-- Sub-modal header -->
+          <div
+            class="flex flex-shrink-0 items-center justify-between border-b border-base-300 px-5 py-4"
           >
-            セルを編集
-          </h3>
+            <div class="flex items-center gap-3">
+              <div
+                class="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-surface-100)]"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4 text-[var(--color-text-secondary)]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
+                </svg>
+              </div>
+              <h3 id="cell-editor-title" class="text-base font-medium">
+                セルを編集
+              </h3>
+            </div>
+            <button
+              class="btn btn-circle text-base-content/60 btn-ghost btn-sm hover:text-base-content"
+              onclick={() => {
+                showCellEditor = false;
+                editingCell = null;
+              }}
+              aria-label="Close"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
 
-          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+          <div class="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
             <label class="form-control w-full">
-              <div class="label">
-                <span class="label-text">タイトル</span>
+              <div class="label py-1">
+                <span class="label-text text-xs text-[var(--color-text-muted)]"
+                  >タイトル</span
+                >
               </div>
               <input
                 type="text"
-                class="input-bordered input w-full"
+                class="input w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
                 bind:value={editorTitle}
                 placeholder="科目名"
               />
             </label>
 
             <label class="form-control w-full">
-              <div class="label">
-                <span class="label-text">出席</span>
+              <div class="label py-1">
+                <span class="label-text text-xs text-[var(--color-text-muted)]"
+                  >出席</span
+                >
               </div>
               <select
-                class="select-bordered select w-full"
+                class="select w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
                 bind:value={editorAttendance}
               >
                 <option value="出席する">出席する</option>
@@ -540,11 +725,13 @@
             </label>
 
             <label class="form-control w-full">
-              <div class="label">
-                <span class="label-text">作業許可</span>
+              <div class="label py-1">
+                <span class="label-text text-xs text-[var(--color-text-muted)]"
+                  >作業許可</span
+                >
               </div>
               <select
-                class="select-bordered select w-full"
+                class="select w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
                 bind:value={editorWorkAllowed}
               >
                 <option value="作業不可">作業不可（時間ブロック）</option>
@@ -553,36 +740,42 @@
             </label>
           </div>
 
-          <div class="modal-action flex-shrink-0 p-4 pt-0">
-            {#if editingCell.id}
+          <div
+            class="flex flex-shrink-0 items-center justify-between border-t border-base-300 bg-[var(--color-bg-grid)] p-4"
+          >
+            <div>
+              {#if editingCell.id}
+                <button
+                  class="btn text-[var(--color-error-500)] btn-ghost btn-sm hover:bg-[var(--color-error-100)]"
+                  onclick={handleDeleteCell}
+                  disabled={isSaving}
+                >
+                  削除
+                </button>
+              {/if}
+            </div>
+            <div class="flex gap-2">
               <button
-                class="btn btn-outline btn-error"
-                onclick={handleDeleteCell}
+                class="btn btn-ghost btn-sm"
+                onclick={() => {
+                  showCellEditor = false;
+                  editingCell = null;
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                class="btn btn-sm btn-primary"
+                onclick={handleSaveCell}
                 disabled={isSaving}
               >
-                削除
+                {#if isSaving}
+                  <span class="loading loading-sm loading-spinner"></span>
+                {:else}
+                  保存
+                {/if}
               </button>
-            {/if}
-            <button
-              class="btn btn-ghost"
-              onclick={() => {
-                showCellEditor = false;
-                editingCell = null;
-              }}
-            >
-              キャンセル
-            </button>
-            <button
-              class="btn btn-primary"
-              onclick={handleSaveCell}
-              disabled={isSaving}
-            >
-              {#if isSaving}
-                <span class="loading loading-sm loading-spinner"></span>
-              {:else}
-                保存
-              {/if}
-            </button>
+            </div>
           </div>
         </div>
         <div
