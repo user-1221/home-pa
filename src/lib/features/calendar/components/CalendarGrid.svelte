@@ -9,6 +9,7 @@
     isFirstDayOfEvent,
     getEventBarPosition,
     getEventColor,
+    getEventTextColor,
   } from "../utils/index.ts";
 
   interface Props {
@@ -93,6 +94,7 @@
             )}
             {@const showLabel = isFirstDayOfEvent(originalEvent, day)}
             {@const rowIndex = eventRowMap.get(truncatedEvent.id) ?? 0}
+            {@const eventColorValue = getEventColor(truncatedEvent)}
             <!-- Event bar: extends past cell edges for seamless multi-day connection -->
             <div
               class="absolute h-[18px] cursor-pointer overflow-hidden py-0.5 text-[0.7rem] leading-[14px] font-medium text-ellipsis whitespace-nowrap
@@ -100,11 +102,10 @@
                 {barPosition === 'middle' ? '-right-[1px] -left-[1px]' : ''}
                 {barPosition === 'end' ? 'right-1 -left-[1px]' : ''}
                 {barPosition === 'single' ? 'right-1 left-1 px-1' : ''}"
-              style="background-color: color-mix(in srgb, {getEventColor(
-                truncatedEvent,
-              )} 20%, transparent); color: color-mix(in srgb, {getEventColor(
-                truncatedEvent,
-              )} 85%, black); top: {rowIndex * 20}px;"
+              style="background-color: color-mix(in srgb, {eventColorValue} 20%, transparent); color: {getEventTextColor(
+                truncatedEvent.color,
+                eventColorValue,
+              )}; top: {rowIndex * 20}px;"
             >
               {#if showLabel}
                 <span class="flex items-center gap-1">

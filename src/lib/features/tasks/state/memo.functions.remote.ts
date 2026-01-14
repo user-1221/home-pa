@@ -66,7 +66,7 @@ const BacklogStateSchema = v.optional(
   }),
 );
 
-const DeadlineStateSchema = v.optional(
+const _DeadlineStateSchema = v.optional(
   v.object({
     rejectedToday: v.boolean(),
     acceptedSlots: v.array(AcceptedSlotSchema),
@@ -195,6 +195,8 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
               completedCountThisPeriod: memo.routineCompletedCountWeek ?? 0,
               lastCompletedDay:
                 memo.routineLastCompletedDay?.toISOString() ?? null,
+              previousLastCompletedDay:
+                memo.routinePreviousLastCompletedDay?.toISOString() ?? null,
               wasCappedThisPeriod: memo.routineWasCappedThisWeek ?? false,
               periodStartDate: memo.routineWeekStartDate?.toISOString() ?? null,
               rejectedToday: memo.routineRejectedToday ?? false,
@@ -212,6 +214,8 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
               acceptedToday: memo.backlogAcceptedToday ?? false,
               lastCompletedDay:
                 memo.backlogLastCompletedDay?.toISOString() ?? null,
+              previousLastCompletedDay:
+                memo.backlogPreviousLastCompletedDay?.toISOString() ?? null,
               rejectedToday: memo.backlogRejectedToday ?? false,
               acceptedSlot:
                 (memo.backlogAcceptedSlot as {
@@ -266,13 +270,29 @@ export const createMemo = command(MemoInputSchema, async (input) => {
   const userId = getAuthenticatedUser();
 
   try {
+    const createdAt = new Date(input.createdAt);
+
+    // For routine tasks, set lastCompletedDay to previous day so they appear immediately
+    // This gives daily tasks a score of ~0.9 on creation day (natural scoring behavior)
+    let routineLastCompletedDay: Date | undefined;
+    if (input.type === "ルーティン") {
+      if (input.routineState?.lastCompletedDay) {
+        routineLastCompletedDay = new Date(input.routineState.lastCompletedDay);
+      } else {
+        // Set to previous day (createdAt - 1 day)
+        routineLastCompletedDay = new Date(
+          createdAt.getTime() - 24 * 60 * 60 * 1000,
+        );
+      }
+    }
+
     const created = await prisma.memo.create({
       data: {
         userId,
         title: input.title,
         genre: input.genre,
         type: input.type,
-        createdAt: new Date(input.createdAt),
+        createdAt,
         deadline: input.deadline ? new Date(input.deadline) : undefined,
         recurrenceGoalCount: input.recurrenceGoal?.count,
         recurrenceGoalPeriod: input.recurrenceGoal?.period,
@@ -293,9 +313,7 @@ export const createMemo = command(MemoInputSchema, async (input) => {
         routineAcceptedToday: input.routineState?.acceptedToday,
         routineCompletedToday: input.routineState?.completedToday,
         routineCompletedCountWeek: input.routineState?.completedCountThisPeriod,
-        routineLastCompletedDay: input.routineState?.lastCompletedDay
-          ? new Date(input.routineState.lastCompletedDay)
-          : undefined,
+        routineLastCompletedDay,
         routineWasCappedThisWeek: input.routineState?.wasCappedThisPeriod,
         routineWeekStartDate: input.routineState?.periodStartDate
           ? new Date(input.routineState.periodStartDate)
@@ -684,17 +702,13 @@ export const logSuggestionComplete = command(
         updateData.routineWeekStartDate = needsWeekReset
           ? weekStart
           : existingWeekStart;
-        // Preserve existing acceptedSlot (needed for rebuildAcceptedMemosFromState on reload)
-        // Don't overwrite if it already exists
+        // Keep acceptedSlot - task stays "accepted" until user marks missed/deletes
       } else if (existing.type === "バックログ") {
         updateData.backlogAcceptedToday = true;
         updateData.backlogLastCompletedDay = now;
-        // Preserve existing acceptedSlot (needed for rebuildAcceptedMemosFromState on reload)
-        // Don't overwrite if it already exists
+        // Keep acceptedSlot - task stays "accepted" until user marks missed/deletes
       }
-      // Note: Deadline tasks (期限付き) don't need special handling here
-      // Their acceptedSlots are managed separately via addDeadlineAcceptedSlot/removeDeadlineAcceptedSlot
-      // and are preserved by Prisma since we don't explicitly clear them
+      // Deadline tasks: keep acceptedSlots - task stays "accepted" until user marks missed/deletes
 
       // Update memo with progress
       const updated = await prisma.memo.update({
@@ -786,6 +800,9 @@ export const markMemoAccepted = command(
 
         updateData.routineAcceptedToday = true;
         updateData.routineAcceptedSlot = input.slot ?? null;
+        // Save original lastCompletedDay before overwriting (for undo on delete)
+        updateData.routinePreviousLastCompletedDay =
+          existing.routineLastCompletedDay;
         updateData.routineLastCompletedDay = now; // Treat as completed for scoring
         updateData.routineWeekStartDate = needsWeekReset
           ? weekStart
@@ -798,6 +815,9 @@ export const markMemoAccepted = command(
       } else if (existing.type === "バックログ") {
         updateData.backlogAcceptedToday = true;
         updateData.backlogAcceptedSlot = input.slot ?? null;
+        // Save original lastCompletedDay before overwriting (for undo on delete)
+        updateData.backlogPreviousLastCompletedDay =
+          existing.backlogLastCompletedDay;
         updateData.backlogLastCompletedDay = now; // Treat as completed for scoring
       }
       // Deadline tasks don't have acceptedToday - they use a different mechanism
@@ -822,6 +842,9 @@ export const markMemoAccepted = command(
                   updated.routineCompletedCountWeek ?? 0,
                 lastCompletedDay:
                   updated.routineLastCompletedDay?.toISOString() ?? null,
+                previousLastCompletedDay:
+                  updated.routinePreviousLastCompletedDay?.toISOString() ??
+                  null,
                 wasCappedThisPeriod: updated.routineWasCappedThisWeek ?? false,
                 periodStartDate:
                   updated.routineWeekStartDate?.toISOString() ?? null,
@@ -840,6 +863,9 @@ export const markMemoAccepted = command(
                 acceptedToday: updated.backlogAcceptedToday ?? false,
                 lastCompletedDay:
                   updated.backlogLastCompletedDay?.toISOString() ?? null,
+                previousLastCompletedDay:
+                  updated.backlogPreviousLastCompletedDay?.toISOString() ??
+                  null,
                 rejectedToday: updated.backlogRejectedToday ?? false,
                 acceptedSlot:
                   (updated.backlogAcceptedSlot as {
@@ -886,9 +912,17 @@ export const resetMemoAcceptedToday = command(
         updateData.routineAcceptedToday = false;
         updateData.routineCompletedToday = false;
         updateData.routineAcceptedSlot = null;
+        // Restore lastCompletedDay from saved value (undo the acceptance)
+        updateData.routineLastCompletedDay =
+          existing.routinePreviousLastCompletedDay;
+        updateData.routinePreviousLastCompletedDay = null;
       } else if (existing.type === "バックログ") {
         updateData.backlogAcceptedToday = false;
         updateData.backlogAcceptedSlot = null;
+        // Restore lastCompletedDay from saved value (undo the acceptance)
+        updateData.backlogLastCompletedDay =
+          existing.backlogPreviousLastCompletedDay;
+        updateData.backlogPreviousLastCompletedDay = null;
       }
 
       if (Object.keys(updateData).length === 0) {
@@ -1086,6 +1120,108 @@ export const removeDeadlineAcceptedSlot = command(
     } catch (err) {
       console.error("[removeDeadlineAcceptedSlot] Error:", err);
       throw new Error("Failed to remove accepted slot");
+    }
+  },
+);
+
+/**
+ * Update the duration of an accepted time slot
+ * Called when user adjusts the duration slider on an accepted suggestion.
+ * Works for all task types (routine, backlog, deadline).
+ */
+export const updateAcceptedSlotDuration = command(
+  v.object({
+    memoId: v.string(),
+    startTime: v.string(), // Used to identify which slot to update (for deadline tasks with multiple slots)
+    newDuration: v.number(),
+    newEndTime: v.string(),
+  }),
+  async (input) => {
+    const userId = getAuthenticatedUser();
+
+    try {
+      const existing = await prisma.memo.findFirst({
+        where: {
+          id: input.memoId,
+          userId,
+        },
+      });
+
+      if (!existing) {
+        throw new Error("Memo not found");
+      }
+
+      const updateData: Record<string, unknown> = {};
+
+      if (existing.type === "ルーティン") {
+        // Update routine's single acceptedSlot
+        const currentSlot = existing.routineAcceptedSlot as {
+          startTime: string;
+          endTime: string;
+          duration: number;
+        } | null;
+
+        if (currentSlot) {
+          updateData.routineAcceptedSlot = {
+            ...currentSlot,
+            duration: input.newDuration,
+            endTime: input.newEndTime,
+          };
+        }
+      } else if (existing.type === "バックログ") {
+        // Update backlog's single acceptedSlot
+        const currentSlot = existing.backlogAcceptedSlot as {
+          startTime: string;
+          endTime: string;
+          duration: number;
+        } | null;
+
+        if (currentSlot) {
+          updateData.backlogAcceptedSlot = {
+            ...currentSlot,
+            duration: input.newDuration,
+            endTime: input.newEndTime,
+          };
+        }
+      } else if (existing.type === "期限付き") {
+        // Update the matching slot in deadline's acceptedSlots array
+        const currentSlots =
+          (existing.deadlineAcceptedSlots as Array<{
+            startTime: string;
+            endTime: string;
+            duration: number;
+          }>) ?? [];
+
+        const updatedSlots = currentSlots.map((slot) =>
+          slot.startTime === input.startTime
+            ? {
+                ...slot,
+                duration: input.newDuration,
+                endTime: input.newEndTime,
+              }
+            : slot,
+        );
+
+        updateData.deadlineAcceptedSlots = updatedSlots;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return { id: input.memoId, success: false };
+      }
+
+      await prisma.memo.update({
+        where: { id: input.memoId },
+        data: updateData,
+      });
+
+      console.log(
+        `[updateAcceptedSlotDuration] Updated slot duration for memo ${input.memoId}: ${input.newDuration}min`,
+      );
+
+      return { id: input.memoId, success: true };
+    } catch (err) {
+      console.error("[updateAcceptedSlotDuration] Error:", err);
+      throw new Error("Failed to update slot duration");
     }
   },
 );

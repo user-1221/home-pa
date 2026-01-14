@@ -87,6 +87,7 @@ export interface RoutineState {
   completedToday: boolean; // Actually completed (not just accepted)
   completedCountThisPeriod: number; // Count of completions this period (day/week/month)
   lastCompletedDay: Date | null; // Date of last completion
+  previousLastCompletedDay: Date | null; // Saved value before acceptance (for undo)
   wasCappedThisPeriod: boolean; // True if display cap was ever active this period
   periodStartDate: Date | null; // Start of current tracking period
   rejectedToday: boolean; // If true, task cannot be regenerated today
@@ -133,6 +134,7 @@ export interface DeadlineState {
 export interface BacklogState {
   acceptedToday: boolean; // If true, task is treated as done for the day (unless missed)
   lastCompletedDay: Date | null;
+  previousLastCompletedDay: Date | null; // Saved value before acceptance (for undo)
   rejectedToday: boolean; // If true, task cannot be regenerated today
   acceptedSlot: AcceptedSlot | null; // Time slot info for today's accepted suggestion
 }

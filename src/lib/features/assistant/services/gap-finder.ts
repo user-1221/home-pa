@@ -10,6 +10,7 @@
 
 // Import Gap from types.ts for consistency
 import type { Gap } from "$lib/types.ts";
+import { GAP_CONFIG } from "$lib/features/assistant/config/suggestion-config.ts";
 export type { Gap };
 
 /**
@@ -51,6 +52,20 @@ export interface DayBoundaries {
  * 5. Find gaps between blocks and day boundaries
  * 6. Handle midnight-crossing events
  */
+// ============================================================================
+// Constants (from centralized config)
+// ============================================================================
+
+/** Time alignment increment in minutes */
+const SNAP_INCREMENT = GAP_CONFIG.snapIncrement;
+
+/** Buffer time before fixed events in minutes */
+const BUFFER_BEFORE_EVENT = GAP_CONFIG.bufferBeforeEvent;
+
+// ============================================================================
+// GapFinder Class
+// ============================================================================
+
 export class GapFinder {
   private dayBoundaries: DayBoundaries;
   private gapCounter: number = 0;
@@ -70,9 +85,12 @@ export class GapFinder {
 
     if (events.length === 0) {
       // No events = one big gap from day start to day end
-      return [
-        this.createGap(this.dayBoundaries.dayStart, this.dayBoundaries.dayEnd),
-      ];
+      const gap = this.createGap(
+        this.dayBoundaries.dayStart,
+        this.dayBoundaries.dayEnd,
+        true, // isEndOfDay - no buffer needed at end of day
+      );
+      return gap ? [gap] : [];
     }
 
     // 1. Handle midnight-crossing events
@@ -172,15 +190,22 @@ export class GapFinder {
         this.timeToMinutes(firstBlock.start) >
         this.timeToMinutes(this.dayBoundaries.dayStart)
       ) {
-        gaps.push(
-          this.createGap(this.dayBoundaries.dayStart, firstBlock.start),
+        // End is before an event, so apply buffer
+        const gap = this.createGap(
+          this.dayBoundaries.dayStart,
+          firstBlock.start,
+          false, // Not end of day - buffer will be applied
         );
+        if (gap) gaps.push(gap);
       }
     } else {
       // No events = one big gap
-      gaps.push(
-        this.createGap(this.dayBoundaries.dayStart, this.dayBoundaries.dayEnd),
+      const gap = this.createGap(
+        this.dayBoundaries.dayStart,
+        this.dayBoundaries.dayEnd,
+        true, // isEndOfDay
       );
+      if (gap) gaps.push(gap);
       return gaps;
     }
 
@@ -193,7 +218,13 @@ export class GapFinder {
         this.timeToMinutes(currentBlock.end) <
         this.timeToMinutes(nextBlock.start)
       ) {
-        gaps.push(this.createGap(currentBlock.end, nextBlock.start));
+        // End is before next event, so apply buffer
+        const gap = this.createGap(
+          currentBlock.end,
+          nextBlock.start,
+          false, // Not end of day - buffer will be applied
+        );
+        if (gap) gaps.push(gap);
       }
     }
 
@@ -203,7 +234,13 @@ export class GapFinder {
       this.timeToMinutes(lastBlock.end) <
       this.timeToMinutes(this.dayBoundaries.dayEnd)
     ) {
-      gaps.push(this.createGap(lastBlock.end, this.dayBoundaries.dayEnd));
+      // End is day boundary, no buffer needed
+      const gap = this.createGap(
+        lastBlock.end,
+        this.dayBoundaries.dayEnd,
+        true, // isEndOfDay - no buffer
+      );
+      if (gap) gaps.push(gap);
     }
 
     return gaps;
@@ -211,22 +248,66 @@ export class GapFinder {
 
   /**
    * Create a gap object with duration calculation and unique ID
+   *
+   * Applies time alignment:
+   * - Start time snapped UP to next 5-min increment (14:47 → 14:50)
+   * - End time snapped DOWN to previous 5-min increment, minus buffer (14:00 → 13:55)
+   *
+   * @param start - Raw start time (HH:mm)
+   * @param end - Raw end time (HH:mm)
+   * @param isEndOfDay - If true, don't apply buffer (this is day boundary, not event)
+   * @returns Gap object, or null if gap is too small after snapping
    */
-  private createGap(start: string, end: string): Gap {
-    const startMinutes = this.timeToMinutes(start);
-    const endMinutes = this.timeToMinutes(end);
-    const duration = endMinutes - startMinutes;
+  private createGap(
+    start: string,
+    end: string,
+    isEndOfDay: boolean = false,
+  ): Gap | null {
+    const rawStartMinutes = this.timeToMinutes(start);
+    const rawEndMinutes = this.timeToMinutes(end);
+
+    // Snap start UP to next 5-min increment
+    const snappedStartMinutes = this.snapUp(rawStartMinutes);
+
+    // Snap end DOWN to previous 5-min increment
+    // Apply buffer only when end is before an event (not end of day)
+    const buffer = isEndOfDay ? 0 : BUFFER_BEFORE_EVENT;
+    const snappedEndMinutes = this.snapDown(rawEndMinutes) - buffer;
+
+    const duration = snappedEndMinutes - snappedStartMinutes;
+
+    // Gap too small after snapping
+    if (duration <= 0) {
+      return null;
+    }
+
+    const snappedStart = this.minutesToTime(snappedStartMinutes);
+    const snappedEnd = this.minutesToTime(snappedEndMinutes);
 
     // Generate unique gap ID: gap-{start time}-{counter}
-    const gapId = `gap-${start.replace(":", "")}-${this.gapCounter++}`;
+    const gapId = `gap-${snappedStart.replace(":", "")}-${this.gapCounter++}`;
 
     return {
       gapId,
-      start,
-      end,
-      duration: Math.max(0, duration), // Ensure non-negative duration
+      start: snappedStart,
+      end: snappedEnd,
+      duration,
       // locationLabel will be set in Phase 2 (Gap Enrichment)
     };
+  }
+
+  /**
+   * Snap minutes UP to next increment (e.g., 47 → 50 for 5-min)
+   */
+  private snapUp(minutes: number): number {
+    return Math.ceil(minutes / SNAP_INCREMENT) * SNAP_INCREMENT;
+  }
+
+  /**
+   * Snap minutes DOWN to previous increment (e.g., 47 → 45 for 5-min)
+   */
+  private snapDown(minutes: number): number {
+    return Math.floor(minutes / SNAP_INCREMENT) * SNAP_INCREMENT;
   }
 
   /**

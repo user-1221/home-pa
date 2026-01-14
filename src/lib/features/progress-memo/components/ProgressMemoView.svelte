@@ -134,10 +134,10 @@
                   >{goal.title}</span
                 >
                 <div class="mt-1 flex items-center gap-2">
-                  <span class="text-xs text-base-content/50"
+                  <span class="text-xs text-base-content/60"
                     >🔥 {goal.streak} day streak</span
                   >
-                  <span class="text-xs text-base-content/50"
+                  <span class="text-xs text-base-content/60"
                     >• {goal.lastUpdated}</span
                   >
                 </div>
@@ -183,19 +183,19 @@
       >
         <div class="text-center">
           <div class="text-2xl font-semibold text-base-content">23</div>
-          <div class="text-xs text-base-content/50">Activities</div>
+          <div class="text-xs text-base-content/60">Activities</div>
         </div>
         <div class="text-center">
           <div class="text-2xl font-semibold text-success">85%</div>
-          <div class="text-xs text-base-content/50">Completion</div>
+          <div class="text-xs text-base-content/60">Completion</div>
         </div>
         <div class="text-center">
           <div class="text-2xl font-semibold text-primary">12</div>
-          <div class="text-xs text-base-content/50">Best Streak</div>
+          <div class="text-xs text-base-content/60">Best Streak</div>
         </div>
         <div class="text-center">
           <div class="text-2xl font-semibold text-warning">3</div>
-          <div class="text-xs text-base-content/50">Goals Active</div>
+          <div class="text-xs text-base-content/60">Goals Active</div>
         </div>
       </div>
     </section>
@@ -204,7 +204,7 @@
     <div
       class="mt-6 rounded-xl border border-dashed border-base-300 bg-base-200 p-4 text-center"
     >
-      <p class="text-sm text-base-content/50">
+      <p class="text-sm text-base-content/60">
         🚧 Data persistence coming soon
       </p>
       <p class="mt-1 text-xs text-base-content/50">

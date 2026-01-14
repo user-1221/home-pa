@@ -34,6 +34,7 @@ import {
   markMemoRejected,
   addDeadlineAcceptedSlot,
   removeDeadlineAcceptedSlot,
+  updateAcceptedSlotDuration,
   advanceEventLinkedDeadline,
 } from "./memo.functions.remote.ts";
 
@@ -68,6 +69,7 @@ function jsonToMemo(json: {
     completedToday: boolean;
     completedCountThisPeriod: number;
     lastCompletedDay: string | null;
+    previousLastCompletedDay?: string | null;
     wasCappedThisPeriod: boolean;
     periodStartDate: string | null;
     rejectedToday?: boolean;
@@ -80,6 +82,7 @@ function jsonToMemo(json: {
   backlogState?: {
     acceptedToday: boolean;
     lastCompletedDay: string | null;
+    previousLastCompletedDay?: string | null;
     rejectedToday?: boolean;
     acceptedSlot?: {
       startTime: string;
@@ -102,6 +105,7 @@ function jsonToMemo(json: {
     offset: "same_day_after" | "1_day_before" | "1_day_after";
     trackedOccurrenceDate?: string;
   };
+  suggestionAvailableFrom?: string;
 }): Memo {
   return {
     id: json.id,
@@ -133,6 +137,9 @@ function jsonToMemo(json: {
           lastCompletedDay: json.routineState.lastCompletedDay
             ? new Date(json.routineState.lastCompletedDay)
             : null,
+          previousLastCompletedDay: json.routineState.previousLastCompletedDay
+            ? new Date(json.routineState.previousLastCompletedDay)
+            : null,
           wasCappedThisPeriod: json.routineState.wasCappedThisPeriod,
           periodStartDate: json.routineState.periodStartDate
             ? new Date(json.routineState.periodStartDate)
@@ -146,6 +153,9 @@ function jsonToMemo(json: {
           acceptedToday: json.backlogState.acceptedToday,
           lastCompletedDay: json.backlogState.lastCompletedDay
             ? new Date(json.backlogState.lastCompletedDay)
+            : null,
+          previousLastCompletedDay: json.backlogState.previousLastCompletedDay
+            ? new Date(json.backlogState.previousLastCompletedDay)
             : null,
           rejectedToday: json.backlogState.rejectedToday ?? false,
           acceptedSlot: json.backlogState.acceptedSlot ?? null,
@@ -173,6 +183,9 @@ function jsonToMemo(json: {
             ? new Date(json.eventLink.trackedOccurrenceDate)
             : undefined,
         }
+      : undefined,
+    suggestionAvailableFrom: json.suggestionAvailableFrom
+      ? new Date(json.suggestionAvailableFrom)
       : undefined,
   };
 }
@@ -210,6 +223,8 @@ function memoToJson(memo: Memo) {
             memo.eventLink.trackedOccurrenceDate?.toISOString(),
         }
       : undefined,
+    // Suggestion availability timing (for event-linked tasks)
+    suggestionAvailableFrom: memo.suggestionAvailableFrom?.toISOString(),
   };
 }
 
@@ -219,6 +234,7 @@ function memoToJson(memo: Memo) {
 
 /**
  * Create a new Memo from form data
+ * Note: For event-linked tasks, deadline must be calculated separately via createMemoFromFormAsync
  */
 function createMemoFromForm(formData: TaskFormData): Memo {
   const now = new Date();
@@ -232,10 +248,13 @@ function createMemoFromForm(formData: TaskFormData): Memo {
     };
   }
 
-  // Parse deadline if deadline type
-  // Note: If eventLink is set, deadline will be calculated by the server
+  // Parse deadline if deadline type (for non-event-linked tasks)
   let deadline: Date | undefined;
-  if (formData.type === "期限付き" && formData.deadline) {
+  if (
+    formData.type === "期限付き" &&
+    formData.deadline &&
+    !formData.eventLink
+  ) {
     deadline = new Date(formData.deadline);
     // Set to end of day
     deadline.setHours(23, 59, 59, 999);
@@ -249,7 +268,7 @@ function createMemoFromForm(formData: TaskFormData): Memo {
     periodStartDate: now,
   };
 
-  // Build event link if present
+  // Build event link if present (deadline will be calculated in createMemoFromFormAsync)
   let eventLink: EventLinkData | undefined;
   if (formData.eventLink) {
     eventLink = {
@@ -257,7 +276,6 @@ function createMemoFromForm(formData: TaskFormData): Memo {
       calendarEventId: formData.eventLink.calendarEventId,
       timetableCellId: formData.eventLink.timetableCellId,
       offset: formData.eventLink.offset,
-      // trackedOccurrenceDate will be set by server when calculating deadline
     };
   }
 
@@ -281,6 +299,110 @@ function createMemoFromForm(formData: TaskFormData): Memo {
     // Event link for deadline tasks linked to calendar events
     eventLink,
   };
+}
+
+/**
+ * Create a new Memo from form data with async deadline calculation for event-linked tasks
+ */
+async function createMemoFromFormAsync(formData: TaskFormData): Promise<{
+  memo: Memo;
+  suggestionAvailableFrom?: Date;
+}> {
+  const baseMemo = createMemoFromForm(formData);
+
+  // For event-linked tasks, calculate deadline from event occurrence
+  if (formData.eventLink && formData.type === "期限付き") {
+    const {
+      getNextCalendarOccurrence,
+      getNextTimetableOccurrence,
+      calculateDeadlineFromOccurrence,
+      calculateSuggestionAvailableFrom,
+    } = await import("../services/event-deadline-service");
+
+    let deadline: Date | undefined;
+    let trackedOccurrenceDate: Date | undefined;
+    let suggestionAvailableFrom: Date | undefined;
+
+    if (
+      formData.eventLink.type === "calendar" &&
+      formData.eventLink.calendarEventId
+    ) {
+      // Fetch calendar event and calculate deadline
+      const { getEvent } = await import(
+        "$lib/features/calendar/state/calendar.functions.remote"
+      );
+      const eventJson = await getEvent({
+        id: formData.eventLink.calendarEventId,
+      });
+      // Convert JSON to Event format
+      const event = {
+        ...eventJson,
+        start: new Date(eventJson.start),
+        end: new Date(eventJson.end),
+      };
+      const nextOcc = getNextCalendarOccurrence(
+        event as import("$lib/types").Event,
+      );
+      if (nextOcc) {
+        trackedOccurrenceDate = nextOcc.startDate;
+        deadline = calculateDeadlineFromOccurrence(
+          nextOcc.startDate,
+          nextOcc.endDate,
+          formData.eventLink.offset,
+        );
+        suggestionAvailableFrom =
+          calculateSuggestionAvailableFrom(
+            nextOcc.endDate,
+            formData.eventLink.offset,
+          ) ?? undefined;
+      }
+    } else if (
+      formData.eventLink.type === "timetable" &&
+      formData.eventLink.timetableCellId
+    ) {
+      // Fetch timetable cell and calculate deadline
+      const { loadTimetableData } = await import(
+        "$lib/features/calendar/services/timetable-events"
+      );
+      const { config, cells } = await loadTimetableData();
+      const cell = cells.find(
+        (c) => c.id === formData.eventLink?.timetableCellId,
+      );
+      if (cell) {
+        const nextOcc = getNextTimetableOccurrence(cell, config);
+        if (nextOcc) {
+          trackedOccurrenceDate = nextOcc.startDate;
+          deadline = calculateDeadlineFromOccurrence(
+            nextOcc.startDate,
+            nextOcc.endDate,
+            formData.eventLink.offset,
+          );
+          suggestionAvailableFrom =
+            calculateSuggestionAvailableFrom(
+              nextOcc.endDate,
+              formData.eventLink.offset,
+            ) ?? undefined;
+        }
+      }
+    }
+
+    // Update memo with calculated values
+    return {
+      memo: {
+        ...baseMemo,
+        deadline,
+        eventLink: baseMemo.eventLink
+          ? {
+              ...baseMemo.eventLink,
+              trackedOccurrenceDate,
+            }
+          : undefined,
+      },
+      suggestionAvailableFrom,
+    };
+  }
+
+  return { memo: baseMemo };
 }
 
 /**
@@ -555,6 +677,7 @@ class TaskState {
   /**
    * Create a new task from the current form data
    * Task is saved to DB, added to store, then enriched by LLM in background
+   * For event-linked tasks, deadline is calculated from the linked event occurrence
    */
   async create(): Promise<Memo | null> {
     const formData = taskFormState.formData;
@@ -574,11 +697,18 @@ class TaskState {
     try {
       taskFormState.setSubmitting(true);
 
-      // Create the memo (without enrichment fields)
-      const newMemo = createMemoFromForm(formData);
+      // Create the memo (with deadline calculation for event-linked tasks)
+      const { memo: newMemo, suggestionAvailableFrom } =
+        await createMemoFromFormAsync(formData);
+
+      // Add suggestionAvailableFrom to memo for serialization
+      const memoWithSuggestion: Memo = {
+        ...newMemo,
+        suggestionAvailableFrom,
+      };
 
       // Save to DB
-      const savedJson = await createMemo(memoToJson(newMemo));
+      const savedJson = await createMemo(memoToJson(memoWithSuggestion));
       const savedMemo = jsonToMemo(savedJson);
 
       // Add to store
@@ -799,9 +929,11 @@ class TaskState {
 
   /**
    * Start editing a task
+   * If the task has an eventLink, fetches the linked event title for display
    */
-  edit(task: Memo): void {
-    taskFormState.openFormForEditing({
+  async edit(task: Memo): Promise<void> {
+    // Build the edit data
+    const editData: Parameters<typeof taskFormState.openFormForEditing>[0] = {
       id: task.id,
       title: task.title,
       type: task.type,
@@ -812,7 +944,53 @@ class TaskState {
       genre: task.genre,
       sessionDuration: task.sessionDuration,
       totalDurationExpected: task.totalDurationExpected,
-    });
+    };
+
+    // If task has an event link, fetch the event title
+    if (task.eventLink) {
+      let eventTitle = "リンク先イベント"; // Default fallback
+
+      try {
+        if (
+          task.eventLink.type === "calendar" &&
+          task.eventLink.calendarEventId
+        ) {
+          // Fetch calendar event
+          const { getEvent } = await import(
+            "$lib/features/calendar/state/calendar.functions.remote"
+          );
+          const event = await getEvent({ id: task.eventLink.calendarEventId });
+          eventTitle = event.title;
+        } else if (
+          task.eventLink.type === "timetable" &&
+          task.eventLink.timetableCellId
+        ) {
+          // Fetch timetable cell
+          const { loadTimetableData } = await import(
+            "$lib/features/calendar/services/timetable-events"
+          );
+          const { cells } = await loadTimetableData();
+          const cell = cells.find(
+            (c) => c.id === task.eventLink?.timetableCellId,
+          );
+          if (cell) {
+            eventTitle = cell.title;
+          }
+        }
+      } catch (err) {
+        console.warn("[TaskState.edit] Failed to fetch event title:", err);
+      }
+
+      editData.eventLink = {
+        type: task.eventLink.type,
+        calendarEventId: task.eventLink.calendarEventId,
+        timetableCellId: task.eventLink.timetableCellId,
+        offset: task.eventLink.offset,
+        eventTitle,
+      };
+    }
+
+    taskFormState.openFormForEditing(editData);
   }
 
   /**
@@ -868,7 +1046,7 @@ class TaskState {
           lastActivity: result.lastActivity
             ? new Date(result.lastActivity)
             : task.lastActivity,
-          // Update type-specific state (preserve rejectedToday and acceptedSlot from existing state)
+          // Update type-specific state (keep acceptedSlot - task stays "accepted" until user marks missed/deletes)
           routineState: result.routineState
             ? {
                 ...task.routineState,
@@ -879,12 +1057,14 @@ class TaskState {
                 lastCompletedDay: result.routineState.lastCompletedDay
                   ? new Date(result.routineState.lastCompletedDay)
                   : null,
+                previousLastCompletedDay:
+                  task.routineState?.previousLastCompletedDay ?? null,
                 wasCappedThisPeriod: result.routineState.wasCappedThisPeriod,
                 periodStartDate: result.routineState.periodStartDate
                   ? new Date(result.routineState.periodStartDate)
                   : null,
                 rejectedToday: task.routineState?.rejectedToday ?? false,
-                acceptedSlot: task.routineState?.acceptedSlot ?? null,
+                acceptedSlot: task.routineState?.acceptedSlot ?? null, // Keep slot
               }
             : task.routineState,
           backlogState: result.backlogState
@@ -894,10 +1074,13 @@ class TaskState {
                 lastCompletedDay: result.backlogState.lastCompletedDay
                   ? new Date(result.backlogState.lastCompletedDay)
                   : null,
+                previousLastCompletedDay:
+                  task.backlogState?.previousLastCompletedDay ?? null,
                 rejectedToday: task.backlogState?.rejectedToday ?? false,
-                acceptedSlot: task.backlogState?.acceptedSlot ?? null,
+                acceptedSlot: task.backlogState?.acceptedSlot ?? null, // Keep slot
               }
             : task.backlogState,
+          // Keep deadline acceptedSlots - task stays "accepted" until user marks missed/deletes
         };
         this.items = newItems;
       }
@@ -949,6 +1132,10 @@ class TaskState {
                 lastCompletedDay: result.routineState.lastCompletedDay
                   ? new Date(result.routineState.lastCompletedDay)
                   : null,
+                previousLastCompletedDay: result.routineState
+                  .previousLastCompletedDay
+                  ? new Date(result.routineState.previousLastCompletedDay)
+                  : null,
                 wasCappedThisPeriod: result.routineState.wasCappedThisPeriod,
                 periodStartDate: result.routineState.periodStartDate
                   ? new Date(result.routineState.periodStartDate)
@@ -963,6 +1150,10 @@ class TaskState {
                 acceptedToday: result.backlogState.acceptedToday,
                 lastCompletedDay: result.backlogState.lastCompletedDay
                   ? new Date(result.backlogState.lastCompletedDay)
+                  : null,
+                previousLastCompletedDay: result.backlogState
+                  .previousLastCompletedDay
+                  ? new Date(result.backlogState.previousLastCompletedDay)
                   : null,
                 rejectedToday: task.backlogState?.rejectedToday ?? false,
                 acceptedSlot: result.backlogState.acceptedSlot ?? null,
@@ -1002,6 +1193,9 @@ class TaskState {
               acceptedToday: false,
               completedToday: false,
               acceptedSlot: null,
+              // Restore lastCompletedDay from saved value (undo the acceptance)
+              lastCompletedDay: task.routineState.previousLastCompletedDay,
+              previousLastCompletedDay: null,
             },
           };
         } else if (task.type === "バックログ" && task.backlogState) {
@@ -1011,6 +1205,9 @@ class TaskState {
               ...task.backlogState,
               acceptedToday: false,
               acceptedSlot: null,
+              // Restore lastCompletedDay from saved value (undo the acceptance)
+              lastCompletedDay: task.backlogState.previousLastCompletedDay,
+              previousLastCompletedDay: null,
             },
           };
         }
@@ -1161,6 +1358,90 @@ class TaskState {
       return true;
     } catch (err) {
       console.error("[TaskState.removeAcceptedSlot] Failed:", err);
+      return false;
+    }
+  }
+
+  /**
+   * Update the duration of an accepted time slot
+   * Called when user adjusts the duration slider on an accepted suggestion.
+   * Works for all task types (routine, backlog, deadline).
+   *
+   * @param memoId - ID of the task
+   * @param startTime - Start time of the slot (used as identifier for deadline tasks)
+   * @param newDuration - New duration in minutes
+   * @param newEndTime - New end time string
+   */
+  async updateAcceptedSlotDuration(
+    memoId: string,
+    startTime: string,
+    newDuration: number,
+    newEndTime: string,
+  ): Promise<boolean> {
+    try {
+      await updateAcceptedSlotDuration({
+        memoId,
+        startTime,
+        newDuration,
+        newEndTime,
+      });
+
+      // Update local store
+      const index = this.items.findIndex((t) => t.id === memoId);
+      if (index !== -1) {
+        const task = this.items[index];
+        const newItems = [...this.items];
+
+        if (task.type === "ルーティン" && task.routineState?.acceptedSlot) {
+          newItems[index] = {
+            ...task,
+            routineState: {
+              ...task.routineState,
+              acceptedSlot: {
+                ...task.routineState.acceptedSlot,
+                duration: newDuration,
+                endTime: newEndTime,
+              },
+            },
+          };
+        } else if (
+          task.type === "バックログ" &&
+          task.backlogState?.acceptedSlot
+        ) {
+          newItems[index] = {
+            ...task,
+            backlogState: {
+              ...task.backlogState,
+              acceptedSlot: {
+                ...task.backlogState.acceptedSlot,
+                duration: newDuration,
+                endTime: newEndTime,
+              },
+            },
+          };
+        } else if (task.type === "期限付き" && task.deadlineState) {
+          newItems[index] = {
+            ...task,
+            deadlineState: {
+              ...task.deadlineState,
+              acceptedSlots: task.deadlineState.acceptedSlots.map((slot) =>
+                slot.startTime === startTime
+                  ? { ...slot, duration: newDuration, endTime: newEndTime }
+                  : slot,
+              ),
+            },
+          };
+        }
+
+        this.items = newItems;
+      }
+
+      console.log(
+        `[TaskState.updateAcceptedSlotDuration] Updated duration for task ${memoId}: ${newDuration}min`,
+      );
+      return true;
+    } catch (err) {
+      console.error("[TaskState.updateAcceptedSlotDuration] Failed:", err);
       return false;
     }
   }
@@ -1410,4 +1691,16 @@ export const taskActions = {
   ) => taskState.addAcceptedSlot(memoId, slot),
   removeAcceptedSlot: (memoId: string, startTime: string) =>
     taskState.removeAcceptedSlot(memoId, startTime),
+  updateAcceptedSlotDuration: (
+    memoId: string,
+    startTime: string,
+    newDuration: number,
+    newEndTime: string,
+  ) =>
+    taskState.updateAcceptedSlotDuration(
+      memoId,
+      startTime,
+      newDuration,
+      newEndTime,
+    ),
 };

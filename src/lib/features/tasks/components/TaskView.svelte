@@ -1,6 +1,7 @@
 <script lang="ts">
   import TaskCard from "./TaskCard.svelte";
   import TaskForm from "./TaskForm.svelte";
+  import Skeleton from "$lib/features/shared/components/Skeleton.svelte";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import type { Memo, MemoType } from "$lib/types.ts";
 
@@ -157,7 +158,12 @@
   <div class="flex-1 overflow-y-auto p-4 md:p-6">
     <div class="mx-auto max-w-4xl">
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-        {#if filteredTasks().length === 0}
+        {#if taskState.isLoading}
+          <!-- Loading state: show skeleton cards -->
+          {#each Array(4) as _, i (i)}
+            <Skeleton variant="card" />
+          {/each}
+        {:else if filteredTasks().length === 0}
           <div
             class="col-span-full flex flex-col items-center justify-center px-4 py-20 text-center"
           >
@@ -166,7 +172,7 @@
             >
               {#if filter === "active"}
                 <svg
-                  class="h-8 w-8 text-base-content/30"
+                  class="h-8 w-8 text-base-content/50"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -180,7 +186,7 @@
                 </svg>
               {:else if filter === "completed"}
                 <svg
-                  class="h-8 w-8 text-base-content/30"
+                  class="h-8 w-8 text-base-content/50"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -194,7 +200,7 @@
                 </svg>
               {:else}
                 <svg
-                  class="h-8 w-8 text-base-content/30"
+                  class="h-8 w-8 text-base-content/50"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"

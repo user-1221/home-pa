@@ -1,18 +1,14 @@
 <script lang="ts">
   import type { Recurrence } from "$lib/types.ts";
-  import {
-    dataState,
-    eventFormState,
-    eventActions,
-  } from "$lib/bootstrap/index.svelte.ts";
+  import { eventFormState, eventActions } from "$lib/bootstrap/index.svelte.ts";
   import {
     utcToLocalDateString,
     utcToLocalTimeString,
   } from "$lib/utils/date-utils.ts";
   import DatePicker from "$lib/features/shared/components/DatePicker.svelte";
+  import Button from "$lib/features/shared/components/Button.svelte";
   import { browser } from "$app/environment";
   import { onMount, tick } from "svelte";
-  import { slide } from "svelte/transition";
   import {
     searchTemplates,
     type EventTemplateData,
@@ -730,58 +726,52 @@
     tabindex="-1"
   >
     <div
-      class="flex flex-shrink-0 items-center justify-between border-b border-base-300 bg-base-100 p-4"
+      class="border-subtle flex flex-shrink-0 items-center justify-between border-b bg-base-100 p-4"
     >
-      <button
-        class="btn btn-square btn-ghost btn-sm md:hidden"
+      <Button
+        variant="ghost"
+        size="sm"
+        class="btn-square md:hidden"
         onclick={() => eventFormState.close()}
         aria-label="Close"
       >
         ✕
-      </button>
+      </Button>
       <h3 class="flex-1 text-left text-lg font-medium md:flex-none">
         {isEventEditing ? "予定を編集" : "新しい予定"}
       </h3>
       {#if isEventEditing}
         <div class="flex gap-2 md:hidden">
-          <button
-            type="button"
-            class="btn btn-outline btn-sm btn-error"
+          <Button
+            variant="danger"
+            size="sm"
+            rounded="sharp"
             onclick={handleDelete}
             disabled={isDeleting}
+            loading={isDeleting}
           >
-            {#if isDeleting}
-              <span class="loading loading-sm loading-spinner"></span>
-            {:else}
-              削除
-            {/if}
-          </button>
-          <button
-            type="button"
-            class="btn border-none text-white btn-sm hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
-            style="background-color: var(--color-primary);"
+            削除
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            rounded="sharp"
             onclick={() => eventActions.submitEventForm()}
           >
             更新
-          </button>
+          </Button>
         </div>
       {:else}
-        <button
-          type="button"
-          class="btn border-none text-white btn-sm hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)] md:hidden"
-          style="background-color: var(--color-primary);"
+        <Button
+          variant="primary"
+          size="sm"
+          rounded="sharp"
+          class="md:hidden"
           onclick={() => eventActions.submitEventForm()}
         >
           作成
-        </button>
+        </Button>
       {/if}
-      <button
-        class="btn hidden btn-square btn-ghost btn-sm md:flex"
-        onclick={() => eventFormState.close()}
-        aria-label="Close"
-      >
-        ✕
-      </button>
     </div>
 
     <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -1148,7 +1138,7 @@
       {#if isRecurring}
         <div
           bind:this={recurrenceSectionRef}
-          class="card flex flex-col gap-4 bg-base-200 p-4"
+          class="card flex flex-col gap-4 bg-[var(--color-surface-50)] p-4"
         >
           <div class="form-control">
             <div class="flex flex-nowrap items-center gap-2">
@@ -1195,11 +1185,8 @@
                   {#each ["日", "月", "火", "水", "木", "金", "土"] as day, i (i)}
                     <label
                       class="btn btn-sm {weeklyDays[i]
-                        ? 'border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]'
+                        ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
                         : 'border-base-300 btn-ghost'} cursor-pointer transition-all duration-200"
-                      style={weeklyDays[i]
-                        ? "background-color: var(--color-primary);"
-                        : ""}
                     >
                       <input
                         type="checkbox"
@@ -1449,50 +1436,37 @@
       class="hidden flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 md:flex"
     >
       {#if isEventEditing}
-        <button
-          type="button"
-          class="btn mr-auto btn-outline btn-error"
+        <Button
+          variant="danger"
+          rounded="sharp"
+          class="mr-auto"
           onclick={handleDelete}
           disabled={isDeleting}
+          loading={isDeleting}
         >
-          {#if isDeleting}
-            <span class="loading loading-sm loading-spinner"></span>
-            削除中...
-          {:else}
-            削除
-          {/if}
-        </button>
-        <button
-          type="button"
-          class="btn btn-ghost"
-          onclick={() => eventActions.cancelEventForm()}
-        >
+          {isDeleting ? "削除中..." : "削除"}
+        </Button>
+        <Button variant="ghost" onclick={() => eventActions.cancelEventForm()}>
           キャンセル
-        </button>
-        <button
-          type="button"
-          class="btn border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
-          style="background-color: var(--color-primary);"
+        </Button>
+        <Button
+          variant="primary"
+          rounded="sharp"
           onclick={() => eventActions.submitEventForm()}
         >
           更新
-        </button>
+        </Button>
       {:else}
-        <button
-          type="button"
-          class="btn btn-ghost"
-          onclick={() => eventActions.cancelEventForm()}
-        >
+        <Button variant="ghost" onclick={() => eventActions.cancelEventForm()}>
           キャンセル
-        </button>
-        <button
-          type="button"
-          class="btn border-none text-white hover:bg-[var(--color-primary-400)] active:bg-[var(--color-primary-800)]"
-          style="background-color: var(--color-primary);"
+        </Button>
+        <Button
+          variant="primary"
+          rounded="sharp"
           onclick={() => eventActions.submitEventForm()}
         >
           作成
-        </button>
+        </Button>
       {/if}
     </div>
   </div>
@@ -1554,26 +1528,22 @@
       </div>
 
       <div class="modal-action mt-6">
-        <button
-          type="button"
-          class="btn btn-ghost"
+        <Button
+          variant="ghost"
           onclick={cancelRecurringDelete}
           disabled={isDeleting}
         >
           キャンセル
-        </button>
-        <button
-          type="button"
-          class="btn btn-error"
+        </Button>
+        <Button
+          variant="danger"
+          rounded="sharp"
           onclick={handleRecurringDelete}
           disabled={isDeleting}
+          loading={isDeleting}
         >
-          {#if isDeleting}
-            <span class="loading loading-sm loading-spinner"></span>
-          {:else}
-            削除
-          {/if}
-        </button>
+          削除
+        </Button>
       </div>
     </div>
     <div

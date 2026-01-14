@@ -21,7 +21,7 @@
 </script>
 
 <div
-  class="sticky top-0 z-10 navbar min-h-14 flex-shrink-0 border-b border-base-300 bg-base-100/90 px-3 backdrop-blur-sm md:min-h-20 md:px-5"
+  class="border-subtle sticky top-0 z-10 navbar min-h-14 flex-shrink-0 border-b bg-base-100/90 px-3 backdrop-blur-sm md:min-h-20 md:px-5"
 >
   <div class="navbar-start gap-2 md:gap-4">
     <button

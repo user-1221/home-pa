@@ -13,6 +13,7 @@
     type TimetableEvent,
   } from "../services/timetable-events.ts";
   import TagEventDialog from "$lib/features/tasks/components/TagEventDialog.svelte";
+  import { Button } from "$lib/features/shared/components/index.ts";
 
   interface Props {
     events: Event[];
@@ -237,7 +238,7 @@
   aria-label="Close timeline"
 >
   <div
-    class="flex h-full w-full animate-[slideUpFromBottom_0.3s_ease-out] flex-col overflow-hidden rounded-none border-0 border-base-300 bg-base-100 shadow-xl md:h-[600px] md:max-h-[80vh] md:max-w-[600px] md:animate-none md:rounded-xl md:border"
+    class="border-subtle flex h-full w-full animate-[slideUpFromBottom_0.3s_ease-out] flex-col overflow-hidden rounded-none border-0 bg-base-100 shadow-xl md:h-[600px] md:max-h-[80vh] md:max-w-[600px] md:animate-none md:rounded-xl md:border"
     onclick={(e: MouseEvent) => e.stopPropagation()}
     onkeydown={(e: KeyboardEvent) => e.key === "Escape" && onClose()}
     role="dialog"
@@ -245,18 +246,19 @@
     tabindex="-1"
   >
     <div
-      class="flex items-center justify-between border-b border-base-300 bg-base-100 p-4"
+      class="border-subtle flex items-center justify-between border-b bg-base-100 p-4"
     >
       <h3 class="m-0 text-lg font-normal text-base-content">
         タイムライン - {dataState.selectedDate.toLocaleDateString("ja-JP")}
       </h3>
-      <button
-        class="btn btn-ghost transition-all duration-200 btn-sm hover:bg-error hover:text-error-content"
+      <Button
+        variant="ghost"
+        size="sm"
         onclick={() => onClose()}
         aria-label="Close"
       >
         ✕
-      </button>
+      </Button>
     </div>
 
     <div
@@ -297,7 +299,7 @@
                     6 ===
                   0
                     ? 'font-medium text-base-content'
-                    : 'font-normal text-base-content/40'}"
+                    : 'font-normal text-base-content/60'}"
                   >{hour.toString().padStart(2, "0")}</span
                 >
               </div>
@@ -325,7 +327,7 @@
                 style="width: {100 / totalColumns}%;"
               >
                 <div
-                  class="absolute inset-x-0 top-[-18px] text-center font-mono text-[9px] font-medium tracking-wider text-base-content/50 uppercase"
+                  class="absolute inset-x-0 top-[-18px] text-center font-mono text-xs font-medium tracking-wider text-base-content/60 uppercase"
                 >
                   時間割
                 </div>
@@ -342,28 +344,32 @@
                       border-left-color: {getTimetableEventColor(ttEvent)};
                     "
                   >
-                    <!-- Tag button -->
+                    <!-- Tag button (touch target: 32px with invisible padding) -->
                     <button
-                      class="absolute top-0.5 right-0.5 flex h-5 w-5 items-center justify-center rounded bg-base-100/80 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-base-100"
+                      class="absolute top-0 right-0 flex h-8 w-8 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
                       onclick={(e: MouseEvent) => {
                         e.stopPropagation();
                         openTagDialog("timetable", ttEvent);
                       }}
                       aria-label="タスクを作成"
                     >
-                      <svg
-                        class="h-3 w-3 text-base-content/70"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
+                      <span
+                        class="flex h-5 w-5 items-center justify-center rounded bg-base-100/80 shadow-sm hover:bg-base-100"
                       >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                        />
-                      </svg>
+                        <svg
+                          class="h-3 w-3 text-base-content/70"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                          />
+                        </svg>
+                      </span>
                     </button>
                     <div
                       class="overflow-hidden text-[11px] font-medium text-ellipsis whitespace-nowrap"
@@ -412,28 +418,32 @@
                       border-left-color: {getEventColor(event)};
                     "
                   >
-                    <!-- Tag button -->
+                    <!-- Tag button (touch target: 32px with invisible padding) -->
                     <button
-                      class="absolute top-0.5 right-0.5 flex h-5 w-5 items-center justify-center rounded bg-base-100/80 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-base-100"
+                      class="absolute top-0 right-0 flex h-8 w-8 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
                       onclick={(e: MouseEvent) => {
                         e.stopPropagation();
                         openTagDialog("calendar", event);
                       }}
                       aria-label="タスクを作成"
                     >
-                      <svg
-                        class="h-3 w-3 text-base-content/70"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
+                      <span
+                        class="flex h-5 w-5 items-center justify-center rounded bg-base-100/80 shadow-sm hover:bg-base-100"
                       >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                        />
-                      </svg>
+                        <svg
+                          class="h-3 w-3 text-base-content/70"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                          />
+                        </svg>
+                      </span>
                     </button>
                     <div
                       class="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap"

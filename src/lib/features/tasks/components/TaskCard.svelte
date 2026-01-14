@@ -297,7 +297,7 @@
   >
     {#if isEnriching}
       <div
-        class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-xl bg-base-content/60 backdrop-blur-sm"
+        class="enriching-overlay absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-xl bg-base-content/60 backdrop-blur-sm"
       >
         <span class="loading loading-md loading-spinner text-primary"></span>
         <span class="text-xs font-medium tracking-wide text-base-100"
@@ -327,30 +327,30 @@
               {@const periodLabel = routinePeriodLabel()}
               {#if periodLabel}
                 <span
-                  class="inline-flex items-center rounded-md bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-[0.65rem] font-medium whitespace-nowrap text-[var(--color-primary)]"
+                  class="inline-flex items-center rounded-md bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-[var(--color-primary)]"
                   >{periodLabel}</span
                 >
               {/if}
             {/if}
             {#if genreLabel()}
               <span
-                class="inline-flex items-center rounded-md bg-base-200/80 px-1.5 py-0.5 text-[0.65rem] font-medium whitespace-nowrap text-base-content/70"
+                class="inline-flex items-center rounded-md bg-base-200/80 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/70"
                 >{genreLabel()}</span
               >
             {/if}
             <span
-              class="inline-flex items-center rounded-md bg-base-200/60 px-1.5 py-0.5 text-[0.65rem] font-medium whitespace-nowrap text-base-content/50"
+              class="inline-flex items-center rounded-md bg-base-200/60 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/60"
               >{locationLabel()}</span
             >
             {#if sessionDurationLabel()}
               <span
-                class="inline-flex items-center rounded-md bg-base-200/60 px-1.5 py-0.5 text-[0.65rem] font-medium whitespace-nowrap text-base-content/50"
+                class="inline-flex items-center rounded-md bg-base-200/60 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/60"
                 >{sessionDurationLabel()}</span
               >
             {/if}
             {#if task.eventLink}
               <span
-                class="inline-flex items-center gap-0.5 rounded-md bg-info/10 px-1.5 py-0.5 text-[0.65rem] font-medium whitespace-nowrap text-info"
+                class="inline-flex items-center gap-0.5 rounded-md bg-info/10 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-info"
               >
                 <svg
                   class="h-2.5 w-2.5"
@@ -422,6 +422,8 @@
           {@const radius = 24}
           {@const circumference = 2 * Math.PI * radius}
           {@const offset = circumference - (percent / 100) * circumference}
+          {@const showDaysFormat =
+            !task.eventLink || task.eventLink.offset === "1_day_before"}
           <div class="relative h-16 w-16 shrink-0">
             <svg class="h-16 w-16 -rotate-90 transform" viewBox="0 0 64 64">
               <!-- Background ring -->
@@ -448,21 +450,36 @@
                 class="transition-all duration-300 ease-out"
               />
             </svg>
-            <!-- Center text -->
-            <div
-              class="absolute inset-0 flex flex-col items-center justify-center text-center"
-            >
-              <span class="text-[0.6rem] font-normal text-base-content/60"
-                >あと</span
+            <!-- Center text: days format for non-event-linked or 1_day_before, min format for same_day_after/1_day_after -->
+            {#if showDaysFormat}
+              <div
+                class="absolute inset-0 flex flex-col items-center justify-center text-center"
               >
-              <span
-                class="text-base leading-tight font-medium text-base-content tabular-nums"
+                <span class="text-xs font-normal text-base-content/60"
+                  >あと</span
+                >
+                <span
+                  class="text-base leading-tight font-medium text-base-content tabular-nums"
+                >
+                  {daysUntilDeadline() !== null
+                    ? Math.abs(daysUntilDeadline() ?? 0)
+                    : "?"}日
+                </span>
+              </div>
+            {:else}
+              {@const prog = timeProgress()}
+              <div
+                class="absolute inset-0 flex flex-col items-center justify-center text-center"
               >
-                {daysUntilDeadline() !== null
-                  ? Math.abs(daysUntilDeadline() ?? 0)
-                  : "?"}日
-              </span>
-            </div>
+                <span
+                  class="text-sm font-medium text-base-content tabular-nums"
+                >
+                  {prog.spent}/{prog.total}
+                </span>
+                <span class="text-xs font-normal text-base-content/60">min</span
+                >
+              </div>
+            {/if}
           </div>
         {:else}
           {@const prog = timeProgress()}
@@ -503,9 +520,7 @@
               <span class="text-sm font-medium text-base-content tabular-nums">
                 {prog.spent}/{prog.total}
               </span>
-              <span class="text-[0.6rem] font-normal text-base-content/60"
-                >min</span
-              >
+              <span class="text-xs font-normal text-base-content/60">min</span>
             </div>
           </div>
         {/if}
@@ -578,3 +593,40 @@
     </div>
   </div>
 </div>
+
+<style>
+  /* Shimmer effect for enrichment overlay */
+  .enriching-overlay {
+    overflow: hidden;
+  }
+
+  .enriching-overlay::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.1) 50%,
+      transparent 100%
+    );
+    animation: shimmer 2s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes shimmer {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .enriching-overlay::after {
+      animation: none;
+    }
+  }
+</style>

@@ -14,6 +14,11 @@
 import type { Gap, Suggestion, LocationLabel } from "$lib/types.ts";
 import { canFit } from "./location-matching.ts";
 import { MANDATORY_THRESHOLD } from "./suggestion-scoring.ts";
+import {
+  DURATION_CONFIG,
+  EXTENSION_CONFIG,
+  GAP_CONFIG,
+} from "$lib/features/assistant/config/suggestion-config.ts";
 
 // ============================================================================
 // TYPES
@@ -71,46 +76,39 @@ interface _AllocationState {
 const DEFAULT_PERMUTATION_LIMIT = 8;
 const TOLERANCE = 1e-6;
 
-/** Minimum session duration in minutes - suggestions can shrink down to this */
-const MIN_SESSION_MINUTES = 10;
-
-/** Duration per dot reference point (10 min each, with 5 min on each side) */
-export const MINUTES_PER_DOT = 10;
-
-/** Minimum minutes on one side for edge dots */
-export const DOT_EDGE_MINUTES = 5;
-
-/** Snap increment for dragging (5 min dial-like motion) */
-export const DRAG_SNAP_MINUTES = 5;
-
-/** Minimum dots required to contain a suggestion in a gap during drag */
-export const MIN_DOTS_FOR_DRAG = 5;
+/**
+ * Constants from centralized config, re-exported for backward compatibility.
+ * Other modules may import these from here.
+ */
+export const MINUTES_PER_DOT = GAP_CONFIG.minutesPerDot;
+export const DOT_EDGE_MINUTES = GAP_CONFIG.dotEdgeMinutes;
+export const DRAG_SNAP_MINUTES = GAP_CONFIG.dragSnapMinutes;
+export const MIN_DOTS_FOR_DRAG = GAP_CONFIG.minDotsForDrag;
 
 /**
- * Configuration for duration extension when extra gap time is available
+ * Configuration for duration extension when extra gap time is available.
+ * Re-exported type for backward compatibility.
  */
 export interface DurationExtensionConfig {
-  /** Enable duration extension (default: true) */
   enabled: boolean;
-  /** Minimum extra minutes to add before extension kicks in (default: 15) */
   minExtensionMinutes: number;
-  /** Maximum multiplier for session duration (default: 2.0 = double) */
   maxExtensionFactor: number;
-  /** Extension step size in minutes (default: 15) */
   extensionStepMinutes: number;
-  /** Allow shrinking duration to fit smaller gaps (default: true) */
   allowShrinking: boolean;
-  /** Minimum duration when shrinking (default: 15) */
   minDurationMinutes: number;
 }
 
+/**
+ * Default extension config from centralized source.
+ * Note: allowShrinking is false to enforce the 30-min rule.
+ */
 export const DEFAULT_EXTENSION_CONFIG: DurationExtensionConfig = {
-  enabled: true,
-  minExtensionMinutes: 10,
-  maxExtensionFactor: 2.0,
-  extensionStepMinutes: 10,
-  allowShrinking: true,
-  minDurationMinutes: MIN_SESSION_MINUTES,
+  enabled: EXTENSION_CONFIG.enabled,
+  minExtensionMinutes: EXTENSION_CONFIG.minExtraMinutes,
+  maxExtensionFactor: EXTENSION_CONFIG.maxFactor,
+  extensionStepMinutes: EXTENSION_CONFIG.stepMinutes,
+  allowShrinking: EXTENSION_CONFIG.allowShrinking,
+  minDurationMinutes: DURATION_CONFIG.absoluteFloor,
 };
 
 // ============================================================================
@@ -515,18 +513,6 @@ export function calculateEffectiveDuration(
   );
 
   return extended;
-}
-
-/**
- * @deprecated Use calculateEffectiveDuration instead
- * Kept for backward compatibility
- */
-export function calculateExtendedDuration(
-  baseDuration: number,
-  availableTime: number,
-  config: DurationExtensionConfig = DEFAULT_EXTENSION_CONFIG,
-): number {
-  return calculateEffectiveDuration(baseDuration, availableTime, config);
 }
 
 /**

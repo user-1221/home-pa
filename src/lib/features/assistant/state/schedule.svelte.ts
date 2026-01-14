@@ -1035,7 +1035,7 @@ class ScheduleState {
       timeToMinutes(info.startTime) + newDuration,
     );
 
-    // Update the accepted memo info
+    // Update the accepted memo info locally
     const newMap = new Map(this.acceptedMemos);
     newMap.set(memoId, {
       ...info,
@@ -1044,9 +1044,18 @@ class ScheduleState {
     });
     this.acceptedMemos = newMap;
 
-    console.log("[Schedule] Updated accepted duration:", memoId, newDuration);
+    // Persist the duration change to the database
+    const { taskActions } = await import(
+      "$lib/features/tasks/state/taskActions.svelte.ts"
+    );
+    await taskActions.updateAcceptedSlotDuration(
+      memoId,
+      info.startTime,
+      newDuration,
+      newEndTime,
+    );
 
-    // Note: Acceptance state is persisted on memo, local store is for UI/gap calculation
+    console.log("[Schedule] Updated accepted duration:", memoId, newDuration);
   }
 
   /**

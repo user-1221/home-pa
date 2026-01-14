@@ -303,7 +303,7 @@
       </div>
     {:else if userLocation}
       <div
-        class="flex items-center gap-2 px-5 py-2 text-xs text-base-content/40"
+        class="flex items-center gap-2 px-5 py-2 text-xs text-base-content/60"
       >
         <svg class="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
           <path
@@ -312,7 +312,7 @@
         </svg>
         <span>現在地取得済み</span>
         {#if userLocation.accuracy}
-          <span class="text-base-content/30"
+          <span class="text-base-content/50"
             >精度 {Math.round(userLocation.accuracy)}m</span
           >
         {/if}
@@ -445,7 +445,7 @@
             <div class="flex items-baseline gap-2">
               <div>
                 <div
-                  class="text-[10px] tracking-wide text-base-content/40 uppercase"
+                  class="text-xs tracking-wide text-base-content/60 uppercase"
                 >
                   出発
                 </div>
@@ -454,7 +454,7 @@
                 </div>
               </div>
               <svg
-                class="h-4 w-4 text-base-content/30"
+                class="h-4 w-4 text-base-content/50"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -468,7 +468,7 @@
               </svg>
               <div>
                 <div
-                  class="text-[10px] tracking-wide text-base-content/40 uppercase"
+                  class="text-xs tracking-wide text-base-content/60 uppercase"
                 >
                   到着
                 </div>
@@ -520,7 +520,7 @@
             <div class="flex items-baseline gap-2">
               <div>
                 <div
-                  class="text-[10px] tracking-wide text-base-content/40 uppercase"
+                  class="text-xs tracking-wide text-base-content/60 uppercase"
                 >
                   出発
                 </div>
@@ -529,7 +529,7 @@
                 </div>
               </div>
               <svg
-                class="h-4 w-4 text-base-content/30"
+                class="h-4 w-4 text-base-content/50"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -543,7 +543,7 @@
               </svg>
               <div>
                 <div
-                  class="text-[10px] tracking-wide text-base-content/40 uppercase"
+                  class="text-xs tracking-wide text-base-content/60 uppercase"
                 >
                   到着
                 </div>
@@ -632,7 +632,7 @@
                           >
                             {formatTime(new Date(prev.to_time))}
                           </span>
-                          <span class="text-[10px] text-base-content/50"
+                          <span class="text-[10px] text-base-content/60"
                             >着</span
                           >
                         </div>
@@ -644,7 +644,7 @@
                           >
                             {formatTime(new Date(next.from_time))}
                           </span>
-                          <span class="text-[10px] text-base-content/50"
+                          <span class="text-[10px] text-base-content/60"
                             >発</span
                           >
                         </div>

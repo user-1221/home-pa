@@ -36,6 +36,10 @@ import type {
   DurationPoint,
 } from "$lib/types.ts";
 import { isSameDay, isSameWeek, isSameMonth } from "./period-utils.ts";
+import {
+  SCORING_CONFIG,
+  DURATION_CONFIG,
+} from "$lib/features/assistant/config/suggestion-config.ts";
 
 // ============================================================================
 // TYPES
@@ -60,16 +64,17 @@ export interface ScoreOutput {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/** Display threshold - tasks below this are hidden */
-export const DISPLAY_THRESHOLD = 0.5;
+/**
+ * Re-export thresholds from centralized config for backward compatibility.
+ * Other modules import these from here, so we keep the exports.
+ */
+export const DISPLAY_THRESHOLD = SCORING_CONFIG.displayThreshold;
+export const MANDATORY_THRESHOLD = SCORING_CONFIG.mandatoryThreshold;
 
-/** Mandatory threshold - tasks at or above this must be scheduled */
-export const MANDATORY_THRESHOLD = 1.0;
-
-/** Duration bounds */
-const DEFAULT_MIN_DURATION = 15; // minutes
-const DEFAULT_SESSION_DURATION = 30; // minutes
-const MIN_DURATION_FLOOR = 10; // absolute minimum
+// Duration constants from centralized config
+const DEFAULT_MIN_DURATION = DURATION_CONFIG.minSession;
+const DEFAULT_SESSION_DURATION = DURATION_CONFIG.defaultSession;
+const MIN_DURATION_FLOOR = DURATION_CONFIG.absoluteFloor;
 
 // ============================================================================
 // IMPORTANCE CALCULATION (Discrete Values)
@@ -119,6 +124,7 @@ export function initializeRoutineState(
     completedToday: false,
     completedCountThisPeriod: 0,
     lastCompletedDay: null,
+    previousLastCompletedDay: null,
     wasCappedThisPeriod: false,
     periodStartDate: getPeriodStart(
       currentTime,
@@ -213,18 +219,10 @@ export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
   // Days since last completion
   let daysSinceCompletion: number;
 
-  // Check if accepted today (within same day) - treat as if just completed
-  if (state.acceptedToday && state.lastCompletedDay) {
-    const lastCompleted = new Date(state.lastCompletedDay);
-    // Only apply "accepted today" logic if it's still the same day
-    if (isSameDay(lastCompleted, currentTime)) {
-      // Accepted today - treat as if just completed (daysSinceCompletion = 0)
-      daysSinceCompletion = 0;
-    } else {
-      // New day - use normal calculation
-      daysSinceCompletion =
-        (currentTime.getTime() - lastCompleted.getTime()) / MS_PER_DAY;
-    }
+  // Check acceptedToday FIRST - if accepted, treat as just completed regardless of lastCompletedDay
+  if (state.acceptedToday) {
+    // Accepted today - treat as just completed (score will be 0)
+    daysSinceCompletion = 0;
   } else if (state.lastCompletedDay) {
     // Normal case: use last completion date
     const lastCompleted = new Date(state.lastCompletedDay);
@@ -350,30 +348,31 @@ export function calculateDeadlineNeed(memo: Memo, currentTime: Date): number {
   const deadline = new Date(state.deadlineDay);
   const now = currentTime;
 
-  // Total days from creation to deadline
-  const totalDays = Math.max(
-    1,
-    (deadline.getTime() - created.getTime()) / MS_PER_DAY,
-  );
+  // Total time from creation to deadline (in milliseconds for finer granularity)
+  const totalMs = deadline.getTime() - created.getTime();
+  const totalDays = totalMs / MS_PER_DAY;
 
-  // Days elapsed since creation
-  const elapsedDays = (now.getTime() - created.getTime()) / MS_PER_DAY;
+  // Elapsed time since creation
+  const elapsedMs = now.getTime() - created.getTime();
 
   // Progress ratio (0 at creation, 1 at deadline)
-  const progress = Math.max(0, elapsedDays / totalDays);
+  const progress = totalMs > 0 ? Math.max(0, elapsedMs / totalMs) : 1;
 
   // Linear interpolation: 0.1 → 1.0
-  // Reaches 1.0 on day before deadline (progress = 1 - 1/totalDays approx)
   let score: number;
 
-  if (totalDays <= 1) {
-    // Very short deadline - immediately approach 1.0
+  if (totalDays <= 0) {
+    // Deadline is at or before creation - immediately mandatory
     score = 1.0;
   } else if (progress >= 1) {
     // At or past deadline - mandatory
     score = 1.0;
+  } else if (totalDays <= 1) {
+    // Short deadline (within 1 day): use proportional growth within the day
+    // Score goes from 0.1 to 1.0 based on progress through this short window
+    score = 0.1 + 0.9 * progress;
   } else {
-    // Linear growth: reaches 1.0 at progress = (totalDays - 1) / totalDays
+    // Normal case: Linear growth reaching 1.0 at (totalDays - 1) / totalDays
     const effectiveProgress = progress * (totalDays / (totalDays - 1));
     score = 0.1 + 0.9 * Math.min(effectiveProgress, 1);
   }
@@ -439,6 +438,7 @@ export function initializeBacklogState(memo: Memo): BacklogState {
     memo.backlogState ?? {
       acceptedToday: false,
       lastCompletedDay: memo.lastActivity ? new Date(memo.lastActivity) : null,
+      previousLastCompletedDay: null,
       rejectedToday: false,
       acceptedSlot: null,
     }
@@ -467,13 +467,10 @@ export function calculateBacklogNeed(memo: Memo, currentTime: Date): number {
   // ACCEPTED TODAY: Return base score (0.5) - still visible but at lowest priority
   // Unlike routine tasks, backlog tasks should remain visible after acceptance
   // so user can schedule additional work sessions if desired
-  if (state.acceptedToday && state.lastCompletedDay) {
-    const lastCompleted = new Date(state.lastCompletedDay);
-    // Only apply "accepted today" logic if it's still the same day
-    if (isSameDay(lastCompleted, currentTime)) {
-      // Accepted today - return base score (lowest visible priority)
-      return BASE_SCORE;
-    }
+  // Check acceptedToday FIRST - if accepted, return base score regardless of lastCompletedDay
+  if (state.acceptedToday) {
+    // Accepted today - return base score (lowest visible priority)
+    return BASE_SCORE;
   }
 
   // Days since last completion
@@ -635,14 +632,6 @@ export function isMandatory(suggestion: Suggestion): boolean {
  */
 export function isHidden(suggestion: Suggestion): boolean {
   return suggestion.need < DISPLAY_THRESHOLD || suggestion.isHidden === true;
-}
-
-/**
- * Calculate priority for sorting suggestions
- * Higher priority = scheduled first
- */
-export function calculatePriority(suggestion: Suggestion): number {
-  return suggestion.need + suggestion.importance;
 }
 
 // ============================================================================

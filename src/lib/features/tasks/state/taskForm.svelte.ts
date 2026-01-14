@@ -36,6 +36,13 @@ export interface TaskEditData {
   genre?: string;
   sessionDuration?: number;
   totalDurationExpected?: number;
+  eventLink?: {
+    type: EventLinkType;
+    calendarEventId?: string;
+    timetableCellId?: string;
+    offset: EventDeadlineOffset;
+    eventTitle?: string; // For display (may need to be fetched)
+  };
 }
 
 /**
@@ -346,6 +353,16 @@ class TaskFormState {
     this.originalGenre = task.genre;
     this.originalSessionDuration = task.sessionDuration;
     this.originalTotalDurationExpected = task.totalDurationExpected;
+    // Set event link if present
+    this.eventLink = task.eventLink
+      ? {
+          type: task.eventLink.type,
+          calendarEventId: task.eventLink.calendarEventId,
+          timetableCellId: task.eventLink.timetableCellId,
+          eventTitle: task.eventLink.eventTitle ?? "リンク先イベント",
+          offset: task.eventLink.offset,
+        }
+      : null;
     this.errors = {};
   }
 

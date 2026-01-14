@@ -15,6 +15,7 @@
   import { formatTimerDisplay, formatDuration } from "../utils/index.ts";
   import { scheduleState } from "$lib/features/assistant/state/schedule.svelte.ts";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
+  import Button from "$lib/features/shared/components/Button.svelte";
   import type { Memo } from "$lib/types.ts";
 
   interface Props {
@@ -84,8 +85,10 @@
     showTaskPicker = false;
   }
 
-  function handleStart() {
-    if (!selectedTaskId || !selectedTaskTitle) return;
+  let isStarting = $state(false);
+
+  async function handleStart() {
+    if (!selectedTaskId || !selectedTaskTitle || isStarting) return;
 
     let endTime = customEndTime;
     if (!endTime) {
@@ -95,13 +98,18 @@
       endTime = `${endDate.getHours().toString().padStart(2, "0")}:${endDate.getMinutes().toString().padStart(2, "0")}`;
     }
 
-    focusState.startPomodoro(
-      selectedTaskId,
-      selectedTaskTitle,
-      endTime,
-      WORK_DURATION,
-      BREAK_DURATION,
-    );
+    isStarting = true;
+    try {
+      await focusState.startPomodoro(
+        selectedTaskId,
+        selectedTaskTitle,
+        endTime,
+        WORK_DURATION,
+        BREAK_DURATION,
+      );
+    } finally {
+      isStarting = false;
+    }
   }
 
   async function handleComplete() {
@@ -128,6 +136,23 @@
     if (e.key === "Escape" && showTaskPicker) {
       showTaskPicker = false;
     }
+  }
+
+  // Cross-device state
+  let isMoving = $state(false);
+  let hasOtherDeviceSession = $derived(focusState.otherDeviceSession !== null);
+
+  async function handleMoveTimerHere() {
+    isMoving = true;
+    try {
+      await focusState.moveTimerHere();
+    } finally {
+      isMoving = false;
+    }
+  }
+
+  function handleDismissOtherDevice() {
+    focusState.clearOtherDeviceSession();
   }
 
   // Calculate circle progress
@@ -160,8 +185,10 @@
       </h2>
     </div>
     {#if onClose}
-      <button
-        class="btn btn-circle btn-ghost btn-sm"
+      <Button
+        variant="ghost"
+        size="sm"
+        class="btn-circle"
         onclick={onClose}
         aria-label="閉じる"
       >
@@ -179,13 +206,81 @@
             d="M6 18L18 6M6 6l12 12"
           />
         </svg>
-      </button>
+      </Button>
     {/if}
   </div>
 
   <!-- Content -->
   <div class="flex flex-1 flex-col items-center justify-center gap-8 p-6">
-    {#if isTracking && activeSession}
+    <!-- Cross-device warning banner -->
+    {#if hasOtherDeviceSession && focusState.otherDeviceSession}
+      <div
+        class="w-full max-w-sm rounded-xl border border-warning/30 bg-warning/10 p-4"
+      >
+        <div class="flex items-start gap-3">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 flex-shrink-0 text-warning"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
+          <div class="flex-1">
+            <p class="text-sm text-[var(--color-text-primary)]">
+              別のデバイス（<span class="font-medium"
+                >{focusState.otherDeviceSession.deviceName}</span
+              >）でタイマーが実行中です
+            </p>
+            <p class="mt-1 text-xs text-[var(--color-text-secondary)]">
+              タスク: {focusState.otherDeviceSession.taskTitle}
+            </p>
+          </div>
+          <button
+            class="flex-shrink-0 p-1 text-base-content/50 hover:text-base-content"
+            onclick={handleDismissOtherDevice}
+            aria-label="閉じる"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+        <div class="mt-3 flex gap-2">
+          <Button
+            variant="primary"
+            size="sm"
+            class="flex-1"
+            onclick={handleMoveTimerHere}
+            disabled={isMoving}
+          >
+            {#if isMoving}
+              <span class="loading loading-xs loading-spinner"></span>
+              移動中...
+            {:else}
+              このデバイスに移動
+            {/if}
+          </Button>
+        </div>
+      </div>
+    {:else if isTracking && activeSession}
       <!-- Active Session View -->
       <div class="flex flex-col items-center gap-8">
         <!-- Timer Circle -->
@@ -424,7 +519,7 @@
               </div>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                class="h-4 w-4 text-base-content/30 transition-colors group-hover:text-primary"
+                class="h-4 w-4 text-base-content/50 transition-colors group-hover:text-primary"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -515,8 +610,9 @@
         </button>
 
         {#if currentAcceptedSuggestion && selectedTaskId !== currentAcceptedSuggestion.memoId}
-          <button
-            class="btn text-[var(--color-text-secondary)] btn-ghost btn-sm"
+          <Button
+            variant="ghost"
+            size="sm"
             onclick={() => {
               selectedTaskId = currentAcceptedSuggestion.memoId;
               selectedTaskTitle = currentAcceptedSuggestion.title;
@@ -524,7 +620,7 @@
             }}
           >
             現在の予定に戻す
-          </button>
+          </Button>
         {/if}
       </div>
     {/if}
@@ -552,8 +648,10 @@
         >
           タスクを選択
         </h3>
-        <button
-          class="btn btn-circle btn-ghost btn-sm"
+        <Button
+          variant="ghost"
+          size="sm"
+          class="btn-circle"
           onclick={() => (showTaskPicker = false)}
           aria-label="閉じる"
         >
@@ -571,7 +669,7 @@
               d="M6 18L18 6M6 6l12 12"
             />
           </svg>
-        </button>
+        </Button>
       </div>
 
       <!-- Task list -->

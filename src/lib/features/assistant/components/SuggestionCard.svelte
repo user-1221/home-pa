@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import type { PendingSuggestion } from "$lib/features/assistant/state/schedule.svelte.ts";
+  import Button from "$lib/features/shared/components/Button.svelte";
 
   // Common fields for both pending and accepted suggestions
   interface SuggestionDisplay {
@@ -142,11 +142,15 @@
     <h4 class="flex-1 pr-2 text-base font-normal text-base-content">
       {taskTitle}
     </h4>
-    <button
-      class="btn h-7 min-h-7 w-7 p-0 text-base text-[var(--color-text-secondary)] btn-ghost transition-all duration-200 btn-sm"
+    <Button
+      variant="ghost"
+      size="sm"
+      class="h-7 min-h-7 w-7 p-0"
       onclick={onClose}
-      aria-label="Close">×</button
+      aria-label="Close"
     >
+      ×
+    </Button>
   </div>
 
   <div class="mb-4">
@@ -213,25 +217,12 @@
 
   <div class="flex gap-2">
     {#if isAccepted}
-      <button
-        class="btn flex-1 border border-error/20 bg-error/10 text-error transition-all duration-200 hover:border-error/40 hover:bg-error/20"
-        onclick={handleDelete}
-      >
-        削除
-      </button>
+      <Button variant="danger" fullWidth onclick={handleDelete}>削除</Button>
     {:else}
-      <button
-        class="btn flex-1 border-none text-success-content transition-all duration-200 btn-success hover:-translate-y-0.5 hover:shadow-lg"
-        onclick={handleAccept}
-      >
-        承認
-      </button>
-      <button
-        class="btn flex-1 border border-base-300 text-[var(--color-text-secondary)] btn-ghost transition-all duration-200 hover:border-base-300/70 hover:bg-base-200"
-        onclick={handleSkip}
-      >
+      <Button variant="success" fullWidth onclick={handleAccept}>承認</Button>
+      <Button variant="secondary" fullWidth onclick={handleSkip}>
         スキップ
-      </button>
+      </Button>
     {/if}
   </div>
 </div>

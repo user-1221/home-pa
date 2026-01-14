@@ -4,6 +4,7 @@
   import { fetchEvents } from "$lib/features/calendar/state/calendar.functions.remote";
   import { loadTimetableData } from "$lib/features/calendar/services/timetable-events";
   import { getEventColor } from "$lib/features/calendar/utils/index";
+  import { Button } from "$lib/features/shared/components/index.ts";
 
   // Local type for timetable items in the picker (different from TimetableEvent which has start/end)
   interface TimetablePickerItem {
@@ -159,11 +160,7 @@
         class="flex items-center justify-between border-b border-base-300 p-4"
       >
         <h3 class="text-lg font-medium">イベントを選択</h3>
-        <button
-          class="flex h-8 w-8 items-center justify-center rounded-lg text-base-content/60 transition-colors hover:bg-base-200 hover:text-base-content"
-          onclick={onClose}
-          aria-label="閉じる"
-        >
+        <Button variant="ghost" size="sm" onclick={onClose} aria-label="閉じる">
           <svg
             class="h-5 w-5"
             fill="none"
@@ -177,7 +174,7 @@
               d="M6 18L18 6M6 6l12 12"
             />
           </svg>
-        </button>
+        </Button>
       </div>
 
       <!-- Tabs -->

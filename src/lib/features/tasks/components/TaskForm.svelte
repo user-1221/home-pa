@@ -1,6 +1,8 @@
 <script lang="ts">
   import { taskFormState } from "$lib/features/tasks/state/taskForm.svelte.ts";
   import { taskActions } from "$lib/features/tasks/state/taskActions.svelte.ts";
+  import Button from "$lib/features/shared/components/Button.svelte";
+  import TextInput from "$lib/features/shared/components/TextInput.svelte";
   import type {
     MemoType,
     LocationPreference,
@@ -215,27 +217,13 @@
           <!-- Basic Info Section -->
           <div class="space-y-4 p-4 md:p-5">
             <!-- Title -->
-            <div class="space-y-1.5">
-              <label
-                class="text-xs font-medium text-[var(--color-text-muted)]"
-                for="title"
-              >
-                タイトル
-              </label>
-              <input
-                id="title"
-                type="text"
-                placeholder="タスクのタイトルを入力"
-                bind:value={taskFormState.title}
-                class="input w-full border-base-300 bg-base-100 text-base transition-all duration-150 placeholder:text-base-content/40 focus:border-[var(--color-primary)] focus:outline-none {taskFormState
-                  .errors.title
-                  ? 'border-error'
-                  : ''}"
-              />
-              {#if taskFormState.errors.title}
-                <p class="text-xs text-error">{taskFormState.errors.title}</p>
-              {/if}
-            </div>
+            <TextInput
+              id="title"
+              label="タイトル"
+              placeholder="タスクのタイトルを入力"
+              bind:value={taskFormState.title}
+              error={taskFormState.errors.title}
+            />
 
             <!-- Type -->
             <div class="space-y-1.5">
@@ -615,7 +603,7 @@
                       min="5"
                       max="480"
                       placeholder="例: 30"
-                      class="input w-full border-base-300 bg-base-100 placeholder:text-base-content/40 focus:border-[var(--color-primary)] focus:outline-none"
+                      class="input w-full border-base-300 bg-base-100 placeholder:text-base-content/50 focus:border-[var(--color-primary)] focus:outline-none"
                       value={taskFormState.sessionDuration ?? ""}
                       onchange={(
                         e: Event & { currentTarget: HTMLInputElement },
@@ -644,7 +632,7 @@
                         min="5"
                         max="9999"
                         placeholder="例: 120"
-                        class="input w-full border-base-300 bg-base-100 placeholder:text-base-content/40 focus:border-[var(--color-primary)] focus:outline-none"
+                        class="input w-full border-base-300 bg-base-100 placeholder:text-base-content/50 focus:border-[var(--color-primary)] focus:outline-none"
                         value={taskFormState.totalDurationExpected ?? ""}
                         onchange={(
                           e: Event & { currentTarget: HTMLInputElement },
@@ -721,25 +709,22 @@
         <div
           class="hidden flex-shrink-0 items-center justify-end gap-3 border-t border-base-300 bg-[var(--color-bg-grid)] p-4 md:flex md:p-5"
         >
-          <button
-            type="button"
-            class="btn text-base-content/70 btn-ghost btn-sm hover:text-base-content"
-            onclick={handleClose}
-          >
+          <Button variant="ghost" size="sm" type="button" onclick={handleClose}>
             キャンセル
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
             type="submit"
-            class="btn shadow-sm btn-sm btn-primary"
             disabled={!taskFormState.isValid || taskFormState.isSubmitting}
+            loading={taskFormState.isSubmitting}
           >
-            {#if taskFormState.isSubmitting}
-              <span class="loading loading-sm loading-spinner"></span>
-              保存中...
-            {:else}
-              {taskFormState.isEditing ? "更新" : "作成"}
-            {/if}
-          </button>
+            {taskFormState.isSubmitting
+              ? "保存中..."
+              : taskFormState.isEditing
+                ? "更新"
+                : "作成"}
+          </Button>
         </div>
       </form>
     </div>

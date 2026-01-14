@@ -8,6 +8,8 @@
  * - Pomodoro mode: Classic 25min work + 5min break cycles
  * - Global indicator: Shows active session across app navigation
  * - Persistence: Survives page refresh via localStorage
+ * - Cross-device sync: Only one active timer per user across all devices
+ * - 24-hour cap: Sessions older than 24h are auto-discarded without logging
  *
  * Data Flow:
  * - User clicks "Start Now" → startNormal() → session begins
@@ -18,9 +20,15 @@
 
 import {
   parseTimeToday,
-  getCurrentHHmm,
   calculateElapsedMinutes,
 } from "../utils/timer-utils.ts";
+import {
+  startTimerSession,
+  getActiveTimerSession,
+  endTimerSession,
+  updateTimerSession,
+  moveTimerToDevice,
+} from "./focus.remote.ts";
 
 // ============================================================================
 // Types
@@ -49,13 +57,52 @@ interface StoredSession {
   savedAt: string;
 }
 
+/** Info about timer running on another device */
+export interface OtherDeviceSession {
+  deviceName: string;
+  taskTitle: string;
+  startedAt: string;
+}
+
 // ============================================================================
 // Constants
 // ============================================================================
 
 const STORAGE_KEY = "focus_active_session";
+const DEVICE_ID_KEY = "focus_device_id";
 const DEFAULT_WORK_DURATION = 25;
 const DEFAULT_BREAK_DURATION = 5;
+const MAX_SESSION_HOURS = 24;
+
+// ============================================================================
+// Device Identification
+// ============================================================================
+
+function getDeviceId(): string {
+  if (typeof localStorage === "undefined") {
+    return "server";
+  }
+  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+  if (!deviceId) {
+    deviceId = crypto.randomUUID();
+    localStorage.setItem(DEVICE_ID_KEY, deviceId);
+  }
+  return deviceId;
+}
+
+function getDeviceName(): string {
+  if (typeof navigator === "undefined") {
+    return "Server";
+  }
+  const ua = navigator.userAgent;
+  if (ua.includes("iPhone")) return "iPhone";
+  if (ua.includes("iPad")) return "iPad";
+  if (ua.includes("Android")) return "Android";
+  if (ua.includes("Mac")) return "Mac";
+  if (ua.includes("Windows")) return "Windows";
+  if (ua.includes("Linux")) return "Linux";
+  return "Unknown Device";
+}
 
 // ============================================================================
 // FocusState Class
@@ -67,6 +114,9 @@ class FocusState {
   isPaused = $state(false);
   private pausedAt: Date | null = null;
   private pausedDuration = 0; // Total paused time in ms
+
+  // Cross-device state
+  otherDeviceSession = $state<OtherDeviceSession | null>(null);
 
   // Timer interval reference
   private tickInterval: ReturnType<typeof setInterval> | null = null;
@@ -190,17 +240,58 @@ class FocusState {
 
   /**
    * Start a normal (non-Pomodoro) tracking session
+   * Returns false if timer is running on another device
    */
-  startNormal(memoId: string, taskTitle: string, plannedEndTime: string): void {
+  async startNormal(
+    memoId: string,
+    taskTitle: string,
+    plannedEndTime: string,
+  ): Promise<boolean> {
     if (this.activeSession) {
       console.warn("[Focus] Session already active, ignoring startNormal");
-      return;
+      return false;
+    }
+
+    const startedAt = new Date().toISOString();
+
+    // Sync with server first
+    try {
+      const result = await startTimerSession({
+        memoId,
+        taskTitle,
+        startedAt,
+        plannedEndTime,
+        mode: "normal",
+        deviceId: getDeviceId(),
+        deviceName: getDeviceName(),
+      });
+
+      if (!result.success) {
+        if (result.reason === "timer_on_other_device") {
+          this.otherDeviceSession = {
+            deviceName: result.deviceName,
+            taskTitle: result.taskTitle,
+            startedAt: result.startedAt,
+          };
+          console.log(
+            "[Focus] Timer running on another device:",
+            result.deviceName,
+          );
+          return false;
+        }
+      }
+    } catch (err) {
+      console.error(
+        "[Focus] Failed to sync with server, continuing locally:",
+        err,
+      );
+      // Continue with local-only session if server sync fails
     }
 
     this.activeSession = {
       memoId,
       taskTitle,
-      startedAt: new Date().toISOString(),
+      startedAt,
       plannedEndTime,
       mode: "normal",
     };
@@ -208,6 +299,7 @@ class FocusState {
     this.isPaused = false;
     this.pausedAt = null;
     this.pausedDuration = 0;
+    this.otherDeviceSession = null;
 
     this.startTicking();
     this.saveToStorage();
@@ -217,42 +309,84 @@ class FocusState {
       taskTitle,
       plannedEndTime,
     });
+
+    return true;
   }
 
   /**
    * Start a Pomodoro tracking session
+   * Returns false if timer is running on another device
    */
-  startPomodoro(
+  async startPomodoro(
     memoId: string,
     taskTitle: string,
     plannedEndTime: string,
     workDuration = DEFAULT_WORK_DURATION,
     breakDuration = DEFAULT_BREAK_DURATION,
-  ): void {
+  ): Promise<boolean> {
     if (this.activeSession) {
       console.warn("[Focus] Session already active, ignoring startPomodoro");
-      return;
+      return false;
+    }
+
+    const startedAt = new Date().toISOString();
+    const pomodoroState: PomodoroState = {
+      phase: "work",
+      cycleNumber: 1,
+      phaseStartedAt: startedAt,
+      workDuration,
+      breakDuration,
+      totalWorkTime: 0,
+    };
+
+    // Sync with server first
+    try {
+      const result = await startTimerSession({
+        memoId,
+        taskTitle,
+        startedAt,
+        plannedEndTime,
+        mode: "pomodoro",
+        pomodoroState,
+        deviceId: getDeviceId(),
+        deviceName: getDeviceName(),
+      });
+
+      if (!result.success) {
+        if (result.reason === "timer_on_other_device") {
+          this.otherDeviceSession = {
+            deviceName: result.deviceName,
+            taskTitle: result.taskTitle,
+            startedAt: result.startedAt,
+          };
+          console.log(
+            "[Focus] Timer running on another device:",
+            result.deviceName,
+          );
+          return false;
+        }
+      }
+    } catch (err) {
+      console.error(
+        "[Focus] Failed to sync with server, continuing locally:",
+        err,
+      );
+      // Continue with local-only session if server sync fails
     }
 
     this.activeSession = {
       memoId,
       taskTitle,
-      startedAt: new Date().toISOString(),
+      startedAt,
       plannedEndTime,
       mode: "pomodoro",
-      pomodoroState: {
-        phase: "work",
-        cycleNumber: 1,
-        phaseStartedAt: new Date().toISOString(),
-        workDuration,
-        breakDuration,
-        totalWorkTime: 0,
-      },
+      pomodoroState,
     };
 
     this.isPaused = false;
     this.pausedAt = null;
     this.pausedDuration = 0;
+    this.otherDeviceSession = null;
 
     this.startTicking();
     this.saveToStorage();
@@ -262,6 +396,8 @@ class FocusState {
       taskTitle,
       plannedEndTime,
     });
+
+    return true;
   }
 
   /**
@@ -317,6 +453,13 @@ class FocusState {
     // Remove from accepted memos
     await scheduleState.completeSuggestion(memoId, duration);
 
+    // Clear server session
+    try {
+      await endTimerSession({ deviceId: getDeviceId() });
+    } catch (err) {
+      console.error("[Focus] Failed to clear server session:", err);
+    }
+
     // Clear session
     this.stopTicking();
     this.activeSession = null;
@@ -335,6 +478,11 @@ class FocusState {
     if (!this.activeSession) return;
 
     console.log("[Focus] Session cancelled (no progress logged)");
+
+    // Clear server session (fire and forget)
+    void endTimerSession({ deviceId: getDeviceId() }).catch((err) => {
+      console.error("[Focus] Failed to clear server session:", err);
+    });
 
     this.stopTicking();
     this.activeSession = null;
@@ -357,35 +505,44 @@ class FocusState {
     const pomo = this.activeSession.pomodoroState;
     const now = new Date();
 
+    let newPomodoroState: PomodoroState;
+
     if (pomo.phase === "work") {
       // Calculate work time from this phase
       const phaseStarted = new Date(pomo.phaseStartedAt);
       const phaseMinutes = calculateElapsedMinutes(phaseStarted, now);
 
       // Move to break
-      this.activeSession = {
-        ...this.activeSession,
-        pomodoroState: {
-          ...pomo,
-          phase: "break",
-          phaseStartedAt: now.toISOString(),
-          totalWorkTime: pomo.totalWorkTime + phaseMinutes,
-        },
+      newPomodoroState = {
+        ...pomo,
+        phase: "break",
+        phaseStartedAt: now.toISOString(),
+        totalWorkTime: pomo.totalWorkTime + phaseMinutes,
       };
     } else {
       // Move to next work cycle
-      this.activeSession = {
-        ...this.activeSession,
-        pomodoroState: {
-          ...pomo,
-          phase: "work",
-          cycleNumber: pomo.cycleNumber + 1,
-          phaseStartedAt: now.toISOString(),
-        },
+      newPomodoroState = {
+        ...pomo,
+        phase: "work",
+        cycleNumber: pomo.cycleNumber + 1,
+        phaseStartedAt: now.toISOString(),
       };
     }
 
+    this.activeSession = {
+      ...this.activeSession,
+      pomodoroState: newPomodoroState,
+    };
+
     this.saveToStorage();
+
+    // Sync phase change to server
+    void updateTimerSession({ pomodoroState: newPomodoroState }).catch(
+      (err) => {
+        console.error("[Focus] Failed to sync phase change:", err);
+      },
+    );
+
     console.log(
       "[Focus] Phase ended, now:",
       this.activeSession.pomodoroState?.phase,
@@ -401,17 +558,27 @@ class FocusState {
 
     const pomo = this.activeSession.pomodoroState;
 
+    const newPomodoroState: PomodoroState = {
+      ...pomo,
+      phase: "work",
+      cycleNumber: pomo.cycleNumber + 1,
+      phaseStartedAt: new Date().toISOString(),
+    };
+
     this.activeSession = {
       ...this.activeSession,
-      pomodoroState: {
-        ...pomo,
-        phase: "work",
-        cycleNumber: pomo.cycleNumber + 1,
-        phaseStartedAt: new Date().toISOString(),
-      },
+      pomodoroState: newPomodoroState,
     };
 
     this.saveToStorage();
+
+    // Sync phase change to server
+    void updateTimerSession({ pomodoroState: newPomodoroState }).catch(
+      (err) => {
+        console.error("[Focus] Failed to sync skip break:", err);
+      },
+    );
+
     console.log("[Focus] Break skipped, starting cycle", pomo.cycleNumber + 1);
   }
 
@@ -425,9 +592,28 @@ class FocusState {
     // Tick every second for smooth timer display
     this.tickInterval = setInterval(() => {
       this.tick++;
+      this.checkMaxDuration();
       this.checkAutoComplete();
       this.checkPhaseEnd();
     }, 1000);
+  }
+
+  /**
+   * Check if session has exceeded maximum duration (24 hours)
+   * If so, discard without logging progress
+   */
+  private checkMaxDuration(): void {
+    if (!this.activeSession) return;
+
+    const startedAt = new Date(this.activeSession.startedAt);
+    const hoursElapsed = (Date.now() - startedAt.getTime()) / (1000 * 60 * 60);
+
+    if (hoursElapsed >= MAX_SESSION_HOURS) {
+      console.log(
+        `[Focus] 24h cap exceeded (${hoursElapsed.toFixed(1)}h), discarding session without logging`,
+      );
+      this.cancel();
+    }
   }
 
   private stopTicking(): void {
@@ -475,7 +661,51 @@ class FocusState {
     }
   }
 
-  loadFromStorage(): void {
+  /**
+   * Load and restore session from localStorage
+   * Also checks server for cross-device state
+   * If session has expired, auto-complete it and log progress
+   */
+  async loadFromStorage(): Promise<void> {
+    // First check server for cross-device state
+    try {
+      const serverSession = await getActiveTimerSession({});
+
+      if (serverSession) {
+        // Check if expired
+        if ("expired" in serverSession && serverSession.expired) {
+          console.log(
+            "[Focus] Server session expired (24h cap), clearing local storage",
+          );
+          this.clearStorage();
+          return;
+        }
+
+        // Check if running on another device
+        if (
+          "deviceId" in serverSession &&
+          serverSession.deviceId !== getDeviceId()
+        ) {
+          this.otherDeviceSession = {
+            deviceName: serverSession.deviceName,
+            taskTitle: serverSession.taskTitle,
+            startedAt: serverSession.startedAt,
+          };
+          console.log(
+            "[Focus] Timer running on another device:",
+            serverSession.deviceName,
+          );
+          // Clear local storage since server has different session
+          this.clearStorage();
+          return;
+        }
+      }
+    } catch (err) {
+      console.error("[Focus] Failed to check server state:", err);
+      // Continue with local storage if server check fails
+    }
+
+    // Now check local storage
     try {
       const data = localStorage.getItem(STORAGE_KEY);
       if (!data) return;
@@ -483,19 +713,33 @@ class FocusState {
       const stored: StoredSession = JSON.parse(data);
       const session = stored.session;
 
-      // Check if session is still valid (end time not passed)
-      const now = getCurrentHHmm();
-      if (now >= session.plannedEndTime) {
-        console.log("[Focus] Stored session has expired, clearing");
+      // Check 24h cap locally
+      const startedAt = new Date(session.startedAt);
+      const hoursElapsed =
+        (Date.now() - startedAt.getTime()) / (1000 * 60 * 60);
+      if (hoursElapsed >= MAX_SESSION_HOURS) {
+        console.log(
+          `[Focus] Local session exceeded 24h cap (${hoursElapsed.toFixed(1)}h), discarding`,
+        );
         this.clearStorage();
+        // Also clear server session
+        void endTimerSession({ deviceId: getDeviceId() }).catch(() => {});
         return;
       }
 
-      // Restore session
+      // Check if session has expired using date-aware comparison
+      if (this.isSessionExpired(session)) {
+        console.log("[Focus] Stored session has expired, auto-completing");
+        await this.completeExpiredSession(session);
+        return;
+      }
+
+      // Restore active session
       this.activeSession = session;
       this.isPaused = false;
       this.pausedAt = null;
       this.pausedDuration = 0;
+      this.otherDeviceSession = null;
 
       this.startTicking();
 
@@ -506,12 +750,165 @@ class FocusState {
     }
   }
 
+  /**
+   * Check if a session has expired (planned end time has passed)
+   * Handles midnight crossing correctly
+   */
+  private isSessionExpired(session: FocusSession): boolean {
+    const startedAt = new Date(session.startedAt);
+    const endTime = parseTimeToday(session.plannedEndTime);
+
+    // Handle midnight crossing: if end time appears before start time,
+    // the session was meant to end the next day
+    if (endTime.getTime() < startedAt.getTime()) {
+      endTime.setDate(endTime.getDate() + 1);
+    }
+
+    return new Date() >= endTime;
+  }
+
+  /**
+   * Complete an expired session that was stored while app was closed
+   */
+  private async completeExpiredSession(session: FocusSession): Promise<void> {
+    // Calculate work duration from session data
+    const startedAt = new Date(session.startedAt);
+    const endTime = parseTimeToday(session.plannedEndTime);
+
+    // Handle midnight crossing
+    if (endTime.getTime() < startedAt.getTime()) {
+      endTime.setDate(endTime.getDate() + 1);
+    }
+
+    // Calculate duration (capped at planned duration)
+    let duration: number;
+    if (session.mode === "pomodoro" && session.pomodoroState) {
+      // For Pomodoro, use accumulated work time + partial current phase
+      const pomo = session.pomodoroState;
+      duration = pomo.totalWorkTime;
+
+      // Add time from current work phase if it was in progress
+      if (pomo.phase === "work") {
+        const phaseStarted = new Date(pomo.phaseStartedAt);
+        // Cap at phase duration
+        const phaseMinutes = Math.min(
+          pomo.workDuration,
+          calculateElapsedMinutes(phaseStarted, endTime),
+        );
+        duration += phaseMinutes;
+      }
+    } else {
+      // For normal mode, calculate elapsed time until end
+      duration = calculateElapsedMinutes(startedAt, endTime);
+    }
+
+    console.log("[Focus] Auto-completing expired session:", {
+      memoId: session.memoId,
+      duration,
+    });
+
+    try {
+      // Dynamic import to avoid circular dependencies
+      const { taskActions } = await import(
+        "$lib/features/tasks/state/taskActions.svelte.ts"
+      );
+      const { scheduleState } = await import(
+        "$lib/features/assistant/state/schedule.svelte.ts"
+      );
+
+      // Log progress to task
+      await taskActions.logProgress(session.memoId, duration);
+
+      // Remove from accepted memos
+      await scheduleState.completeSuggestion(session.memoId, duration);
+
+      console.log(
+        "[Focus] Expired session completed, logged",
+        duration,
+        "minutes",
+      );
+    } catch (err) {
+      console.error("[Focus] Failed to complete expired session:", err);
+    } finally {
+      // Always clear storage after attempting completion
+      this.clearStorage();
+    }
+  }
+
   clearStorage(): void {
     try {
       localStorage.removeItem(STORAGE_KEY);
     } catch (err) {
       console.error("[Focus] Failed to clear storage:", err);
     }
+  }
+
+  // ============================================================================
+  // Cross-Device Actions
+  // ============================================================================
+
+  /**
+   * Move timer from another device to this device
+   * Preserves all timer state and progress
+   */
+  async moveTimerHere(): Promise<boolean> {
+    try {
+      const result = await moveTimerToDevice({
+        deviceId: getDeviceId(),
+        deviceName: getDeviceName(),
+      });
+
+      if (!result.success) {
+        if (result.reason === "24h_cap_exceeded") {
+          // Timer was too old, already deleted on server
+          this.otherDeviceSession = null;
+          console.log("[Focus] Timer expired (24h cap), cannot move");
+          // Show toast notification
+          const { toastState } = await import("$lib/bootstrap/toast.svelte.ts");
+          toastState.show("タイマーは24時間を超えたため削除されました", "info");
+          return false;
+        }
+        if (result.reason === "no_session") {
+          this.otherDeviceSession = null;
+          console.log("[Focus] No session to move");
+          return false;
+        }
+        return false;
+      }
+
+      // Restore session locally with preserved progress
+      const session = result.session;
+      this.activeSession = {
+        memoId: session.memoId,
+        taskTitle: session.taskTitle,
+        startedAt: session.startedAt,
+        plannedEndTime: session.plannedEndTime,
+        mode: session.mode,
+        pomodoroState: session.pomodoroState ?? undefined,
+      };
+
+      this.otherDeviceSession = null;
+      this.isPaused = false;
+      this.pausedAt = null;
+      this.pausedDuration = 0;
+
+      this.startTicking();
+      this.saveToStorage();
+
+      console.log("[Focus] Timer moved from other device, progress preserved");
+      return true;
+    } catch (err) {
+      console.error("[Focus] Failed to move timer:", err);
+      return false;
+    }
+  }
+
+  /**
+   * Clear the other device session state
+   * Used when user dismisses the "timer on other device" message
+   */
+  clearOtherDeviceSession(): void {
+    this.otherDeviceSession = null;
   }
 
   // ============================================================================

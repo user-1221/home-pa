@@ -7,10 +7,18 @@
    * Can be expanded to show controls for completing/cancelling the session.
    */
 
+  import { onMount } from "svelte";
   import { focusState } from "../state/index.ts";
   import { formatDuration, formatTimerDisplay } from "../utils/index.ts";
+  import { Button } from "$lib/features/shared/components/index.ts";
 
   let isExpanded = $state(false);
+
+  // Restore session from localStorage on mount
+  // This handles the case where the app was closed while a timer was running
+  onMount(() => {
+    void focusState.loadFromStorage();
+  });
 
   function toggleExpand() {
     isExpanded = !isExpanded;
@@ -37,9 +45,106 @@
   function handleSkipBreak() {
     focusState.skipBreak();
   }
+
+  let isMoving = $state(false);
+
+  async function handleMoveTimerHere() {
+    isMoving = true;
+    try {
+      await focusState.moveTimerHere();
+    } finally {
+      isMoving = false;
+    }
+  }
+
+  function handleDismissOtherDevice() {
+    focusState.clearOtherDeviceSession();
+  }
 </script>
 
-{#if focusState.isActive && focusState.activeSession}
+<!-- Timer running on another device -->
+{#if focusState.otherDeviceSession}
+  <div
+    class="fixed right-0 bottom-[var(--bottom-nav-height,60px)] left-0 z-[1999] px-3 pb-2"
+    style="padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));"
+  >
+    <div
+      class="mx-auto max-w-lg overflow-hidden rounded-xl border border-warning/30 bg-warning/10 shadow-lg backdrop-blur-md"
+    >
+      <div class="p-3">
+        <div class="flex items-start gap-3">
+          <!-- Warning icon -->
+          <div class="flex-shrink-0 pt-0.5">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5 text-warning"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+
+          <!-- Message -->
+          <div class="min-w-0 flex-1">
+            <p class="text-sm text-[var(--color-text-primary)]">
+              別のデバイス（<span class="font-medium"
+                >{focusState.otherDeviceSession.deviceName}</span
+              >）で「<span class="font-medium"
+                >{focusState.otherDeviceSession.taskTitle}</span
+              >」のタイマーが実行中です
+            </p>
+          </div>
+
+          <!-- Dismiss button -->
+          <button
+            class="flex-shrink-0 p-1 text-base-content/50 hover:text-base-content"
+            onclick={handleDismissOtherDevice}
+            aria-label="閉じる"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Move button -->
+        <div class="mt-3 flex justify-end">
+          <Button
+            variant="primary"
+            size="sm"
+            onclick={handleMoveTimerHere}
+            disabled={isMoving}
+          >
+            {#if isMoving}
+              <span class="loading loading-xs loading-spinner"></span>
+              移動中...
+            {:else}
+              このデバイスに移動
+            {/if}
+          </Button>
+        </div>
+      </div>
+    </div>
+  </div>
+{:else if focusState.isActive && focusState.activeSession}
   <div
     class="fixed right-0 bottom-[var(--bottom-nav-height,60px)] left-0 z-[1999] px-3 pb-2"
     style="padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));"
@@ -121,7 +226,7 @@
           <!-- Expand/collapse arrow -->
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            class="h-4 w-4 text-base-content/40 transition-transform duration-200 {isExpanded
+            class="h-4 w-4 text-base-content/50 transition-transform duration-200 {isExpanded
               ? 'rotate-180'
               : ''}"
             fill="none"
@@ -178,32 +283,39 @@
             <!-- Action buttons -->
             <div class="flex gap-2">
               {#if focusState.currentPhase === "break"}
-                <button
-                  class="btn flex-1 border-success/30 bg-success/10 text-success btn-sm hover:bg-success hover:text-success-content"
+                <Button
+                  variant="success"
+                  size="sm"
+                  class="flex-1"
                   onclick={handleSkipBreak}
                 >
                   休憩をスキップ
-                </button>
+                </Button>
               {:else}
-                <button
-                  class="btn flex-1 border-base-300 bg-base-200 text-base-content btn-sm hover:bg-base-300"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  class="flex-1"
                   onclick={handlePause}
                 >
                   {focusState.isPaused ? "再開" : "一時停止"}
-                </button>
+                </Button>
               {/if}
 
-              <button
-                class="btn flex-1 border-primary/30 bg-primary/10 text-primary btn-sm hover:bg-primary hover:text-primary-content"
+              <Button
+                variant="primary"
+                size="sm"
+                class="flex-1"
                 onclick={handleComplete}
               >
                 完了
-              </button>
+              </Button>
 
-              <button
-                class="btn btn-circle text-base-content/40 btn-ghost btn-sm hover:text-error"
+              <Button
+                variant="ghost"
+                size="sm"
+                class="hover:text-error"
                 onclick={handleCancel}
-                title="キャンセル"
                 aria-label="キャンセル"
               >
                 <svg
@@ -220,7 +332,7 @@
                     d="M6 18L18 6M6 6l12 12"
                   />
                 </svg>
-              </button>
+              </Button>
             </div>
           </div>
         </div>

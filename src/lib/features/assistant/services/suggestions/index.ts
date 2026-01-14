@@ -43,7 +43,6 @@ export {
   createSuggestionFromMemo,
   isMandatory,
   isHidden,
-  calculatePriority,
   MANDATORY_THRESHOLD,
   DISPLAY_THRESHOLD,
   // State update functions
@@ -84,7 +83,6 @@ export {
   assignOrderToGaps,
   scheduleSuggestions,
   calculateScore,
-  calculateExtendedDuration,
   timeToMinutes,
   minutesToTime,
   addMinutesToTime,

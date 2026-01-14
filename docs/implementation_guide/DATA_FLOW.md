@@ -128,9 +128,9 @@ The `bootstrap/` directory provides:
 
 ### 3. Tasks State (`src/lib/features/tasks/state/`)
 
-#### `taskActions.ts` - Task CRUD Operations
+#### `taskActions.svelte.ts` - Task CRUD Operations
 
-- `tasks`: Writable store of `Memo[]` (rich task objects)
+- `tasks`: Reactive state of `Memo[]` (rich task objects)
 - Methods:
   - `create()`: Create task from form
   - `update()`: Update task
@@ -138,13 +138,23 @@ The `bootstrap/` directory provides:
   - `fetchAll()`: Load all tasks from database
 - Persists to database via Remote Functions
 
-#### `taskForm.ts` - Task Form State
+#### `taskForm.svelte.ts` - Task Form State
 
-- `taskForm`: Form data store
-- `taskFormErrors`: Validation errors
-- `isTaskFormSubmitting`: Submission state
-- `isTaskFormOpen`: Form visibility
+- `formData`: Current form data (reactive)
+- `errors`: Validation errors
+- `isSubmitting`: Submission state
+- `isOpen`: Form visibility
 - Conditional fields based on task type
+
+#### Event Linking (`features/tasks/types/event-link.ts`)
+
+Tasks can be linked to calendar events or timetable cells:
+
+- **EventLinkType**: `"calendar"` | `"timetable"`
+- **EventDeadlineOffset**: `"same_day_after"` | `"1_day_before"` | `"1_day_after"`
+- **EventLinkData**: Stores link type, event/cell ID, offset, and tracked occurrence date
+
+This enables deadline tasks to derive their deadline from linked events.
 
 ### 4. Assistant State (`src/lib/features/assistant/state/`)
 
@@ -762,13 +772,64 @@ Calendar UI reactively updates
 
 ---
 
+## Event Linking System
+
+### Overview
+
+Deadline tasks can be linked to calendar events or timetable cells. The deadline is automatically derived from the linked event based on a configurable offset.
+
+### Data Model
+
+```typescript
+interface EventLinkData {
+  type: "calendar" | "timetable";
+  calendarEventId?: string; // For calendar events
+  timetableCellId?: string; // For timetable items
+  offset: "same_day_after" | "1_day_before" | "1_day_after";
+  trackedOccurrenceDate?: Date; // Which occurrence we're tracking
+  suggestionAvailableFrom?: Date; // When suggestion can start appearing
+}
+```
+
+### Offset Options
+
+| Offset           | Description                         |
+| ---------------- | ----------------------------------- |
+| `same_day_after` | Deadline is same day as event ends  |
+| `1_day_before`   | Deadline is 24h before event starts |
+| `1_day_after`    | Deadline is 24h after event ends    |
+
+### Flow
+
+```
+User creates deadline task
+  ↓
+Selects "Link to event" option
+  ↓
+Chooses calendar event or timetable cell
+  ↓
+Selects deadline offset
+  ↓
+Task created with eventLink field
+  ↓
+Deadline calculated from linked event + offset
+  ↓
+For recurring events: tracks specific occurrence
+```
+
+### Key Files
+
+- `features/tasks/types/event-link.ts` - Type definitions
+- `features/tasks/state/taskForm.svelte.ts` - Form handling for event linking
+
+---
+
 ## Possible Improvements
 
 ### 1. State Management
 
 - **Migrate remaining writable stores to Svelte 5 runes**
   - `schedule.ts` still uses `writable` stores (consider migrating to reactive class)
-  - `taskActions.ts` still uses `writable` stores (consider migrating to reactive class)
   - Consider migrating to reactive classes for consistency with `unifiedGapState` and `calendarState`
 
 - **Consolidate state access patterns**

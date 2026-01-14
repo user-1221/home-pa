@@ -7,7 +7,10 @@
    */
 
   import { calendarState, settingsState } from "$lib/bootstrap/index.svelte.ts";
-  import { UserSettings } from "$lib/features/shared/components/index.ts";
+  import {
+    UserSettings,
+    Button,
+  } from "$lib/features/shared/components/index.ts";
 
   interface Props {
     open: boolean;
@@ -114,13 +117,9 @@
           <span class="text-xl">⚙️</span>
           <h2 class="text-xl font-medium">Settings</h2>
         </div>
-        <button
-          class="btn btn-square btn-ghost btn-sm"
-          onclick={onClose}
-          aria-label="Close"
-        >
+        <Button variant="ghost" size="sm" onclick={onClose} aria-label="Close">
           ×
-        </button>
+        </Button>
       </div>
 
       <!-- Tabs -->
@@ -206,18 +205,19 @@
                   disabled={importing || !isApiEnabled}
                 />
 
-                <button
-                  class="btn btn-block btn-outline"
+                <Button
+                  variant="secondary"
+                  fullWidth
                   onclick={triggerFileInput}
                   disabled={importing || !isApiEnabled}
+                  loading={importing}
                 >
                   {#if importing}
-                    <span class="loading loading-sm loading-spinner"></span>
                     Importing...
                   {:else}
                     📁 Select .ics File
                   {/if}
-                </button>
+                </Button>
 
                 {#if importResult}
                   <div
@@ -238,9 +238,10 @@
                         {/each}
                       {/if}
                     </div>
-                    <button
-                      class="btn btn-square btn-ghost btn-xs"
-                      onclick={clearImportResult}>×</button
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onclick={clearImportResult}>×</Button
                     >
                   </div>
                 {/if}
@@ -255,12 +256,14 @@
                   Download all your events as an .ics file.
                 </p>
 
-                <button
-                  class="btn justify-start gap-1 btn-ghost btn-xs"
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  class="justify-start"
                   onclick={() => (showAdvanced = !showAdvanced)}
                 >
                   {showAdvanced ? "▼" : "▶"} Advanced
-                </button>
+                </Button>
 
                 {#if showAdvanced}
                   <div class="form-control">
@@ -276,13 +279,14 @@
                   </div>
                 {/if}
 
-                <button
-                  class="btn btn-block btn-outline"
+                <Button
+                  variant="secondary"
+                  fullWidth
                   onclick={handleExport}
                   disabled={!isApiEnabled}
                 >
                   📥 Download .ics File
-                </button>
+                </Button>
               </div>
             </div>
 

@@ -16,6 +16,7 @@
   } from "../services/event-deadline-service";
   import { loadTimetableData } from "$lib/features/calendar/services/timetable-events";
   import { toastState } from "$lib/bootstrap/toast.svelte";
+  import { Button, TextInput } from "$lib/features/shared/components/index.ts";
 
   interface Props {
     isOpen: boolean;
@@ -186,19 +187,13 @@
         </div>
 
         <!-- Task title input -->
-        <div>
-          <label class="mb-1 block text-sm font-medium" for="task-title">
-            タスクタイトル
-          </label>
-          <input
-            id="task-title"
-            type="text"
-            class="input-bordered input w-full"
-            placeholder="例：〇〇の準備、レポート提出"
-            bind:value={title}
-            disabled={isSubmitting}
-          />
-        </div>
+        <TextInput
+          id="task-title"
+          label="タスクタイトル"
+          placeholder="例：〇〇の準備、レポート提出"
+          bind:value={title}
+          disabled={isSubmitting}
+        />
 
         <!-- Offset selection -->
         <div>
@@ -223,19 +218,17 @@
       </div>
 
       <div class="flex justify-end gap-2 border-t border-base-300 p-4">
-        <button class="btn btn-ghost" onclick={onClose} disabled={isSubmitting}>
+        <Button variant="ghost" onclick={onClose} disabled={isSubmitting}>
           キャンセル
-        </button>
-        <button
-          class="btn btn-primary"
+        </Button>
+        <Button
+          variant="primary"
           onclick={handleSubmit}
           disabled={!title.trim() || isSubmitting}
+          loading={isSubmitting}
         >
-          {#if isSubmitting}
-            <span class="loading loading-sm loading-spinner"></span>
-          {/if}
           作成
-        </button>
+        </Button>
       </div>
     </div>
   </div>

@@ -161,6 +161,7 @@ model Memo {
   routineCompletedToday     Boolean?   // Actually completed (not just accepted)
   routineCompletedCountWeek Int?       // Count of completions this period (day/week/month)
   routineLastCompletedDay   DateTime?  // Date of last completion
+  routinePreviousLastCompletedDay DateTime?  // Saved value before acceptance (for undo)
   routineWasCappedThisWeek  Boolean?   // True if display cap was active this period
   routineWeekStartDate      DateTime?  // Start of current tracking period
   routineRejectedToday      Boolean?   // If true, task cannot be regenerated today
@@ -169,6 +170,7 @@ model Memo {
   // Backlog state (バックログ type)
   backlogAcceptedToday      Boolean?   // If true, task treated as done for day
   backlogLastCompletedDay   DateTime?  // Date of last completion
+  backlogPreviousLastCompletedDay DateTime?  // Saved value before acceptance (for undo)
   backlogRejectedToday      Boolean?   // If true, task cannot be regenerated today
   backlogAcceptedSlot       Json?      // Single slot: {startTime, endTime, duration}
 
@@ -299,4 +301,27 @@ model EventTemplate {
   @@index([userId])
   @@index([userId, title]) // For prefix search
   @@map("event_template")
+}
+
+// Active timer session for cross-device sync
+// Only ONE active timer per user (userId is unique)
+model ActiveTimerSession {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique  // Only ONE active session per user
+
+  memoId          String
+  taskTitle       String
+  startedAt       DateTime
+  plannedEndTime  String   // HH:mm
+  mode            String   // "normal" | "pomodoro"
+  pomodoroState   Json?    // PomodoroState object
+
+  // Device identification
+  deviceId        String   // UUID generated per browser
+  deviceName      String?  // Optional: "Chrome on MacOS"
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("active_timer_session")
 }

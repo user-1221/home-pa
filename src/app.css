@@ -4,6 +4,42 @@
 @import "tailwindcss";
 @plugin "daisyui";
 
+/* Override DaisyUI light theme with HomePA colors */
+@plugin "daisyui/theme" {
+  name: "light";
+  default: true;
+  color-scheme: light;
+  /* Primary — Neptune */
+  --color-primary: #7bbebb;
+  --color-primary-content: #ffffff;
+  /* Secondary — Surf Crest */
+  --color-secondary: #cee3d3;
+  --color-secondary-content: #1f2937;
+  /* Accent — Neptune */
+  --color-accent: #7bbebb;
+  --color-accent-content: #ffffff;
+  /* Neutral */
+  --color-neutral: #1f2937;
+  --color-neutral-content: #ffffff;
+  /* Base colors */
+  --color-base-100: #ffffff;
+  --color-base-200: #f6f7f8;
+  --color-base-300: #e5e7eb;
+  --color-base-content: #1f2937;
+  /* Success — Jungle Green */
+  --color-success: #2ab388;
+  --color-success-content: #ffffff;
+  /* Warning */
+  --color-warning: #f59e0b;
+  --color-warning-content: #1f2937;
+  /* Error */
+  --color-error: #dc2626;
+  --color-error-content: #ffffff;
+  /* Info — Neptune */
+  --color-info: #7bbebb;
+  --color-info-content: #ffffff;
+}
+
 /* Self-hosted Source Code Pro (mono) */
 @font-face {
   font-family: "Source Code Pro";
@@ -64,10 +100,10 @@
   --color-bg-surface: #f6f7f8;
   --color-bg-grid: #fafafa;
 
-  /* Text */
-  --color-text-primary: #1f2937;
-  --color-text-secondary: #6b7280;
-  --color-text-muted: #9ca3af;
+  /* Text (WCAG AA contrast compliant on white background) */
+  --color-text-primary: #1f2937; /* 14.7:1 contrast */
+  --color-text-secondary: #4b5563; /* 7.5:1 contrast - upgraded from #6b7280 */
+  --color-text-muted: #6b7280; /* 5.0:1 contrast - upgraded from #9ca3af (was 2.8:1) */
 
   /* Borders / Dividers */
   --color-border-default: #e5e7eb;
@@ -129,53 +165,38 @@
   --z-nav: 2000;
   --z-suggestion: 1000;
   --z-settings: 500;
-
-  /* === DaisyUI v5 Theme Mapping === */
-  /* Maps DaisyUI semantic classes to custom palette */
-
-  /* Primary — Neptune */
-  --color-primary: #7bbebb;
-  --color-primary-content: #ffffff;
-
-  /* Secondary — Surf Crest */
-  --color-secondary: #cee3d3;
-  --color-secondary-content: #1f2937;
-
-  /* Accent — Primary (Neptune) */
-  --color-accent: #7bbebb;
-  --color-accent-content: #ffffff;
-
-  /* Neutral */
-  --color-neutral: #1f2937;
-  --color-neutral-content: #ffffff;
-
-  /* Base colors */
-  --color-base-100: #ffffff;
-  --color-base-200: #f6f7f8;
-  --color-base-300: #e5e7eb;
-  --color-base-content: #1f2937;
-
-  /* Success — Jungle Green */
-  --color-success: #2ab388;
-  --color-success-content: #ffffff;
-
-  /* Warning */
-  --color-warning: #f59e0b;
-  --color-warning-content: #1f2937;
-
-  /* Error */
-  --color-error: #dc2626;
-  --color-error-content: #ffffff;
-
-  /* Info — Neptune */
-  --color-info: #7bbebb;
-  --color-info-content: #ffffff;
 }
 
 @media (min-width: 768px) {
   :root {
     --bottom-nav-height: 80px;
   }
+}
+
+/* === Semantic Border Utilities === */
+/* Use these for consistent border opacity across the app */
+.border-faint {
+  border-color: color-mix(
+    in srgb,
+    var(--color-border-default) 20%,
+    transparent
+  );
+}
+
+.border-subtle {
+  border-color: color-mix(
+    in srgb,
+    var(--color-border-default) 50%,
+    transparent
+  );
+}
+
+.border-primary-faint {
+  border-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
+}
+
+.border-primary-subtle {
+  border-color: color-mix(in srgb, var(--color-primary) 50%, transparent);
 }
 
 /* Base styles */
@@ -234,6 +255,61 @@ svg circle[tabindex="0"]:focus-visible {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Disable hover effects on touch devices */
+/* Touch devices don't support true hover, so these effects are unnecessary */
+@media (hover: none) {
+  /* Reset background hover effects */
+  [class*="hover:bg-"]:hover {
+    background-color: inherit !important;
+  }
+
+  /* Reset text color hover effects */
+  [class*="hover:text-"]:hover {
+    color: inherit !important;
+  }
+
+  /* Reset border hover effects */
+  [class*="hover:border-"]:hover {
+    border-color: inherit !important;
+  }
+
+  /* Reset transform hover effects */
+  [class*="hover:-translate-"]:hover,
+  [class*="hover:translate-"]:hover,
+  [class*="hover:scale-"]:hover {
+    transform: none !important;
+  }
+
+  /* Reset shadow hover effects */
+  [class*="hover:shadow-"]:hover {
+    box-shadow: inherit !important;
+  }
+
+  /* Reset opacity hover effects - exclude group-hover elements that should be visible on mobile */
+  [class*="hover:opacity-"]:hover:not([class*="group-hover:"]) {
+    opacity: inherit !important;
+  }
+
+  /* Reset group-hover transform/color/background effects (visual feedback) */
+  .group:hover [class*="group-hover:scale-"] {
+    transform: none !important;
+  }
+
+  .group:hover [class*="group-hover:text-"] {
+    color: inherit !important;
+  }
+
+  .group:hover [class*="group-hover:bg-"] {
+    background-color: inherit !important;
+  }
+
+  /* Show group-hover:opacity elements on mobile (functional, not just visual) */
+  /* These are typically action buttons that need to be accessible */
+  [class*="group-hover:opacity-100"] {
+    opacity: 1 !important;
   }
 }
 
@@ -338,13 +414,15 @@ svg circle[tabindex="0"]:focus-visible {
   outline: none;
 }
 
-.event-arc:hover {
-  stroke-width: 5 !important;
-  stroke-opacity: 1 !important;
-}
+@media (hover: hover) {
+  .event-arc:hover {
+    stroke-width: 5 !important;
+    stroke-opacity: 1 !important;
+  }
 
-.event-arc.all-day:hover {
-  stroke-width: 3 !important;
+  .event-arc.all-day:hover {
+    stroke-width: 3 !important;
+  }
 }
 
 .gap-arc {
@@ -358,8 +436,10 @@ svg circle[tabindex="0"]:focus-visible {
   outline: none;
 }
 
-.gap-arc:hover {
-  stroke-width: 4;
+@media (hover: hover) {
+  .gap-arc:hover {
+    stroke-width: 4;
+  }
 }
 
 .suggestion-arc {
@@ -373,8 +453,10 @@ svg circle[tabindex="0"]:focus-visible {
   outline: none;
 }
 
-.suggestion-arc:hover {
-  stroke-width: 4 !important;
+@media (hover: hover) {
+  .suggestion-arc:hover {
+    stroke-width: 4 !important;
+  }
 }
 
 .resize-handle {
@@ -388,8 +470,10 @@ svg circle[tabindex="0"]:focus-visible {
   outline: none;
 }
 
-.resize-handle:hover {
-  r: 1.8;
+@media (hover: hover) {
+  .resize-handle:hover {
+    r: 1.8;
+  }
 }
 
 @media (max-width: 768px) {

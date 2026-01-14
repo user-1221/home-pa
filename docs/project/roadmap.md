@@ -2,36 +2,102 @@
 
 段階仕様の要約です。詳細は各 spec を参照してください（docs/specs/）。
 
-- M0 Foundations（基盤）
-  - 開発基盤の整備（SvelteKit, Tailwind v4 + DaisyUI, lint/format、`bun run check`）。
-- M1 MVP Core — docs/specs/m1-core.md
-  - 最小ループ（入力→提案→反応→ログ）を成立させる。
-- M2 UX + Data — docs/specs/m2-ux-data.md
-  - 使い勝手の磨き込みとデータ永続化の導入。
-- M3 AI Assist — docs/specs/m3-ai-assist.md
-  - 提案文の自然言語化と軽い個別最適化で受容率を向上。
-- M4 Integrations — docs/specs/m4-integrations.md
-  - 天候/鉄道/通知などの外部連携を調査・選定。
-- M5 Custom AI — docs/specs/m5-custom-ai.md
-  - 収集データで特徴量設計と推論 PoC を実施。
+## マイルストーン進捗
 
-現在のフォーカス: M1（MVP Core）
+| Phase | 名前         | 状態        | 進捗 |
+| ----- | ------------ | ----------- | ---- |
+| M0    | Foundations  | ✅ 完了     | 100% |
+| M1    | MVP Core     | ✅ 完了     | 100% |
+| M2    | UX + Data    | 🚧 進行中   | ~40% |
+| M3    | AI Assist    | 🚧 一部実装 | ~30% |
+| M4    | Integrations | ⏳ 未着手   | 0%   |
+| M5    | Custom AI    | ⏳ 未着手   | 0%   |
+
+## 各フェーズ概要
+
+### M0 Foundations（基盤）✅
+
+- 開発基盤の整備（SvelteKit, Tailwind v4 + DaisyUI, lint/format、`bun run check`）
+- Prisma + MongoDB セットアップ
+- better-auth 認証統合
+- Remote Functions パターン確立
+
+### M1 MVP Core ✅
+
+最小ループ（入力→提案→反応→ログ）を成立。
+
+- カレンダー CRUD（イベント作成/編集/削除）
+- 繰り返しイベント（RFC-5545 RRULE、ical.js）
+- タスク管理（3タイプ: 期限付き、バックログ、ルーティン）
+- ギャップ検出（空き時間の自動検出）
+- 提案生成（need/importance スコアリング）
+- タイムテーブル統合（時間割による時間ブロック）
+
+### M2 UX + Data — docs/specs/m2-ux-data.md 🚧
+
+使い勝手の磨き込みとデータ永続化の導入。
+
+**実装済み:**
+
+- モバイル対応 UI
+- イベントフォームの改善
+- フォーカス/ポモドーロタイマー
+
+**未実装:**
+
+- ユーザープロファイル（自宅/職場の位置保存）
+- キーボードナビゲーション
+- オフラインサポート
+
+### M3 AI Assist — docs/specs/m3-ai-assist.md 🚧
+
+提案文の自然言語化と軽い個別最適化で受容率を向上。
+
+**実装済み:**
+
+- LLM タスク enrichment（Gemini API）
+- ジャンル/重要度/所要時間の自動推定
+- 場所ベースのマッチング
+
+**未実装:**
+
+- ユーザーチューニング（重み/抑制ルール）
+- LLM コスト監視
+- 反応コメント機能
+
+### M4 Integrations — docs/specs/m4-integrations.md ⏳
+
+天候/鉄道/通知などの外部連携を調査・選定。
+
+**調査済み:**
+
+- NAVITIME API 2.0（仕様書あり: docs/transit-api.md）
+
+**未実装:**
+
+- 天気 API 評価
+- プッシュ通知 PoC
+- 統合判断マトリックス
+
+### M5 Custom AI — docs/specs/m5-custom-ai.md ⏳
+
+収集データで特徴量設計と推論 PoC を実施。
 
 ## 副マイルストーン
 
-### S1 システムモニタリング
+### S1 システムモニタリング ⏳
 
 - システムのダウンを検知し、記録。システムのダウン率を計算する。
 
-### S2 ユーザー体験計測
+### S2 ユーザー体験計測 ⏳
 
 - ユーザーの提案受容率を計測。
 
-### S3 A/B テスティング
+### S3 A/B テスティング ⏳
 
 - A/B テスティング環境を用意し、ユーザーをランダムに振り分け。パフォーマンスを計測する。
 
-### S4 ステージング・プレビュー環境
+### S4 ステージング・プレビュー環境 ⏳
 
 - 開発時に容易に動作確認できるプレビュー環境を用意。
 
@@ -47,3 +113,39 @@
 - 外部 API 依存のコスト/可用性（代替経路: ルール/モック）
 - LLM コスト変動（キャッシュ/バッチ/プロンプト最適化で抑制）
 - 個人データ保護要件（匿名化・最小収集・オプトイン遵守）
+
+## 実装済み機能一覧
+
+### カレンダー
+
+- [x] イベント CRUD
+- [x] 終日/時間指定/日付のみイベント
+- [x] 繰り返しイベント（RRULE）
+- [x] ics インポート/エクスポート
+- [x] 7ヶ月ウィンドウ展開
+
+### タスク
+
+- [x] 3タイプのタスク管理
+- [x] LLM enrichment
+- [x] イベントリンク
+
+### アシスタント
+
+- [x] ギャップ検出
+- [x] 提案スコアリング
+- [x] 場所ベースマッチング
+- [x] タイムテーブル統合
+
+### フォーカス
+
+- [x] ポモドーロタイマー
+- [x] 時間ピッカー
+- [x] 進捗インジケーター
+
+### インフラ
+
+- [x] Prisma + MongoDB
+- [x] better-auth 認証
+- [x] Remote Functions
+- [x] Svelte 5 runes 状態管理

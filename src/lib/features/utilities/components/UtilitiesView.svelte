@@ -27,21 +27,21 @@
       name: "Pomodoro",
       icon: "🍅",
       description: "Focus timer",
-      color: "#DC2626",
+      color: "var(--color-error)",
     },
     {
       id: "transit",
       name: "Transit",
       icon: "🚃",
       description: "Train & bus schedules",
-      color: "#7BBEBB",
+      color: "var(--color-primary)",
     },
     {
       id: "progress-memo",
       name: "Progress Memo",
       icon: "📊",
       description: "Track goals & habits",
-      color: "#2AB388",
+      color: "var(--color-success)",
     },
   ];
 

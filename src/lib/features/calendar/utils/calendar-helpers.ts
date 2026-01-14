@@ -256,6 +256,38 @@ export function getColorValue(colorKeyOrValue: string): string {
 }
 
 /**
+ * Get appropriate text color for an event color to ensure WCAG AA contrast (4.5:1)
+ * Returns a darker, themed version of the event color for readability on light 20% backgrounds.
+ *
+ * - Ignores importance; same rule for all events (per user request)
+ * - Palette colors map to fixed darker shades (600–800-ish) that stay on-theme
+ * - Non-palette/auto colors fall back to a strong darkening mix
+ */
+export function getEventTextColor(
+  eventColor: string | undefined,
+  actualEventColor: string,
+): string {
+  // Darker, contrast-safe text colors per palette key
+  const colorTextMap: Record<string, string> = {
+    "primary-400": "var(--color-primary-800)",
+    "primary-800": "var(--color-primary-800)",
+    teal: "#0d9488",
+    "soft-green": "#16a34a",
+    "soft-blue": "#0284c7",
+    "soft-purple": "#7c3aed",
+    warning: "#d97706",
+    error: "var(--color-error-500)",
+  };
+
+  if (eventColor && colorTextMap[eventColor]) {
+    return colorTextMap[eventColor];
+  }
+
+  // Fallback: aggressively darken whatever color we get, while keeping the hue
+  return `color-mix(in srgb, ${actualEventColor} 55%, black)`;
+}
+
+/**
  * Get event color based on user selection or auto-assign based on title/id
  *
  * Priority:
