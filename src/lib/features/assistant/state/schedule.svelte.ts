@@ -92,6 +92,7 @@ import {
   findOverlappingSuggestions,
 } from "../services/suggestion-drag.ts";
 import { loadSyncData } from "../services/sync.remote.ts";
+import { isSameDay } from "../services/suggestions/period-utils.ts";
 
 // ============================================================================
 // Types for Suggestion Management
@@ -105,6 +106,7 @@ export interface AcceptedMemoInfo {
   startTime: string;
   endTime: string;
   duration: number;
+  isProgressLogged: boolean; // true if progress was logged today
 }
 
 /**
@@ -611,6 +613,7 @@ class ScheduleState {
       startTime: block.startTime,
       endTime: block.endTime,
       duration: block.duration,
+      isProgressLogged: false,
     };
 
     const newMap = new Map(this.acceptedMemos);
@@ -1092,10 +1095,16 @@ class ScheduleState {
    * @returns Promise resolving when complete
    */
   async completeSuggestion(memoId: string, duration: number): Promise<void> {
-    // Remove from accepted memos store
-    const newMap = new Map(this.acceptedMemos);
-    newMap.delete(memoId);
-    this.acceptedMemos = newMap;
+    // Mark as logged instead of removing - arc stays visible but faded
+    const existing = this.acceptedMemos.get(memoId);
+    if (existing) {
+      const newMap = new Map(this.acceptedMemos);
+      newMap.set(memoId, {
+        ...existing,
+        isProgressLogged: true,
+      });
+      this.acceptedMemos = newMap;
+    }
 
     console.log("[Schedule] Completed suggestion:", {
       memoId,
@@ -1203,6 +1212,7 @@ class ScheduleState {
    */
   rebuildAcceptedMemosFromState(memos: Memo[]): void {
     const newMap = new Map<string, AcceptedMemoInfo>();
+    const today = new Date();
 
     for (const memo of memos) {
       // Deadline tasks - can have multiple accepted slots
@@ -1212,34 +1222,48 @@ class ScheduleState {
         memo.deadlineState.acceptedSlots.length > 0
       ) {
         // For deadline tasks, use the first slot (UI shows one at a time)
+        // Deadline tasks don't have lastCompletedDay tracking, so default to false
         const slot = memo.deadlineState.acceptedSlots[0];
         newMap.set(memo.id, {
           memoId: memo.id,
           startTime: slot.startTime,
           endTime: slot.endTime,
           duration: slot.duration,
+          isProgressLogged: false,
         });
       }
 
       // Routine tasks - single accepted slot
       if (memo.type === "ルーティン" && memo.routineState?.acceptedSlot) {
         const slot = memo.routineState.acceptedSlot;
+        const lastCompleted = memo.routineState.lastCompletedDay;
+        const isProgressLogged = lastCompleted
+          ? isSameDay(lastCompleted, today)
+          : false;
+
         newMap.set(memo.id, {
           memoId: memo.id,
           startTime: slot.startTime,
           endTime: slot.endTime,
           duration: slot.duration,
+          isProgressLogged,
         });
       }
 
       // Backlog tasks - single accepted slot
       if (memo.type === "バックログ" && memo.backlogState?.acceptedSlot) {
         const slot = memo.backlogState.acceptedSlot;
+        const lastCompleted = memo.backlogState.lastCompletedDay;
+        const isProgressLogged = lastCompleted
+          ? isSameDay(lastCompleted, today)
+          : false;
+
         newMap.set(memo.id, {
           memoId: memo.id,
           startTime: slot.startTime,
           endTime: slot.endTime,
           duration: slot.duration,
+          isProgressLogged,
         });
       }
     }

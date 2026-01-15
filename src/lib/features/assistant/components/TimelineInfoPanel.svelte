@@ -494,7 +494,17 @@
           </div>
 
           <!-- Action area based on state -->
-          {#if isBeingTracked}
+          {#if selectedItem.data.isProgressLogged}
+            <!-- Already logged: show completed state -->
+            <div
+              class="flex items-center justify-between rounded-lg bg-success/10 px-3 py-2"
+            >
+              <span class="text-sm text-success">進捗記録済み</span>
+              <span class="font-mono text-sm text-[var(--color-text-muted)]">
+                {formatDuration(selectedItem.data.duration)}
+              </span>
+            </div>
+          {:else if isBeingTracked}
             <!-- Currently tracking: show elapsed time -->
             <div
               class="flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2"

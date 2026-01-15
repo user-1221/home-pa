@@ -249,6 +249,7 @@
         startTime: info.startTime,
         endTime: info.endTime,
         duration: info.duration,
+        isProgressLogged: info.isProgressLogged,
       }),
     );
   });

@@ -66,7 +66,7 @@ const BacklogStateSchema = v.optional(
   }),
 );
 
-const _DeadlineStateSchema = v.optional(
+const DeadlineStateSchema = v.optional(
   v.object({
     rejectedToday: v.boolean(),
     acceptedSlots: v.array(AcceptedSlotSchema),
@@ -133,6 +133,7 @@ const MemoUpdateSchema = v.object({
     // Type-specific state
     routineState: RoutineStateSchema,
     backlogState: BacklogStateSchema,
+    deadlineState: DeadlineStateSchema,
   }),
 });
 
@@ -406,6 +407,19 @@ export const createMemo = command(MemoInputSchema, async (input) => {
                 } | null) ?? null,
             }
           : undefined,
+      // Deadline state
+      deadlineState:
+        created.type === "期限付き"
+          ? {
+              rejectedToday: created.deadlineRejectedToday ?? false,
+              acceptedSlots:
+                (created.deadlineAcceptedSlots as Array<{
+                  startTime: string;
+                  endTime: string;
+                  duration: number;
+                }>) ?? [],
+            }
+          : undefined,
       // Event link
       eventLink: created.eventLinkType
         ? {
@@ -513,6 +527,13 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
         ? new Date(input.updates.backlogState.lastCompletedDay)
         : null;
       updateData.backlogAcceptedSlot = input.updates.backlogState.acceptedSlot;
+    }
+    // Deadline state
+    if (input.updates.deadlineState !== undefined) {
+      updateData.deadlineRejectedToday =
+        input.updates.deadlineState.rejectedToday;
+      updateData.deadlineAcceptedSlots =
+        input.updates.deadlineState.acceptedSlots;
     }
 
     const updated = await prisma.memo.update({

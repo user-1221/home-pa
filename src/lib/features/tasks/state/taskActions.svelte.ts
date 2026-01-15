@@ -559,7 +559,19 @@ class TaskState {
           original.backlogState?.acceptedToday !==
           reset.backlogState?.acceptedToday;
 
-        if (periodReset || routineStateReset || backlogStateReset) {
+        // Check if deadline state was reset (acceptedSlots cleared or rejectedToday changed)
+        const deadlineStateReset =
+          (original.deadlineState?.acceptedSlots?.length ?? 0) !==
+            (reset.deadlineState?.acceptedSlots?.length ?? 0) ||
+          original.deadlineState?.rejectedToday !==
+            reset.deadlineState?.rejectedToday;
+
+        if (
+          periodReset ||
+          routineStateReset ||
+          backlogStateReset ||
+          deadlineStateReset
+        ) {
           // Build update object matching MemoUpdateSchema
           const updateData: {
             status?: {
@@ -591,6 +603,14 @@ class TaskState {
                 endTime: string;
                 duration: number;
               } | null;
+            };
+            deadlineState?: {
+              rejectedToday: boolean;
+              acceptedSlots: {
+                startTime: string;
+                endTime: string;
+                duration: number;
+              }[];
             };
           } = {};
 
@@ -627,6 +647,13 @@ class TaskState {
                 reset.backlogState.lastCompletedDay?.toISOString() ?? null,
               rejectedToday: reset.backlogState.rejectedToday,
               acceptedSlot: reset.backlogState.acceptedSlot,
+            };
+          }
+
+          if (deadlineStateReset && reset.deadlineState) {
+            updateData.deadlineState = {
+              rejectedToday: reset.deadlineState.rejectedToday,
+              acceptedSlots: reset.deadlineState.acceptedSlots,
             };
           }
 
@@ -1296,12 +1323,22 @@ class TaskState {
       const index = this.items.findIndex((t) => t.id === memoId);
       if (index !== -1) {
         const task = this.items[index];
-        if (task.type === "期限付き" && task.deadlineState) {
+        if (task.type === "期限付き") {
           const newItems = [...this.items];
           newItems[index] = {
             ...task,
             deadlineState: {
-              ...task.deadlineState,
+              // Initialize with defaults if deadlineState was missing
+              createdDay: task.deadlineState?.createdDay ?? task.createdAt,
+              deadlineDay:
+                task.deadlineState?.deadlineDay ?? task.deadline ?? new Date(),
+              lastCompletedDay: task.deadlineState?.lastCompletedDay ?? null,
+              actualDurationPoints:
+                task.deadlineState?.actualDurationPoints ?? [],
+              expectedDurationPoints:
+                task.deadlineState?.expectedDurationPoints ?? [],
+              smoothedMultiplier: task.deadlineState?.smoothedMultiplier ?? 1.0,
+              rejectedToday: task.deadlineState?.rejectedToday ?? false,
               acceptedSlots: result.acceptedSlots,
             },
             lastActivity: new Date(),

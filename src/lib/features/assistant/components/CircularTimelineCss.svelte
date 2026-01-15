@@ -12,6 +12,7 @@
     startTime: string;
     endTime: string;
     duration: number;
+    isProgressLogged: boolean;
   }
   import SuggestionCard from "./SuggestionCard.svelte";
   import { startOfDay, endOfDay } from "$lib/utils/date-utils.ts";
@@ -378,6 +379,7 @@
     startAngle: number;
     endAngle: number;
     isAccepted: boolean;
+    isProgressLogged: boolean;
   }
 
   let normalizedSuggestions = $derived.by((): NormalizedSuggestion[] => {
@@ -387,6 +389,7 @@
       startAngle: timeToAngle(s.startTime),
       endAngle: timeToAngle(s.endTime),
       isAccepted: false,
+      isProgressLogged: false,
     }));
     const accepted = acceptedMemos.map((s) => ({
       memoId: s.memoId,
@@ -394,6 +397,7 @@
       startAngle: timeToAngle(s.startTime),
       endAngle: timeToAngle(s.endTime),
       isAccepted: true,
+      isProgressLogged: s.isProgressLogged,
     }));
     return [...pending, ...accepted];
   });
@@ -1073,11 +1077,12 @@
             fill={isPending
               ? "var(--color-warning-500)"
               : "var(--color-success-500)"}
-            fill-opacity={isPending ? 0.75 : 0.8}
+            fill-opacity={isPending ? 0.75 : s.isProgressLogged ? 0.4 : 0.8}
             stroke="none"
             class="suggestion-arc"
             class:pending={isPending}
             class:accepted={!isPending}
+            class:logged={s.isProgressLogged}
             filter="url(#softGlow)"
             pointer-events="none"
           />
