@@ -71,6 +71,7 @@ const DeadlineStateSchema = v.optional(
   v.object({
     rejectedToday: v.boolean(),
     acceptedSlots: v.array(AcceptedSlotSchema),
+    lastCompletedDay: v.nullable(v.string()),
   }),
 );
 
@@ -236,7 +237,10 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
                   startTime: string;
                   endTime: string;
                   duration: number;
+                  logged?: boolean;
                 }>) ?? [],
+              lastCompletedDay:
+                memo.deadlineLastCompletedDay?.toISOString() ?? null,
             }
           : undefined,
       // Event link (for event-tagged deadline tasks)
@@ -418,7 +422,10 @@ export const createMemo = command(MemoInputSchema, async (input) => {
                   startTime: string;
                   endTime: string;
                   duration: number;
+                  logged?: boolean;
                 }>) ?? [],
+              lastCompletedDay:
+                created.deadlineLastCompletedDay?.toISOString() ?? null,
             }
           : undefined,
       // Event link
@@ -535,6 +542,10 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
         input.updates.deadlineState.rejectedToday;
       updateData.deadlineAcceptedSlots =
         input.updates.deadlineState.acceptedSlots;
+      updateData.deadlineLastCompletedDay = input.updates.deadlineState
+        .lastCompletedDay
+        ? new Date(input.updates.deadlineState.lastCompletedDay)
+        : null;
     }
 
     const updated = await prisma.memo.update({
@@ -741,8 +752,21 @@ export const logSuggestionComplete = command(
             logged: true,
           };
         }
+      } else if (existing.type === "期限付き") {
+        // Mark the first accepted slot as logged
+        const currentSlots =
+          (existing.deadlineAcceptedSlots as Array<{
+            startTime: string;
+            endTime: string;
+            duration: number;
+            logged?: boolean;
+          }>) ?? [];
+        if (currentSlots.length > 0) {
+          updateData.deadlineAcceptedSlots = currentSlots.map((slot, index) =>
+            index === 0 ? { ...slot, logged: true } : slot,
+          );
+        }
       }
-      // Deadline tasks: keep acceptedSlots - task stays "accepted" until user marks missed/deletes
 
       // Update memo with progress
       const updated = await prisma.memo.update({
@@ -1071,10 +1095,17 @@ export const addDeadlineAcceptedSlot = command(
       // Add new slot
       const newSlots = [...currentSlots, input.slot];
 
+      // Save previous lastCompletedDay only when adding first slot (for undo)
+      const isFirstSlot = currentSlots.length === 0;
+
       await prisma.memo.update({
         where: { id: input.memoId },
         data: {
           deadlineAcceptedSlots: newSlots,
+          deadlineLastCompletedDay: new Date(),
+          ...(isFirstSlot && {
+            deadlinePreviousLastCompletedDay: existing.deadlineLastCompletedDay,
+          }),
           lastActivity: new Date(),
         },
       });
@@ -1136,10 +1167,17 @@ export const removeDeadlineAcceptedSlot = command(
         (slot) => slot.startTime !== input.startTime,
       );
 
+      // Restore previous lastCompletedDay when removing last slot (undo)
+      const isLastSlot = newSlots.length === 0;
+
       await prisma.memo.update({
         where: { id: input.memoId },
         data: {
           deadlineAcceptedSlots: newSlots,
+          ...(isLastSlot && {
+            deadlineLastCompletedDay: existing.deadlinePreviousLastCompletedDay,
+            deadlinePreviousLastCompletedDay: null,
+          }),
         },
       });
 

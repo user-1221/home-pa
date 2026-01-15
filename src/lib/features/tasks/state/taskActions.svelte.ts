@@ -100,6 +100,7 @@ function jsonToMemo(json: {
       duration: number;
       logged?: boolean;
     }>;
+    lastCompletedDay: string | null;
   };
   eventLink?: {
     type: "calendar" | "timetable";
@@ -168,7 +169,9 @@ function jsonToMemo(json: {
       ? {
           createdDay: new Date(json.createdAt),
           deadlineDay: json.deadline ? new Date(json.deadline) : new Date(),
-          lastCompletedDay: null,
+          lastCompletedDay: json.deadlineState.lastCompletedDay
+            ? new Date(json.deadlineState.lastCompletedDay)
+            : null,
           actualDurationPoints: [],
           expectedDurationPoints: [],
           smoothedMultiplier: 1.0,
@@ -617,6 +620,7 @@ class TaskState {
                 duration: number;
                 logged?: boolean;
               }[];
+              lastCompletedDay: string | null;
             };
           } = {};
 
@@ -660,6 +664,8 @@ class TaskState {
             updateData.deadlineState = {
               rejectedToday: reset.deadlineState.rejectedToday,
               acceptedSlots: reset.deadlineState.acceptedSlots,
+              lastCompletedDay:
+                reset.deadlineState.lastCompletedDay?.toISOString() ?? null,
             };
           }
 

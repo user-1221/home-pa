@@ -176,7 +176,9 @@ model Memo {
 
   // Deadline state (期限付き type)
   deadlineRejectedToday     Boolean?   // If true, task cannot be regenerated today
-  deadlineAcceptedSlots     Json?      // Array of {startTime, endTime, duration} for accepted time slots
+  deadlineAcceptedSlots     Json?      // Array of {startTime, endTime, duration, logged?} for accepted time slots
+  deadlineLastCompletedDay  DateTime?  // Date of last acceptance (for day boundary reset)
+  deadlinePreviousLastCompletedDay DateTime?  // Saved value before acceptance (for undo)
 
   // ============================================================================
   // EVENT LINK (for event-tagged deadline tasks)

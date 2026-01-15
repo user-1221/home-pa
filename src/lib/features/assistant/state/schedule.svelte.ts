@@ -1220,14 +1220,15 @@ class ScheduleState {
         memo.deadlineState.acceptedSlots.length > 0
       ) {
         // For deadline tasks, use the first slot (UI shows one at a time)
-        // Deadline tasks don't have lastCompletedDay tracking, so default to false
         const slot = memo.deadlineState.acceptedSlots[0];
+        const isProgressLogged = slot.logged === true;
+
         newMap.set(memo.id, {
           memoId: memo.id,
           startTime: slot.startTime,
           endTime: slot.endTime,
           duration: slot.duration,
-          isProgressLogged: false,
+          isProgressLogged,
         });
       }
 
