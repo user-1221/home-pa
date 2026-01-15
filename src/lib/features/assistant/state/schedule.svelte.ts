@@ -1201,16 +1201,17 @@ class ScheduleState {
   // ==========================================================================
 
   /**
-   * Rebuild acceptedMemos map from persisted memo state
+   * Rebuild acceptedMemos map and rejectedMemoIds set from persisted memo state
    * Called during initialization after memos are loaded from database.
    *
-   * This restores accepted suggestions that were persisted before page reload:
-   * - Deadline tasks: Uses acceptedSlots array
-   * - Routine tasks: Uses single acceptedSlot
-   * - Backlog tasks: Uses single acceptedSlot
+   * This restores accepted/rejected suggestions that were persisted before page reload:
+   * - Deadline tasks: Uses acceptedSlots array and rejectedToday
+   * - Routine tasks: Uses single acceptedSlot and rejectedToday
+   * - Backlog tasks: Uses single acceptedSlot and rejectedToday
    */
   rebuildAcceptedMemosFromState(memos: Memo[]): void {
     const newMap = new Map<string, AcceptedMemoInfo>();
+    const rejectedSet = new Set<string>();
 
     for (const memo of memos) {
       // Deadline tasks - can have multiple accepted slots
@@ -1259,13 +1260,24 @@ class ScheduleState {
           isProgressLogged,
         });
       }
+
+      // Rebuild rejectedMemoIds from persisted rejectedToday flags
+      const isRejected =
+        memo.routineState?.rejectedToday ||
+        memo.backlogState?.rejectedToday ||
+        memo.deadlineState?.rejectedToday;
+
+      if (isRejected) {
+        rejectedSet.add(memo.id);
+      }
     }
 
     this.acceptedMemos = newMap;
+    this.rejectedMemoIds = rejectedSet;
     this.syncBlockersToGapState();
 
     console.log(
-      `[Schedule] Rebuilt acceptedMemos from state: ${newMap.size} entries`,
+      `[Schedule] Rebuilt from state: ${newMap.size} accepted, ${rejectedSet.size} rejected`,
     );
   }
 

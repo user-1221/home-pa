@@ -9,3 +9,9 @@ export { default as TransitCard } from "./TransitCard.svelte";
 export { default as Button } from "./Button.svelte";
 export { default as TextInput } from "./TextInput.svelte";
 export { default as Skeleton } from "./Skeleton.svelte";
+export { default as LazyLoad } from "./LazyLoad.svelte";
+
+// Skeleton components
+export { default as ModalSkeleton } from "./skeletons/ModalSkeleton.svelte";
+export { default as TimetablePopupSkeleton } from "./skeletons/TimetablePopupSkeleton.svelte";
+export { default as AssistantPageSkeleton } from "./skeletons/AssistantPageSkeleton.svelte";

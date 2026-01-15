@@ -1086,19 +1086,6 @@
             filter="url(#softGlow)"
             pointer-events="none"
           />
-          {#if isPending}
-            <!-- Visual indicator for pending (dashed outline on inner edge) -->
-            <path
-              d={arcPath(s.startAngle, s.endAngle, suggestionInnerRadius)}
-              fill="none"
-              stroke="var(--color-warning-500)"
-              stroke-width="0.5"
-              stroke-linecap="round"
-              stroke-dasharray="1 1"
-              opacity="0.8"
-              class="pointer-events-none"
-            />
-          {/if}
         {/if}
         {#if !isPending}
           <circle

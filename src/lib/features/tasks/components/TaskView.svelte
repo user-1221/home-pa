@@ -1,8 +1,10 @@
 <script lang="ts">
   import TaskCard from "./TaskCard.svelte";
-  import TaskForm from "./TaskForm.svelte";
   import Skeleton from "$lib/features/shared/components/Skeleton.svelte";
+  import LazyLoad from "$lib/features/shared/components/LazyLoad.svelte";
+  import ModalSkeleton from "$lib/features/shared/components/skeletons/ModalSkeleton.svelte";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
+  import { taskFormState } from "$lib/features/tasks/state/taskForm.svelte.ts";
   import type { Memo, MemoType } from "$lib/types.ts";
 
   // Filter options
@@ -242,4 +244,9 @@
   </div>
 </div>
 
-<TaskForm />
+<!-- Task Form Modal (lazy-loaded) -->
+{#if taskFormState.isOpen}
+  <LazyLoad loader={() => import("./TaskForm.svelte")}>
+    <ModalSkeleton rows={5} fullscreenMobile={true} />
+  </LazyLoad>
+{/if}

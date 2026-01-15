@@ -11,8 +11,9 @@
   import CalendarHeader from "./CalendarHeader.svelte";
   import CalendarGrid from "./CalendarGrid.svelte";
   import CalendarDebugInfo from "./CalendarDebugInfo.svelte";
-  import TimelinePopup from "./TimelinePopup.svelte";
-  import TimetablePopup from "./TimetablePopup.svelte";
+  import LazyLoad from "$lib/features/shared/components/LazyLoad.svelte";
+  import ModalSkeleton from "$lib/features/shared/components/skeletons/ModalSkeleton.svelte";
+  import TimetablePopupSkeleton from "$lib/features/shared/components/skeletons/TimetablePopupSkeleton.svelte";
   import { startOfDay } from "$lib/utils/date-utils.ts";
   import { getEventsForTimeline as getEventsForTimelineHelper } from "../utils/calendar-helpers.ts";
 
@@ -247,17 +248,29 @@
   />
 </div>
 
-<!-- Timeline Popup -->
+<!-- Timeline Popup (lazy-loaded) -->
 {#if showTimelinePopup}
-  <TimelinePopup
-    events={getEventsForTimeline(allDisplayEvents, dataState.selectedDate)}
-    {parseRecurrenceForEdit}
-    onClose={() => (showTimelinePopup = false)}
-  />
+  <LazyLoad
+    loader={() => import("./TimelinePopup.svelte")}
+    props={{
+      events: getEventsForTimeline(allDisplayEvents, dataState.selectedDate),
+      parseRecurrenceForEdit,
+      onClose: () => (showTimelinePopup = false),
+    }}
+  >
+    <ModalSkeleton rows={4} fullscreenMobile={true} />
+  </LazyLoad>
 {/if}
 
-<!-- Timetable Popup -->
-<TimetablePopup
-  isOpen={showTimetablePopup}
-  onClose={() => (showTimetablePopup = false)}
-/>
+<!-- Timetable Popup (lazy-loaded) -->
+{#if showTimetablePopup}
+  <LazyLoad
+    loader={() => import("./TimetablePopup.svelte")}
+    props={{
+      isOpen: true,
+      onClose: () => (showTimetablePopup = false),
+    }}
+  >
+    <TimetablePopupSkeleton />
+  </LazyLoad>
+{/if}
