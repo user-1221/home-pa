@@ -41,6 +41,7 @@ const AcceptedSlotSchema = v.object({
   startTime: v.string(),
   endTime: v.string(),
   duration: v.number(),
+  logged: v.optional(v.boolean()), // Track if progress was actually logged (timer/manual)
 });
 
 // Type-specific state schemas
@@ -723,11 +724,23 @@ export const logSuggestionComplete = command(
         updateData.routineWeekStartDate = needsWeekReset
           ? weekStart
           : existingWeekStart;
-        // Keep acceptedSlot - task stays "accepted" until user marks missed/deletes
+        // Mark acceptedSlot as logged
+        if (existing.routineAcceptedSlot) {
+          updateData.routineAcceptedSlot = {
+            ...(existing.routineAcceptedSlot as object),
+            logged: true,
+          };
+        }
       } else if (existing.type === "バックログ") {
         updateData.backlogAcceptedToday = true;
         updateData.backlogLastCompletedDay = now;
-        // Keep acceptedSlot - task stays "accepted" until user marks missed/deletes
+        // Mark acceptedSlot as logged
+        if (existing.backlogAcceptedSlot) {
+          updateData.backlogAcceptedSlot = {
+            ...(existing.backlogAcceptedSlot as object),
+            logged: true,
+          };
+        }
       }
       // Deadline tasks: keep acceptedSlots - task stays "accepted" until user marks missed/deletes
 

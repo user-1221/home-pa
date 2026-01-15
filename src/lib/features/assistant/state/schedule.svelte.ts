@@ -92,7 +92,6 @@ import {
   findOverlappingSuggestions,
 } from "../services/suggestion-drag.ts";
 import { loadSyncData } from "../services/sync.remote.ts";
-import { isSameDay } from "../services/suggestions/period-utils.ts";
 
 // ============================================================================
 // Types for Suggestion Management
@@ -1212,7 +1211,6 @@ class ScheduleState {
    */
   rebuildAcceptedMemosFromState(memos: Memo[]): void {
     const newMap = new Map<string, AcceptedMemoInfo>();
-    const today = new Date();
 
     for (const memo of memos) {
       // Deadline tasks - can have multiple accepted slots
@@ -1236,10 +1234,7 @@ class ScheduleState {
       // Routine tasks - single accepted slot
       if (memo.type === "ルーティン" && memo.routineState?.acceptedSlot) {
         const slot = memo.routineState.acceptedSlot;
-        const lastCompleted = memo.routineState.lastCompletedDay;
-        const isProgressLogged = lastCompleted
-          ? isSameDay(lastCompleted, today)
-          : false;
+        const isProgressLogged = slot.logged === true;
 
         newMap.set(memo.id, {
           memoId: memo.id,
@@ -1253,10 +1248,7 @@ class ScheduleState {
       // Backlog tasks - single accepted slot
       if (memo.type === "バックログ" && memo.backlogState?.acceptedSlot) {
         const slot = memo.backlogState.acceptedSlot;
-        const lastCompleted = memo.backlogState.lastCompletedDay;
-        const isProgressLogged = lastCompleted
-          ? isSameDay(lastCompleted, today)
-          : false;
+        const isProgressLogged = slot.logged === true;
 
         newMap.set(memo.id, {
           memoId: memo.id,

@@ -109,6 +109,7 @@ export interface AcceptedSlot {
   startTime: string; // HH:mm format
   endTime: string; // HH:mm format
   duration: number; // minutes
+  logged?: boolean; // Track if progress was actually logged (timer/manual)
 }
 
 /**

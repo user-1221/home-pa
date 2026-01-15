@@ -77,6 +77,7 @@ function jsonToMemo(json: {
       startTime: string;
       endTime: string;
       duration: number;
+      logged?: boolean;
     } | null;
   };
   backlogState?: {
@@ -88,6 +89,7 @@ function jsonToMemo(json: {
       startTime: string;
       endTime: string;
       duration: number;
+      logged?: boolean;
     } | null;
   };
   deadlineState?: {
@@ -96,6 +98,7 @@ function jsonToMemo(json: {
       startTime: string;
       endTime: string;
       duration: number;
+      logged?: boolean;
     }>;
   };
   eventLink?: {
@@ -592,6 +595,7 @@ class TaskState {
                 startTime: string;
                 endTime: string;
                 duration: number;
+                logged?: boolean;
               } | null;
             };
             backlogState?: {
@@ -602,6 +606,7 @@ class TaskState {
                 startTime: string;
                 endTime: string;
                 duration: number;
+                logged?: boolean;
               } | null;
             };
             deadlineState?: {
@@ -610,6 +615,7 @@ class TaskState {
                 startTime: string;
                 endTime: string;
                 duration: number;
+                logged?: boolean;
               }[];
             };
           } = {};
@@ -1091,7 +1097,9 @@ class TaskState {
                   ? new Date(result.routineState.periodStartDate)
                   : null,
                 rejectedToday: task.routineState?.rejectedToday ?? false,
-                acceptedSlot: task.routineState?.acceptedSlot ?? null, // Keep slot
+                acceptedSlot: task.routineState?.acceptedSlot
+                  ? { ...task.routineState.acceptedSlot, logged: true }
+                  : null,
               }
             : task.routineState,
           backlogState: result.backlogState
@@ -1104,7 +1112,9 @@ class TaskState {
                 previousLastCompletedDay:
                   task.backlogState?.previousLastCompletedDay ?? null,
                 rejectedToday: task.backlogState?.rejectedToday ?? false,
-                acceptedSlot: task.backlogState?.acceptedSlot ?? null, // Keep slot
+                acceptedSlot: task.backlogState?.acceptedSlot
+                  ? { ...task.backlogState.acceptedSlot, logged: true }
+                  : null,
               }
             : task.backlogState,
           // Keep deadline acceptedSlots - task stays "accepted" until user marks missed/deletes
