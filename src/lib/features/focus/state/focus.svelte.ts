@@ -466,6 +466,7 @@ class FocusState {
     this.isPaused = false;
     this.pausedAt = null;
     this.pausedDuration = 0;
+    this.otherDeviceSession = null;
     this.clearStorage();
 
     console.log("[Focus] Session completed, logged", duration, "minutes");
@@ -489,6 +490,7 @@ class FocusState {
     this.isPaused = false;
     this.pausedAt = null;
     this.pausedDuration = 0;
+    this.otherDeviceSession = null;
     this.clearStorage();
   }
 
