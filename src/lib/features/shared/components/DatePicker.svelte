@@ -39,7 +39,11 @@
   <button
     type="button"
     id="{id}-btn"
-    class="input-bordered input flex w-full items-center justify-between text-left transition-colors {active
+    class="input-bordered input flex items-center justify-between text-left transition-colors {className.includes(
+      'w-auto',
+    )
+      ? 'w-auto min-w-[140px]'
+      : 'w-full'} {active
       ? 'ring-opacity-30 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
       : ''} {disabled ? 'cursor-not-allowed opacity-50' : ''}"
     onclick={disabled ? undefined : onclick}

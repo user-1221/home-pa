@@ -1087,22 +1087,6 @@
             pointer-events="none"
           />
         {/if}
-        {#if !isPending}
-          <circle
-            role="button"
-            tabindex="0"
-            cx={handlePos.x}
-            cy={handlePos.y}
-            r="1.2"
-            fill="var(--color-success-500)"
-            stroke="var(--color-bg-app)"
-            stroke-opacity="0.9"
-            stroke-width="0.3"
-            class="resize-handle"
-            onpointerdown={(e: PointerEvent) =>
-              startResize(s.memoId, s.data.duration, e)}
-          />
-        {/if}
       {/if}
     {/each}
 
@@ -1269,9 +1253,8 @@
 </div>
 
 <style>
-  /* Prevent text selection and enable touch for draggable elements */
-  .suggestion-arc,
-  .resize-handle {
+  /* Prevent text selection and enable touch for draggable suggestion arcs */
+  .suggestion-arc {
     user-select: none;
     -webkit-user-select: none;
     -webkit-touch-callout: none;

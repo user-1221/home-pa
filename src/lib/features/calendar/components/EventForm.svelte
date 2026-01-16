@@ -855,22 +855,6 @@
         {/if}
       </div>
 
-      <!-- Address -->
-      <div class="form-control">
-        <label class="label" for="event-address">
-          <span class="label-text text-sm text-[var(--color-text-secondary)]"
-            >場所</span
-          >
-        </label>
-        <input
-          id="event-address"
-          type="text"
-          class="input-bordered input w-full"
-          bind:value={eventAddress}
-          placeholder="場所を入力（任意）"
-        />
-      </div>
-
       <!-- Time Label Switches -->
       <div class="form-control">
         <div class="flex gap-2">
@@ -946,28 +930,28 @@
 
       <!-- Date Settings -->
       <div class="form-control">
-        <div class="grid grid-cols-2 gap-2">
-          <DatePicker
-            id="event-start-date"
-            label="開始日"
-            bind:value={eventStartDate}
-            active={activeDatePicker === "start"}
-            disabled={eventTimeLabel === "some-timing"}
-            onclick={() =>
-              (activeDatePicker =
-                activeDatePicker === "start" ? null : "start")}
-          />
-          <div class="flex flex-col">
-            <label class="label" for="event-start-time">
-              <span
-                class="label-text text-sm text-[var(--color-text-secondary)]"
-                >開始時間</span
-              >
-            </label>
+        <div class="flex items-center justify-between gap-2">
+          <label class="label flex-shrink-0" for="event-start-date-btn">
+            <span class="label-text text-sm text-[var(--color-text-secondary)]"
+              >開始</span
+            >
+          </label>
+          <div class="flex flex-shrink-0 items-center gap-2">
+            <DatePicker
+              id="event-start-date"
+              bind:value={eventStartDate}
+              active={activeDatePicker === "start"}
+              disabled={eventTimeLabel === "some-timing"}
+              onclick={() =>
+                (activeDatePicker =
+                  activeDatePicker === "start" ? null : "start")}
+              class="w-auto"
+            />
             <input
               id="event-start-time"
               type="time"
-              class="input-bordered input w-full {eventFormState.errors.start
+              class="input-bordered input w-auto min-w-[120px] {eventFormState
+                .errors.start
                 ? 'input-error'
                 : ''} {eventTimeLabel === 'some-timing'
                 ? 'cursor-not-allowed opacity-50'
@@ -983,15 +967,15 @@
                 handleStartTimeChange(e.currentTarget.value);
               }}
             />
-            {#if eventFormState.errors.start}
-              <p class="label">
-                <span class="label-text-alt text-[var(--color-error-500)]"
-                  >{eventFormState.errors.start}</span
-                >
-              </p>
-            {/if}
           </div>
         </div>
+        {#if eventFormState.errors.start}
+          <p class="label">
+            <span class="label-text-alt text-[var(--color-error-500)]"
+              >{eventFormState.errors.start}</span
+            >
+          </p>
+        {/if}
 
         <!-- Start Date Calendar Picker -->
         {#if activeDatePicker === "start"}
@@ -1038,27 +1022,27 @@
 
       <!-- Time Settings -->
       <div class="form-control">
-        <div class="grid grid-cols-2 gap-2">
-          <DatePicker
-            id="event-end-date"
-            label="終了日"
-            bind:value={eventEndDate}
-            active={activeDatePicker === "end"}
-            disabled={eventTimeLabel === "some-timing"}
-            onclick={() =>
-              (activeDatePicker = activeDatePicker === "end" ? null : "end")}
-          />
-          <div class="flex flex-col">
-            <label class="label" for="event-end-time">
-              <span
-                class="label-text text-sm text-[var(--color-text-secondary)]"
-                >終了時間</span
-              >
-            </label>
+        <div class="flex items-center justify-between gap-2">
+          <label class="label flex-shrink-0" for="event-end-date-btn">
+            <span class="label-text text-sm text-[var(--color-text-secondary)]"
+              >終了</span
+            >
+          </label>
+          <div class="flex flex-shrink-0 items-center gap-2">
+            <DatePicker
+              id="event-end-date"
+              bind:value={eventEndDate}
+              active={activeDatePicker === "end"}
+              disabled={eventTimeLabel === "some-timing"}
+              onclick={() =>
+                (activeDatePicker = activeDatePicker === "end" ? null : "end")}
+              class="w-auto"
+            />
             <input
               id="event-end-time"
               type="time"
-              class="input-bordered input w-full {eventFormState.errors.end
+              class="input-bordered input w-auto min-w-[120px] {eventFormState
+                .errors.end
                 ? 'input-error'
                 : ''} {eventTimeLabel === 'some-timing'
                 ? 'cursor-not-allowed opacity-50'
@@ -1070,15 +1054,15 @@
               oninput={() =>
                 eventTimeLabel === "all-day" && switchToTimedMode()}
             />
-            {#if eventFormState.errors.end}
-              <p class="label">
-                <span class="label-text-alt text-[var(--color-error-500)]"
-                  >{eventFormState.errors.end}</span
-                >
-              </p>
-            {/if}
           </div>
         </div>
+        {#if eventFormState.errors.end}
+          <p class="label">
+            <span class="label-text-alt text-[var(--color-error-500)]"
+              >{eventFormState.errors.end}</span
+            >
+          </p>
+        {/if}
 
         <!-- End Date Calendar Picker -->
         {#if activeDatePicker === "end"}
@@ -1138,7 +1122,7 @@
       {#if isRecurring}
         <div
           bind:this={recurrenceSectionRef}
-          class="card flex flex-col gap-4 bg-[var(--color-surface-50)] p-4"
+          class="card flex flex-col gap-4 p-4"
         >
           <div class="form-control">
             <div class="flex flex-nowrap items-center gap-2">
@@ -1343,6 +1327,22 @@
           </div>
         </div>
       {/if}
+
+      <!-- Address -->
+      <div class="form-control">
+        <label class="label" for="event-address">
+          <span class="label-text text-sm text-[var(--color-text-secondary)]"
+            >場所</span
+          >
+        </label>
+        <input
+          id="event-address"
+          type="text"
+          class="input-bordered input w-full"
+          bind:value={eventAddress}
+          placeholder="場所を入力（任意）"
+        />
+      </div>
 
       <!-- Importance -->
       <div class="form-control">

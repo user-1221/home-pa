@@ -91,10 +91,24 @@
   // Deadline info
   let daysUntilDeadline = $derived(() => {
     if (!task.deadline) return null;
+    // Compare at day level (midnight to midnight) to avoid off-by-one errors
     const now = new Date();
+    const todayMidnight = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
     const deadline = new Date(task.deadline);
-    const diff = deadline.getTime() - now.getTime();
-    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+    const deadlineMidnight = new Date(
+      deadline.getFullYear(),
+      deadline.getMonth(),
+      deadline.getDate(),
+    );
+    const diffDays = Math.round(
+      (deadlineMidnight.getTime() - todayMidnight.getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+    return diffDays;
   });
 
   let deadlineText = $derived(() => {

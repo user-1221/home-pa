@@ -19,12 +19,22 @@
     events: Event[];
     parseRecurrenceForEdit: (event: Event) => void;
     onClose: () => void;
+    /** Pre-loaded timetable events. If provided, skips internal async loading. */
+    timetableEvents?: TimetableEvent[];
   }
 
-  let { events, parseRecurrenceForEdit, onClose }: Props = $props();
+  let {
+    events,
+    parseRecurrenceForEdit,
+    onClose,
+    timetableEvents: propTimetableEvents,
+  }: Props = $props();
 
-  // Timetable events state
-  let timetableEvents = $state<TimetableEvent[]>([]);
+  // Timetable events state - use prop if provided, otherwise load internally
+  let internalTimetableEvents = $state<TimetableEvent[]>([]);
+  let timetableEvents = $derived(
+    propTimetableEvents ?? internalTimetableEvents,
+  );
   let _timetableLoaded = $state(false);
 
   // Tag dialog state
@@ -58,9 +68,11 @@
   let timelineContainer: HTMLDivElement | undefined = $state();
   let timelineHeight = $state(400); // Default to 400px (min-h-[400px])
 
-  // Load timetable events on mount
+  // Load timetable events on mount (only if not provided via prop)
   $effect(() => {
-    loadTimetableForDate();
+    if (propTimetableEvents === undefined) {
+      loadTimetableForDate();
+    }
   });
 
   // Track timeline container height
@@ -88,7 +100,7 @@
         config,
         cells,
       );
-      timetableEvents = getVisibleTimetableEvents(allEvents);
+      internalTimetableEvents = getVisibleTimetableEvents(allEvents);
       _timetableLoaded = true;
     } catch (err) {
       console.error("[TimelinePopup] Failed to load timetable:", err);

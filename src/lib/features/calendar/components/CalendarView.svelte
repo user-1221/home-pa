@@ -16,11 +16,63 @@
   import TimetablePopupSkeleton from "$lib/features/shared/components/skeletons/TimetablePopupSkeleton.svelte";
   import { startOfDay } from "$lib/utils/date-utils.ts";
   import { getEventsForTimeline as getEventsForTimelineHelper } from "../utils/calendar-helpers.ts";
+  import {
+    loadTimetableData,
+    getTimetableEventsForDate,
+    getVisibleTimetableEvents,
+    getCachedTimetableData,
+    type TimetableEvent,
+  } from "../services/timetable-events.ts";
 
   // Local reactive variables for calendar state
   let currentMonth = $state(new Date());
   let showTimelinePopup = $state(false);
   let showTimetablePopup = $state(false);
+
+  // Timetable events for the selected date (pre-loaded for TimelinePopup)
+  let timetableEventsForDate = $state<TimetableEvent[]>([]);
+  let lastTimetableDateKey: string | null = null;
+
+  function getDateKey(date: Date): string {
+    return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+  }
+
+  // Load timetable events when selected date changes
+  $effect(() => {
+    const dateKey = getDateKey(dataState.selectedDate);
+    if (dateKey !== lastTimetableDateKey) {
+      lastTimetableDateKey = dateKey;
+      loadTimetableEventsForSelectedDate();
+    }
+  });
+
+  async function loadTimetableEventsForSelectedDate() {
+    // Try sync cache first for instant response
+    const cached = getCachedTimetableData();
+    if (cached) {
+      const allEvents = getTimetableEventsForDate(
+        dataState.selectedDate,
+        cached.config,
+        cached.cells,
+      );
+      timetableEventsForDate = getVisibleTimetableEvents(allEvents);
+      return;
+    }
+
+    // Fall back to async load
+    try {
+      const { config, cells } = await loadTimetableData();
+      const allEvents = getTimetableEventsForDate(
+        dataState.selectedDate,
+        config,
+        cells,
+      );
+      timetableEventsForDate = getVisibleTimetableEvents(allEvents);
+    } catch (err) {
+      console.error("[CalendarView] Failed to load timetable:", err);
+      timetableEventsForDate = [];
+    }
+  }
 
   // Track previous month to only fetch when month actually changes
   let previousMonthKey: string | null = null;
@@ -256,6 +308,7 @@
       events: getEventsForTimeline(allDisplayEvents, dataState.selectedDate),
       parseRecurrenceForEdit,
       onClose: () => (showTimelinePopup = false),
+      timetableEvents: timetableEventsForDate,
     }}
   >
     <ModalSkeleton rows={4} fullscreenMobile={true} />

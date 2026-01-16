@@ -36,11 +36,11 @@ export interface TimetableEvent {
 
 /**
  * Cached timetable data to avoid repeated fetches
+ * Cache is long-lived and only invalidated explicitly (e.g., after editing timetable)
  */
 let cachedConfig: TimetableConfigData | null = null;
 let cachedCells: TimetableCellData[] = [];
-let cacheTimestamp = 0;
-const CACHE_TTL_MS = 60000; // 1 minute
+let cacheLoaded = false;
 
 /** Default config when not loaded */
 const DEFAULT_CONFIG: TimetableConfigData = {
@@ -52,8 +52,31 @@ const DEFAULT_CONFIG: TimetableConfigData = {
 };
 
 /**
+ * Check if timetable data is already cached (synchronous)
+ * Use this to determine if data is available immediately without async loading
+ */
+export function isTimetableCached(): boolean {
+  return cacheLoaded && cachedConfig !== null;
+}
+
+/**
+ * Get cached timetable data synchronously (returns null if not cached)
+ * Use after checking isTimetableCached() to get data without async loading
+ */
+export function getCachedTimetableData(): {
+  config: TimetableConfigData;
+  cells: TimetableCellData[];
+} | null {
+  if (!cacheLoaded || !cachedConfig) {
+    return null;
+  }
+  return { config: cachedConfig, cells: cachedCells };
+}
+
+/**
  * Load timetable configuration and cells from the server
  * Only works on the client side - returns defaults during SSR
+ * Data is cached until explicitly invalidated via invalidateTimetableCache()
  */
 export async function loadTimetableData(): Promise<{
   config: TimetableConfigData;
@@ -64,10 +87,8 @@ export async function loadTimetableData(): Promise<{
     return { config: DEFAULT_CONFIG, cells: [] };
   }
 
-  const now = Date.now();
-
-  // Return cached data if still valid
-  if (cachedConfig && now - cacheTimestamp < CACHE_TTL_MS) {
+  // Return cached data if available
+  if (cacheLoaded && cachedConfig) {
     return { config: cachedConfig, cells: cachedCells };
   }
 
@@ -100,7 +121,7 @@ export async function loadTimetableData(): Promise<{
       workAllowed: cell.workAllowed,
     }));
 
-    cacheTimestamp = now;
+    cacheLoaded = true;
     return { config: cachedConfig, cells: cachedCells };
   } catch (error) {
     console.error("[timetable-events] Failed to load timetable data:", error);
@@ -113,7 +134,9 @@ export async function loadTimetableData(): Promise<{
  * Invalidate the cache (call after saving changes)
  */
 export function invalidateTimetableCache(): void {
-  cacheTimestamp = 0;
+  cacheLoaded = false;
+  cachedConfig = null;
+  cachedCells = [];
 }
 
 /**
