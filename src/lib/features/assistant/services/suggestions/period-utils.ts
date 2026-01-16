@@ -235,6 +235,10 @@ export function getCurrentPeriodStart(
  * - Backlog tasks: acceptedToday, rejectedToday
  * - Deadline tasks: rejectedToday, acceptedSlots
  *
+ * Daily flags reset at day boundary, detected using memo.lastActivity:
+ * - If lastActivity is on a previous day: reset daily flags
+ * - If lastActivity is today or null: keep current state
+ *
  * @param memo - Memo to check and potentially reset
  * @param currentTime - Current time
  * @returns Updated memo (new object if reset, same object if not)
@@ -284,17 +288,16 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
 
     // Reset daily flags if it's a new day
     if (memo.routineState) {
-      // Check if we need to reset based on lastCompletedDay
-      const lastCompleted = memo.routineState.lastCompletedDay
-        ? new Date(memo.routineState.lastCompletedDay)
+      // Use lastActivity for day boundary detection (tracks accept/reject/complete)
+      const lastActivity = memo.lastActivity
+        ? new Date(memo.lastActivity)
         : null;
 
-      // Reset if:
-      // 1. lastCompletedDay exists and it's a different day, OR
-      // 2. lastCompletedDay is null but acceptedToday is true (accepted but never completed)
-      const needsReset = lastCompleted
-        ? !isSameDay(lastCompleted, currentTime)
-        : memo.routineState.acceptedToday; // Reset orphaned acceptedToday
+      // Only reset if lastActivity exists and is on a different day
+      // If lastActivity is null, keep current state (no activity to reset from)
+      const needsReset = lastActivity
+        ? !isSameDay(lastActivity, currentTime)
+        : false;
 
       if (
         needsReset &&
@@ -321,18 +324,14 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
 
   // Handle backlog tasks
   if (memo.type === "バックログ" && memo.backlogState) {
-    const lastCompleted = memo.backlogState.lastCompletedDay
-      ? new Date(memo.backlogState.lastCompletedDay)
-      : null;
+    // Use lastActivity for day boundary detection (tracks accept/reject/complete)
+    const lastActivity = memo.lastActivity ? new Date(memo.lastActivity) : null;
 
-    // Reset if:
-    // 1. lastCompletedDay exists and it's a different day, OR
-    // 2. lastCompletedDay is null but acceptedToday is true (accepted but never completed)
-    const needsReset = lastCompleted
-      ? !isSameDay(lastCompleted, currentTime)
-      : memo.backlogState.acceptedToday ||
-        memo.backlogState.rejectedToday ||
-        memo.backlogState.acceptedSlot;
+    // Only reset if lastActivity exists and is on a different day
+    // If lastActivity is null, keep current state (no activity to reset from)
+    const needsReset = lastActivity
+      ? !isSameDay(lastActivity, currentTime)
+      : false;
 
     if (
       needsReset &&
@@ -356,19 +355,18 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
 
   // Handle deadline tasks
   if (memo.type === "期限付き" && memo.deadlineState) {
-    const lastCompleted = memo.deadlineState.lastCompletedDay
-      ? new Date(memo.deadlineState.lastCompletedDay)
-      : null;
+    // Use lastActivity for day boundary detection (tracks accept/reject/complete)
+    const lastActivity = memo.lastActivity ? new Date(memo.lastActivity) : null;
 
-    // Reset if:
-    // 1. lastCompletedDay exists and it's a different day, OR
-    // 2. lastCompletedDay is null but has acceptedSlots or rejectedToday
+    // Only reset if lastActivity exists and is on a different day
+    // If lastActivity is null, keep current state (no activity to reset from)
+    const needsReset = lastActivity
+      ? !isSameDay(lastActivity, currentTime)
+      : false;
+
     const hasAcceptedSlots =
       memo.deadlineState.acceptedSlots &&
       memo.deadlineState.acceptedSlots.length > 0;
-    const needsReset = lastCompleted
-      ? !isSameDay(lastCompleted, currentTime)
-      : hasAcceptedSlots || memo.deadlineState.rejectedToday;
 
     if (needsReset && (hasAcceptedSlots || memo.deadlineState.rejectedToday)) {
       // New day - reset acceptedSlots and rejectedToday

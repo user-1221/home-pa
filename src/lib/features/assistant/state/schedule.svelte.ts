@@ -638,16 +638,27 @@ class ScheduleState {
 
   /**
    * Reject a suggestion - the underlying memo will NEVER reappear (for today)
+   * Can reject from either result.scheduled or movedSuggestions
    *
    * @param suggestionId - ID of the suggestion to reject
    */
   async skip(suggestionId: string): Promise<void> {
     const result = this.result;
-    if (!result) return;
+    const currentMoved = this.movedSuggestions;
 
-    // Find the suggestion to get its memoId
-    const block = result.scheduled.find((b) => b.suggestionId === suggestionId);
-    if (!block) {
+    // Try to find in scheduled blocks first
+    let block = result?.scheduled.find((b) => b.suggestionId === suggestionId);
+    let memoId: string | undefined = block?.memoId;
+
+    // If not found, check movedSuggestions
+    if (!memoId) {
+      const movedBlock = currentMoved.find(
+        (m) => m.suggestionId === suggestionId,
+      );
+      memoId = movedBlock?.memoId;
+    }
+
+    if (!memoId) {
       console.warn(
         "[Schedule] Cannot reject: suggestion not found",
         suggestionId,
@@ -657,21 +668,28 @@ class ScheduleState {
 
     // Add memoId to rejected set
     const newSet = new Set(this.rejectedMemoIds);
-    newSet.add(block.memoId);
+    newSet.add(memoId);
     this.rejectedMemoIds = newSet;
+
+    // Remove from movedSuggestions if it was there
+    if (currentMoved.some((m) => m.suggestionId === suggestionId)) {
+      this.movedSuggestions = this.movedSuggestions.filter(
+        (m) => m.suggestionId !== suggestionId,
+      );
+    }
 
     console.log(
       "[Schedule] Rejected suggestion:",
       suggestionId,
       "memoId:",
-      block.memoId,
+      memoId,
     );
 
     // Persist rejection to memo state
     const { taskActions, taskState } = await import(
       "$lib/features/tasks/state/taskActions.svelte.ts"
     );
-    await taskActions.markRejected(block.memoId);
+    await taskActions.markRejected(memoId);
 
     // Regenerate to get new suggestion for the gap
     // Use taskState.items directly (Svelte 5 reactive, already updated)
@@ -1280,10 +1298,6 @@ class ScheduleState {
     this.acceptedMemos = newMap;
     this.rejectedMemoIds = rejectedSet;
     this.syncBlockersToGapState();
-
-    console.log(
-      `[Schedule] Rebuilt from state: ${newMap.size} accepted, ${rejectedSet.size} rejected`,
-    );
   }
 
   /**

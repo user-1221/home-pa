@@ -179,6 +179,21 @@ export interface Memo {
   status: MemoStatus;
   sessionDuration?: number; // 1回のセッションの時間 (minutes) - LLM-suggested (min_duration)
   totalDurationExpected?: number; // Total expected time (minutes) - LLM-suggested
+  /**
+   * Last suggestion-related activity timestamp.
+   *
+   * Updated when:
+   * - Suggestion is accepted
+   * - Suggestion is rejected (skipped)
+   * - Progress is logged (completion)
+   *
+   * NOT updated when:
+   * - Task is edited (title, deadline, etc.)
+   * - Suggestion is dragged/moved (local-only)
+   *
+   * Used by resetPeriodIfNeeded() to detect day boundaries
+   * for resetting daily flags (acceptedToday, rejectedToday, acceptedSlot).
+   */
   lastActivity?: Date;
   importance?: ImportanceLevel; // LLM-suggested if not provided
 

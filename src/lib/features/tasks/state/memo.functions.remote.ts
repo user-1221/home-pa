@@ -1027,7 +1027,9 @@ export const markMemoRejected = command(
         throw new Error("Memo not found");
       }
 
-      const updateData: Record<string, unknown> = {};
+      const updateData: Record<string, unknown> = {
+        lastActivity: new Date(), // Track rejection for day boundary detection
+      };
 
       if (existing.type === "ルーティン") {
         updateData.routineRejectedToday = true;
@@ -1035,10 +1037,6 @@ export const markMemoRejected = command(
         updateData.backlogRejectedToday = true;
       } else if (existing.type === "期限付き") {
         updateData.deadlineRejectedToday = true;
-      }
-
-      if (Object.keys(updateData).length === 0) {
-        return { id: existing.id, success: true };
       }
 
       await prisma.memo.update({

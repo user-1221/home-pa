@@ -1284,9 +1284,11 @@ class TaskState {
         const task = this.items[index];
         const newItems = [...this.items];
 
+        const now = new Date();
         if (task.type === "ルーティン" && task.routineState) {
           newItems[index] = {
             ...task,
+            lastActivity: now,
             routineState: {
               ...task.routineState,
               rejectedToday: true,
@@ -1295,6 +1297,7 @@ class TaskState {
         } else if (task.type === "バックログ" && task.backlogState) {
           newItems[index] = {
             ...task,
+            lastActivity: now,
             backlogState: {
               ...task.backlogState,
               rejectedToday: true,
@@ -1303,6 +1306,7 @@ class TaskState {
         } else if (task.type === "期限付き" && task.deadlineState) {
           newItems[index] = {
             ...task,
+            lastActivity: now,
             deadlineState: {
               ...task.deadlineState,
               rejectedToday: true,
