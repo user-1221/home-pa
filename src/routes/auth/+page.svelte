@@ -68,77 +68,113 @@
   }
 </script>
 
-<svelte:head>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link
-    rel="preconnect"
-    href="https://fonts.gstatic.com"
-    crossorigin="anonymous"
-  />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&display=swap"
-    rel="stylesheet"
-  />
-</svelte:head>
-
-<div class="flex min-h-screen bg-gradient-to-br from-base-100 to-base-200">
+<div class="flex min-h-screen bg-base-100">
+  <!-- Left panel - brand showcase (hidden on mobile) -->
   <div
-    class="to-primary-focus relative flex flex-[0_0_45%] flex-col justify-center overflow-hidden bg-gradient-to-br from-primary p-16 text-primary-content before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_20%_80%,color-mix(in_srgb,var(--color-primary)_15%,transparent)_0%,transparent_50%),radial-gradient(circle_at_80%_20%,color-mix(in_srgb,var(--color-success-500)_12%,transparent)_0%,transparent_50%)] before:content-[''] max-lg:hidden"
+    class="relative flex flex-[0_0_45%] flex-col justify-center overflow-hidden bg-surface-50 p-16 max-lg:hidden"
   >
-    <div class="relative z-10 mx-auto max-w-[480px]">
+    <div class="relative z-10 mx-auto max-w-[420px]">
       <div class="mb-16" in:fade={{ duration: 600, delay: 200 }}>
+        <!-- Logo mark -->
         <div
-          class="to-primary-focus mb-6 h-16 w-16 rounded-full bg-gradient-to-br from-primary shadow-lg"
-        ></div>
+          class="mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-primary"
+        >
+          <span class="text-2xl font-medium text-primary-content">H</span>
+        </div>
         <h1
-          class="m-0 mb-2 font-serif text-[3.5rem] leading-tight font-normal tracking-tight"
+          class="m-0 mb-2 text-[2.5rem] leading-tight font-light tracking-tight text-text-primary"
         >
           Home-PA
         </h1>
-        <p class="m-0 text-lg font-normal text-primary-content/70">
+        <p class="m-0 text-base font-normal text-text-secondary">
           Your Personal Assistant
         </p>
       </div>
 
       <div
-        class="flex flex-col gap-8"
+        class="flex flex-col gap-6"
         in:fly={{ y: 20, duration: 600, delay: 400, easing: cubicOut }}
       >
-        <div class="flex items-start gap-5">
-          <div class="flex-shrink-0 text-4xl leading-none">📅</div>
+        <div class="flex items-start gap-4">
+          <div
+            class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary-100 text-lg text-primary-800"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+          </div>
           <div>
-            <h3 class="m-0 mb-1.5 text-lg font-semibold text-primary-content">
+            <h3 class="m-0 mb-1 text-base font-medium text-text-primary">
               Smart Calendar
             </h3>
-            <p
-              class="m-0 text-[0.9375rem] leading-relaxed text-primary-content/65"
-            >
+            <p class="m-0 text-sm leading-relaxed text-text-muted">
               Organize your schedule effortlessly
             </p>
           </div>
         </div>
-        <div class="flex items-start gap-5">
-          <div class="flex-shrink-0 text-4xl leading-none">✓</div>
+        <div class="flex items-start gap-4">
+          <div
+            class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary-100 text-lg text-primary-800"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+          </div>
           <div>
-            <h3 class="m-0 mb-1.5 text-lg font-semibold text-primary-content">
+            <h3 class="m-0 mb-1 text-base font-medium text-text-primary">
               Task Management
             </h3>
-            <p
-              class="m-0 text-[0.9375rem] leading-relaxed text-primary-content/65"
-            >
+            <p class="m-0 text-sm leading-relaxed text-text-muted">
               Stay on top of your todos
             </p>
           </div>
         </div>
-        <div class="flex items-start gap-5">
-          <div class="flex-shrink-0 text-4xl leading-none">💬</div>
+        <div class="flex items-start gap-4">
+          <div
+            class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary-100 text-lg text-primary-800"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-5 w-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+              />
+            </svg>
+          </div>
           <div>
-            <h3 class="m-0 mb-1.5 text-lg font-semibold text-primary-content">
+            <h3 class="m-0 mb-1 text-base font-medium text-text-primary">
               AI Assistant
             </h3>
-            <p
-              class="m-0 text-[0.9375rem] leading-relaxed text-primary-content/65"
-            >
+            <p class="m-0 text-sm leading-relaxed text-text-muted">
               Get intelligent help anytime
             </p>
           </div>
@@ -147,24 +183,25 @@
     </div>
   </div>
 
+  <!-- Right panel - auth form -->
   <div class="flex flex-1 items-center justify-center p-8 max-sm:p-6">
     {#if $session.data?.user}
       <div
-        class="w-full max-w-[480px] rounded-3xl bg-base-100 p-12 shadow-xl"
+        class="w-full max-w-[400px] rounded-xl border border-base-300 bg-base-100 p-8 shadow-sm"
         in:fade={{ duration: 400 }}
       >
         <h2
-          class="m-0 mb-3 font-serif text-4xl font-normal tracking-tight text-base-content"
+          class="m-0 mb-3 text-2xl font-light tracking-tight text-text-primary"
         >
           Welcome back!
         </h2>
-        <p class="m-0 mb-6 text-base text-base-content/70">
-          Signed in as <strong class="font-semibold text-base-content"
+        <p class="m-0 mb-6 text-sm text-text-secondary">
+          Signed in as <strong class="font-medium text-text-primary"
             >{$session.data.user.email}</strong
           >
         </p>
         <button
-          class="btn border-none text-primary-content transition-all duration-200 btn-primary hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
+          class="btn h-11 border-none bg-primary text-primary-content transition-colors duration-200 hover:bg-primary-800 disabled:cursor-not-allowed disabled:opacity-60"
           onclick={signOut}
           disabled={isLoading}
         >
@@ -173,16 +210,26 @@
       </div>
     {:else}
       <div
-        class="w-full max-w-[480px] rounded-3xl bg-base-100 p-12 shadow-xl max-sm:p-8"
+        class="w-full max-w-[400px] rounded-xl border border-base-300 bg-base-100 p-8 shadow-sm max-sm:border-0 max-sm:shadow-none"
         in:fly={{ y: 30, duration: 600, delay: 300, easing: cubicOut }}
       >
-        <div class="mb-10">
+        <!-- Mobile logo -->
+        <div class="mb-6 flex items-center gap-3 lg:hidden">
+          <div
+            class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary"
+          >
+            <span class="text-lg font-medium text-primary-content">H</span>
+          </div>
+          <span class="text-lg font-light text-text-primary">Home-PA</span>
+        </div>
+
+        <div class="mb-8">
           <h2
-            class="m-0 mb-3 font-serif text-4xl font-normal tracking-tight text-base-content max-sm:text-3xl"
+            class="m-0 mb-2 text-2xl font-light tracking-tight text-text-primary max-sm:text-xl"
           >
             {mode === "signin" ? "Welcome back" : "Create account"}
           </h2>
-          <p class="m-0 text-base leading-relaxed text-base-content/70">
+          <p class="m-0 text-sm leading-relaxed text-text-secondary">
             {mode === "signin"
               ? "Sign in to continue to your personal assistant"
               : "Join to start organizing your life"}
@@ -190,7 +237,7 @@
         </div>
 
         <form
-          class="flex flex-col gap-6"
+          class="flex flex-col gap-5"
           onsubmit={(e: SubmitEvent) => {
             e.preventDefault();
             if (mode === "signin") {
@@ -202,15 +249,13 @@
         >
           {#if mode === "signup"}
             <div class="flex flex-col gap-2" in:fly={{ x: -20, duration: 300 }}>
-              <label
-                for="name"
-                class="text-sm font-semibold tracking-wide text-base-content"
+              <label for="name" class="text-xs font-medium text-text-secondary"
                 >Name</label
               >
               <input
                 id="name"
                 type="text"
-                class="input-bordered input rounded-xl border-2 border-base-300 bg-base-100 px-4 py-3.5 text-base text-base-content transition-all duration-200 placeholder:text-base-content/50 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                class="input-bordered input h-11 rounded-lg border border-base-300 bg-base-100 px-3 text-sm text-text-primary transition-colors duration-200 placeholder:text-text-muted focus:border-primary focus:outline-none"
                 placeholder="Your name"
                 bind:value={form.name}
                 required
@@ -219,15 +264,13 @@
           {/if}
 
           <div class="flex flex-col gap-2">
-            <label
-              for="email"
-              class="text-sm font-semibold tracking-wide text-base-content"
+            <label for="email" class="text-xs font-medium text-text-secondary"
               >Email</label
             >
             <input
               id="email"
               type="email"
-              class="input-bordered input rounded-xl border-2 border-base-300 bg-base-100 px-4 py-3.5 text-base text-base-content transition-all duration-200 placeholder:text-base-content/50 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
+              class="input-bordered input h-11 rounded-lg border border-base-300 bg-base-100 px-3 text-sm text-text-primary transition-colors duration-200 placeholder:text-text-muted focus:border-primary focus:outline-none"
               placeholder="you@example.com"
               bind:value={form.email}
               required
@@ -237,14 +280,13 @@
           <div class="flex flex-col gap-2">
             <label
               for="password"
-              class="text-sm font-semibold tracking-wide text-base-content"
-              >Password</label
+              class="text-xs font-medium text-text-secondary">Password</label
             >
             <input
               id="password"
               type="password"
-              class="input-bordered input rounded-xl border-2 border-base-300 bg-base-100 px-4 py-3.5 text-base text-base-content transition-all duration-200 placeholder:text-base-content/50 focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none"
-              placeholder="••••••••"
+              class="input-bordered input h-11 rounded-lg border border-base-300 bg-base-100 px-3 text-sm text-text-primary transition-colors duration-200 placeholder:text-text-muted focus:border-primary focus:outline-none"
+              placeholder="Enter your password"
               bind:value={form.password}
               required
             />
@@ -252,7 +294,7 @@
 
           {#if msg}
             <div
-              class="rounded-xl border border-error/30 bg-error/10 px-4 py-3.5 text-[0.9375rem] leading-relaxed text-error"
+              class="rounded-lg border border-error/30 bg-error-100 px-4 py-3 text-sm leading-relaxed text-error"
               in:fly={{ y: -10, duration: 300 }}
             >
               {msg}
@@ -261,7 +303,7 @@
 
           <button
             type="submit"
-            class="btn inline-flex items-center justify-center gap-2 border-none px-6 py-4 text-[1.0625rem] font-semibold text-primary-content shadow-lg transition-all duration-200 btn-primary hover:-translate-y-0.5 hover:shadow-xl active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
+            class="btn mt-2 h-11 border-none bg-primary text-sm font-medium text-primary-content shadow-none transition-colors duration-200 hover:bg-primary-800 disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isLoading}
           >
             {#if isLoading}
@@ -279,13 +321,13 @@
           </button>
         </form>
 
-        <div class="mt-8 border-t border-base-300 pt-8 text-center">
-          <p class="m-0 text-[0.9375rem] text-base-content/70">
+        <div class="mt-6 border-t border-base-300 pt-6 text-center">
+          <p class="m-0 text-sm text-text-secondary">
             {mode === "signin"
               ? "Don't have an account?"
               : "Already have an account?"}
             <button
-              class="hover:text-primary-focus ml-1.5 cursor-pointer border-none bg-transparent p-0 font-semibold text-primary transition-colors duration-200 hover:underline"
+              class="ml-1 cursor-pointer border-none bg-transparent p-0 font-medium text-primary transition-colors duration-200 hover:text-primary-800 hover:underline"
               onclick={toggleMode}
             >
               {mode === "signin" ? "Sign up" : "Sign in"}

@@ -186,6 +186,10 @@ function shouldResetRoutinePeriod(
  */
 export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
   const state = initializeRoutineState(memo, currentTime);
+
+  // If rejected today, hide the suggestion
+  if (state.rejectedToday) return 0;
+
   const goal = memo.recurrenceGoal;
 
   // Default goal: 3 times per week
@@ -344,6 +348,9 @@ export function calculateDeadlineNeed(memo: Memo, currentTime: Date): number {
 
   const state = initializeDeadlineState(memo, currentTime);
 
+  // If rejected today, hide the suggestion
+  if (state.rejectedToday) return 0;
+
   const created = new Date(state.createdDay);
   const deadline = new Date(state.deadlineDay);
   const now = currentTime;
@@ -458,6 +465,9 @@ export function initializeBacklogState(memo: Memo): BacklogState {
  */
 export function calculateBacklogNeed(memo: Memo, currentTime: Date): number {
   const state = initializeBacklogState(memo);
+
+  // If rejected today, hide the suggestion
+  if (state.rejectedToday) return 0;
 
   const BASE_SCORE = 0.5;
   const MAX_SCORE = 0.7;
