@@ -25,6 +25,7 @@ import {
   type SyncedCachedTransit,
 } from "$lib/features/assistant/services/sync.remote.ts";
 import { waitForSync } from "$lib/features/assistant/state/schedule.svelte.ts";
+import { notifyWarning } from "$lib/utils/notification-utils.ts";
 
 // ============================================================================
 // Types
@@ -367,6 +368,7 @@ class TransitState {
     } catch (error) {
       console.error("[Transit] Geocoding failed:", error);
       this.geocodeCache.set(location, null);
+      notifyWarning("geocoding", "住所の検索に失敗しました");
       return null;
     }
   }
@@ -606,6 +608,7 @@ class TransitState {
       console.error("[Transit] Failed to load transit info:", error);
       this.routeError =
         error instanceof Error ? error.message : "Failed to load routes";
+      notifyWarning("transit", "経路情報の取得に失敗しました");
     } finally {
       this.isLoadingRoutes = false;
     }

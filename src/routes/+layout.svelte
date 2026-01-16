@@ -5,6 +5,7 @@
     BottomNavigation,
     Toast,
   } from "$lib/features/shared/components/index.ts";
+  import SSEProvider from "$lib/features/shared/components/SSEProvider.svelte";
   import {
     initializeStores,
     loadSyncedData,
@@ -82,13 +83,15 @@
     {@render children?.()}
   </div>
 {:else}
-  <div class="flex h-dvh min-h-dvh flex-col overflow-hidden bg-base-100">
-    <main
-      class="flex min-h-0 flex-1 flex-col overflow-auto pb-[calc(var(--bottom-nav-height,60px)+env(safe-area-inset-bottom))]"
-    >
-      {@render children?.()}
-    </main>
-    <BottomNavigation />
-    <Toast />
-  </div>
+  <SSEProvider>
+    <div class="flex h-dvh min-h-dvh flex-col overflow-hidden bg-base-100">
+      <main
+        class="flex min-h-0 flex-1 flex-col overflow-auto pb-[calc(var(--bottom-nav-height,60px)+env(safe-area-inset-bottom))]"
+      >
+        {@render children?.()}
+      </main>
+      <BottomNavigation />
+      <Toast />
+    </div>
+  </SSEProvider>
 {/if}

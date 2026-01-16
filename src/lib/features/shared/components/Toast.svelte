@@ -19,7 +19,13 @@
         aria-label={`${toast.type}: ${toast.message}`}
       >
         <span aria-hidden="true">
-          {toast.type === "success" ? "✓" : "✕"}
+          {#if toast.type === "success"}
+            ✓
+          {:else if toast.type === "warning"}
+            ⚠
+          {:else}
+            ✕
+          {/if}
         </span>
       </button>
     </div>
@@ -76,5 +82,9 @@
 
   :global(.toast-dot)[aria-label^="info"] {
     background: var(--color-primary);
+  }
+
+  :global(.toast-dot)[aria-label^="warning"] {
+    background: var(--color-warning-500);
   }
 </style>

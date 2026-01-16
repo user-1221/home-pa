@@ -15,6 +15,7 @@
   } from "../utils/timetable-utils";
   import { invalidateTimetableCache } from "../services/timetable-events";
   import { unifiedGapState } from "$lib/features/assistant/state/unified-gaps.svelte";
+  import { toastState } from "$lib/bootstrap/toast.svelte";
 
   interface Props {
     isOpen: boolean;
@@ -106,6 +107,7 @@
       cells = newCells;
     } catch (error) {
       console.error("Failed to load timetable data:", error);
+      toastState.error("時間割データの読み込みに失敗しました");
     } finally {
       isLoading = false;
     }
@@ -123,6 +125,7 @@
       await unifiedGapState.loadTimetableEvents(true);
     } catch (error) {
       console.error("Failed to save config:", error);
+      toastState.error("設定の保存に失敗しました");
     }
   }
 
@@ -224,6 +227,7 @@
       editingCell = null;
     } catch (error) {
       console.error("Failed to save cell:", error);
+      toastState.error("セルの保存に失敗しました");
     } finally {
       isSaving = false;
     }
@@ -247,6 +251,7 @@
       editingCell = null;
     } catch (error) {
       console.error("Failed to delete cell:", error);
+      toastState.error("セルの削除に失敗しました");
     } finally {
       isSaving = false;
     }

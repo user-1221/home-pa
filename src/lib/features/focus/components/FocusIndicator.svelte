@@ -11,6 +11,7 @@
   import { focusState } from "../state/index.ts";
   import { formatDuration, formatTimerDisplay } from "../utils/index.ts";
   import { Button } from "$lib/features/shared/components/index.ts";
+  import { initTimerSSEHandler } from "../services/timer-sse-handler.ts";
 
   let isExpanded = $state(false);
 
@@ -18,6 +19,13 @@
   // This handles the case where the app was closed while a timer was running
   onMount(() => {
     void focusState.loadFromStorage();
+
+    // Initialize SSE handler for real-time cross-device sync
+    const cleanupSSE = initTimerSSEHandler(focusState);
+
+    return () => {
+      cleanupSSE();
+    };
   });
 
   function toggleExpand() {

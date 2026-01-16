@@ -6,7 +6,7 @@
  * Migrated from writable stores to Svelte 5 reactive class ($state).
  */
 
-export type ToastType = "success" | "error" | "info";
+export type ToastType = "success" | "error" | "info" | "warning";
 
 export interface Toast {
   id: string;
@@ -112,6 +112,13 @@ class ToastState {
    */
   info(message: string, duration?: number): void {
     this.show(message, "info", duration);
+  }
+
+  /**
+   * Show a warning toast (longer duration for readability)
+   */
+  warning(message: string, duration = 3000): void {
+    this.show(message, "warning", duration);
   }
 }
 

@@ -54,6 +54,35 @@ END:VEVENT
     );
   });
 
+  it("expands RRULE with UNTIL and EXDATE together", () => {
+    // Scenario: Daily recurring event that was truncated with UNTIL
+    // and also has an EXDATE for a specific occurrence
+    const vevent = `
+BEGIN:VEVENT
+UID:test-until-exdate
+DTSTAMP:20250101T000000Z
+DTSTART;VALUE=DATE:20250101
+RRULE:FREQ=DAILY;UNTIL=20250105
+EXDATE;VALUE=DATE:20250103
+SUMMARY:Daily with UNTIL and EXDATE
+END:VEVENT
+`.trim();
+
+    const windowStart = new Date("2025-01-01T00:00:00Z");
+    const windowEnd = new Date("2025-01-31T23:59:59Z");
+
+    const occurrences = expandRecurrences(vevent, windowStart, windowEnd);
+
+    // Should have: Jan 1, 2, 4, 5 (Jan 3 excluded by EXDATE, Jan 6+ excluded by UNTIL)
+    expect(occurrences.length).toBe(4);
+    expect(occurrences.map((o) => o.startDate.toISOString())).toEqual([
+      "2025-01-01T00:00:00.000Z",
+      "2025-01-02T00:00:00.000Z",
+      "2025-01-04T00:00:00.000Z",
+      "2025-01-05T00:00:00.000Z",
+    ]);
+  });
+
   it("generates ICS with VEVENT entries", () => {
     const vevent = `
 BEGIN:VEVENT

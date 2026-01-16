@@ -12,6 +12,8 @@
 import { query, command, getRequestEvent } from "$app/server";
 import * as v from "valibot";
 import { prisma } from "$lib/server/prisma";
+import { sseHub } from "$lib/server/sse/hub";
+import { createSSEEvent } from "$lib/server/sse/types";
 
 // ============================================================================
 // HELPER - Get authenticated user
@@ -62,6 +64,7 @@ const EndTimerSchema = v.object({
 const UpdateTimerSchema = v.object({
   pomodoroState: v.optional(PomodoroStateSchema),
   isPaused: v.optional(v.boolean()),
+  deviceId: v.string(),
 });
 
 const MoveTimerSchema = v.object({
@@ -145,6 +148,26 @@ export const startTimerSession = command(StartTimerSchema, async (input) => {
       `[startTimerSession] Started session for memo ${input.memoId} on device ${input.deviceName ?? input.deviceId}`,
     );
 
+    // Broadcast to other devices
+    sseHub.broadcast(
+      userId,
+      createSSEEvent(
+        "timer",
+        "started",
+        {
+          memoId: input.memoId,
+          taskTitle: input.taskTitle,
+          startedAt: input.startedAt,
+          plannedEndTime: input.plannedEndTime,
+          mode: input.mode,
+          pomodoroState: input.pomodoroState,
+          deviceName: input.deviceName,
+        },
+        input.deviceId,
+      ),
+      input.deviceId, // Exclude triggering device
+    );
+
     return { success: true as const };
   } catch (err) {
     console.error("[startTimerSession] Error:", err);
@@ -215,12 +238,20 @@ export const getActiveTimerSession = query(
  * End (delete) the current timer session
  * Called when session completes or is cancelled
  */
-export const endTimerSession = command(EndTimerSchema, async (_input) => {
+export const endTimerSession = command(EndTimerSchema, async (input) => {
   const userId = getAuthenticatedUser();
 
   try {
     await prisma.activeTimerSession.delete({ where: { userId } });
     console.log(`[endTimerSession] Ended session for user ${userId}`);
+
+    // Broadcast to other devices
+    sseHub.broadcast(
+      userId,
+      createSSEEvent("timer", "stopped", {}, input.deviceId),
+      input.deviceId, // Exclude triggering device
+    );
+
     return { success: true };
   } catch (err) {
     // Ignore "not found" errors (session may already be deleted)
@@ -255,6 +286,20 @@ export const updateTimerSession = command(UpdateTimerSchema, async (input) => {
       where: { userId },
       data: updateData,
     });
+
+    // Broadcast to other devices
+    sseHub.broadcast(
+      userId,
+      createSSEEvent(
+        "timer",
+        "updated",
+        {
+          pomodoroState: input.pomodoroState,
+        },
+        input.deviceId,
+      ),
+      input.deviceId, // Exclude triggering device
+    );
 
     return { success: true };
   } catch (err) {
@@ -306,6 +351,33 @@ export const moveTimerToDevice = command(MoveTimerSchema, async (input) => {
 
     console.log(
       `[moveTimerToDevice] Moved session to device ${input.deviceName ?? input.deviceId}`,
+    );
+
+    // Broadcast to ALL devices (including the new owner for confirmation)
+    sseHub.broadcast(
+      userId,
+      createSSEEvent(
+        "timer",
+        "moved",
+        {
+          memoId: existing.memoId,
+          taskTitle: existing.taskTitle,
+          startedAt: existing.startedAt.toISOString(),
+          plannedEndTime: existing.plannedEndTime,
+          mode: existing.mode as "normal" | "pomodoro",
+          pomodoroState: existing.pomodoroState as {
+            phase: "work" | "break";
+            cycleNumber: number;
+            phaseStartedAt: string;
+            workDuration: number;
+            breakDuration: number;
+            totalWorkTime: number;
+          } | null,
+          deviceName: input.deviceName,
+          targetDeviceId: input.deviceId,
+        },
+        "server",
+      ), // No exclusion - all devices need to know
     );
 
     // Return full session data so client can restore it

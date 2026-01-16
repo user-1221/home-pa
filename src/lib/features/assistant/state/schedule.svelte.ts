@@ -92,6 +92,7 @@ import {
   findOverlappingSuggestions,
 } from "../services/suggestion-drag.ts";
 import { loadSyncData } from "../services/sync.remote.ts";
+import { notifyWarning } from "$lib/utils/notification-utils.ts";
 
 // ============================================================================
 // Types for Suggestion Management
@@ -418,6 +419,10 @@ class ScheduleState {
       setTimeout(() => {
         if (this.syncCompleteResolve) {
           console.warn("[Schedule] Sync timeout - proceeding without sync");
+          notifyWarning(
+            "sync",
+            "同期がタイムアウトしました。ローカルデータで継続します",
+          );
           this.syncCompleteResolve();
           this.syncCompleteResolve = null;
         }
@@ -1333,6 +1338,7 @@ class ScheduleState {
       console.log("[Schedule] Synced data loaded");
     } catch (error) {
       console.error("[Schedule] Failed to load synced data:", error);
+      notifyWarning("sync", "同期データの読み込みに失敗しました");
       // Continue without synced data - will work with fresh state
       // Mark as loaded anyway to prevent waiting forever
       this.isSyncLoaded = true;

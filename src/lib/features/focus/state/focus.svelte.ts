@@ -29,6 +29,7 @@ import {
   updateTimerSession,
   moveTimerToDevice,
 } from "./focus.remote.ts";
+import { notifyWarning } from "$lib/utils/notification-utils.ts";
 
 // ============================================================================
 // Types
@@ -285,6 +286,7 @@ class FocusState {
         "[Focus] Failed to sync with server, continuing locally:",
         err,
       );
+      notifyWarning("sync", "サーバー同期に失敗しました。ローカルで継続します");
       // Continue with local-only session if server sync fails
     }
 
@@ -371,6 +373,7 @@ class FocusState {
         "[Focus] Failed to sync with server, continuing locally:",
         err,
       );
+      notifyWarning("sync", "サーバー同期に失敗しました。ローカルで継続します");
       // Continue with local-only session if server sync fails
     }
 
@@ -539,11 +542,12 @@ class FocusState {
     this.saveToStorage();
 
     // Sync phase change to server
-    void updateTimerSession({ pomodoroState: newPomodoroState }).catch(
-      (err) => {
-        console.error("[Focus] Failed to sync phase change:", err);
-      },
-    );
+    void updateTimerSession({
+      pomodoroState: newPomodoroState,
+      deviceId: getDeviceId(),
+    }).catch((err) => {
+      console.error("[Focus] Failed to sync phase change:", err);
+    });
 
     console.log(
       "[Focus] Phase ended, now:",
@@ -575,11 +579,12 @@ class FocusState {
     this.saveToStorage();
 
     // Sync phase change to server
-    void updateTimerSession({ pomodoroState: newPomodoroState }).catch(
-      (err) => {
-        console.error("[Focus] Failed to sync skip break:", err);
-      },
-    );
+    void updateTimerSession({
+      pomodoroState: newPomodoroState,
+      deviceId: getDeviceId(),
+    }).catch((err) => {
+      console.error("[Focus] Failed to sync skip break:", err);
+    });
 
     console.log("[Focus] Break skipped, starting cycle", pomo.cycleNumber + 1);
   }
@@ -914,6 +919,95 @@ class FocusState {
   }
 
   // ============================================================================
+  // SSE Event Handlers (Real-time sync from other devices)
+  // ============================================================================
+
+  /**
+   * Handle timer started on another device
+   */
+  handleRemoteTimerStarted(payload: {
+    memoId?: string;
+    taskTitle?: string;
+    startedAt?: string;
+    deviceName?: string;
+  }): void {
+    // Show "timer on other device" message
+    this.otherDeviceSession = {
+      deviceName: payload.deviceName ?? "Unknown Device",
+      taskTitle: payload.taskTitle ?? "",
+      startedAt: payload.startedAt ?? new Date().toISOString(),
+    };
+
+    // Clear local session if any (shouldn't happen normally)
+    if (this.activeSession) {
+      this.stopTicking();
+      this.activeSession = null;
+      this.clearStorage();
+    }
+
+    console.log("[Focus] Remote timer started:", payload.taskTitle);
+  }
+
+  /**
+   * Handle timer stopped on another device
+   */
+  handleRemoteTimerStopped(): void {
+    // Clear the "timer on other device" message
+    this.otherDeviceSession = null;
+    console.log("[Focus] Remote timer stopped");
+  }
+
+  /**
+   * Handle timer moved between devices
+   */
+  handleRemoteTimerMoved(payload: {
+    memoId?: string;
+    taskTitle?: string;
+    startedAt?: string;
+    plannedEndTime?: string;
+    mode?: "normal" | "pomodoro";
+    pomodoroState?: PomodoroState;
+    deviceName?: string;
+    targetDeviceId?: string;
+  }): void {
+    const myDeviceId = getDeviceId();
+
+    if (payload.targetDeviceId === myDeviceId) {
+      // Timer was moved TO this device
+      // Don't clear otherDeviceSession here - let moveTimerHere() handle it
+      // This prevents a race where SSE arrives before HTTP response
+      console.log("[Focus] Timer move to this device acknowledged via SSE");
+      return;
+    } else {
+      // Timer was moved AWAY from this device or to another device
+      if (this.activeSession) {
+        // This device had the timer, but it was moved away
+        this.stopTicking();
+        this.activeSession = null;
+        this.clearStorage();
+      }
+
+      // Show timer is on another device
+      this.otherDeviceSession = {
+        deviceName: payload.deviceName ?? "Unknown Device",
+        taskTitle: payload.taskTitle ?? "",
+        startedAt: payload.startedAt ?? new Date().toISOString(),
+      };
+      console.log("[Focus] Timer moved to another device:", payload.deviceName);
+    }
+  }
+
+  /**
+   * Handle timer updated on another device (e.g., pomodoro phase change)
+   */
+  handleRemoteTimerUpdated(payload: { pomodoroState?: PomodoroState }): void {
+    // Currently no-op since we don't show detailed phase info for other device's timer
+    // Could be used to update display if we want to show phase on other device
+    console.log("[Focus] Remote timer updated");
+    void payload;
+  }
+
+  // ============================================================================
   // Cleanup
   // ============================================================================
 
@@ -927,3 +1021,6 @@ class FocusState {
 // ============================================================================
 
 export const focusState = new FocusState();
+
+/** Export class type for handler typing */
+export type { FocusState };

@@ -8,6 +8,7 @@ import {
   isDateInExceptionRange,
   type TimetableConfigData,
 } from "../utils/timetable-utils";
+import { notifyWarning } from "$lib/utils/notification-utils";
 
 /**
  * Timetable cell data from the database
@@ -125,6 +126,10 @@ export async function loadTimetableData(): Promise<{
     return { config: cachedConfig, cells: cachedCells };
   } catch (error) {
     console.error("[timetable-events] Failed to load timetable data:", error);
+    notifyWarning(
+      "timetable",
+      "時間割の読み込みに失敗しました。デフォルト設定を使用します",
+    );
     // Return defaults if fetch fails
     return { config: DEFAULT_CONFIG, cells: [] };
   }
