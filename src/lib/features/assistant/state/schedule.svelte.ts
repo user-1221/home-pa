@@ -381,10 +381,14 @@ class ScheduleState {
       { startTime: string; endTime: string }
     >();
     for (const [memoId, info] of this.acceptedMemos) {
-      acceptedBlockers.set(memoId, {
-        startTime: info.startTime,
-        endTime: info.endTime,
-      });
+      // Only un-logged accepted slots should block gaps
+      // Logged slots (progress recorded) become available for new suggestions
+      if (!info.isProgressLogged) {
+        acceptedBlockers.set(memoId, {
+          startTime: info.startTime,
+          endTime: info.endTime,
+        });
+      }
     }
 
     const movedBlockers = this.movedSuggestions.map((m) => ({
