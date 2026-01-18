@@ -399,7 +399,9 @@
       isAccepted: true,
       isProgressLogged: s.isProgressLogged,
     }));
-    return [...pending, ...accepted];
+    // Render accepted first, then pending - SVG renders last elements on top
+    // This ensures pending suggestions are clickable even over logged accepted arcs
+    return [...accepted, ...pending];
   });
 
   // Normalize timetable events
