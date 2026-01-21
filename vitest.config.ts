@@ -8,5 +8,6 @@ export default defineConfig({
     environment: "node",
     include: ["**/*.{test,spec}.{js,ts}"],
     exclude: ["node_modules", "build", ".svelte-kit"],
+    setupFiles: ["src/lib/test/vitest-setup.ts"],
   },
 });
