@@ -327,3 +327,41 @@ model ActiveTimerSession {
 
   @@map("active_timer_session")
 }
+
+// ============================================================================
+// Task Completion Logs (for Report feature)
+// ============================================================================
+
+// Stores task completion snapshots for analytics and reporting
+model TaskCompletionLog {
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId                String
+
+  // Task snapshot at completion time
+  memoId                String   @db.ObjectId  // Reference to original memo (may be deleted)
+  taskTitle             String                 // Snapshot - title at completion
+  taskType              String                 // 期限付き | バックログ | ルーティン
+  taskGenre             String?                // Genre at completion
+
+  // Completion details
+  completedAt           DateTime @default(now())
+  timeSpentMinutes      Int                    // Duration of this session
+  totalTimeSpentMinutes Int                    // Total time spent on task at completion
+
+  // Type-specific data
+  completionsThisPeriod Int?                   // For routines: count after this completion
+  recurrenceGoal        Json?                  // For routines: {count, period}
+
+  // Event link snapshot (if any)
+  linkedEventTitle      String?                // Title of linked event (if event-linked)
+  linkedEventType       String?                // "calendar" | "timetable"
+
+  // Action taken
+  actionType            String                 // "delete" | "advance" | "increment"
+
+  // Metadata
+  createdAt             DateTime @default(now())
+
+  @@index([userId, completedAt])
+  @@map("task_completion_log")
+}

@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { createEventDispatcher } from "svelte";
   import { dataState, calendarState } from "$lib/bootstrap/compat.svelte.ts";
-  import { getEventColor } from "$lib/features/calendar/utils/index.ts";
   import type { Event as MyEvent, Gap } from "$lib/types.ts";
   import type { PendingSuggestion } from "$lib/features/assistant/state/schedule.svelte.ts";
 
@@ -176,8 +175,8 @@
   const TWO_PI = Math.PI * 2;
   const center = 50; // SVG viewBox center
   const outerRadius = 42; // Outermost ring (reduced to make room for time indicators)
-  const laneWidth = 5; // Width per lane
-  const laneGap = 1; // Gap between lanes
+  const _laneWidth = 5; // Width per lane
+  const _laneGap = 1; // Gap between lanes
 
   // Time utilities
   function timeToAngle(time: string): number {
@@ -209,25 +208,6 @@
       return new Date(end.getTime() - 1);
     }
     return end;
-  }
-
-  // Build arc path (for stroked arcs like suggestions)
-  function arcPath(
-    startAngle: number,
-    endAngle: number,
-    radius: number,
-  ): string {
-    if (endAngle < startAngle) endAngle += TWO_PI;
-    const delta = endAngle - startAngle;
-    const largeArc = delta > Math.PI ? 1 : 0;
-
-    // Rotate -90deg so 0 is at top
-    const x1 = center + radius * Math.cos(startAngle - Math.PI / 2);
-    const y1 = center + radius * Math.sin(startAngle - Math.PI / 2);
-    const x2 = center + radius * Math.cos(endAngle - Math.PI / 2);
-    const y2 = center + radius * Math.sin(endAngle - Math.PI / 2);
-
-    return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`;
   }
 
   // Build annular trapezoid path (filled shape between two radii)
@@ -596,23 +576,6 @@
     window.removeEventListener("pointermove", onWindowResizeMove);
     window.removeEventListener("pointerup", onWindowResizeUp);
     window.removeEventListener("pointercancel", onWindowResizeUp);
-  }
-
-  function startResize(id: string, duration: number, e: PointerEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    activePointerId = e.pointerId;
-    const coords = getPointerCoords(e);
-    isDragging = true;
-    dragId = id;
-    dragStartY = coords.y;
-    dragOrigDuration = duration;
-
-    // Add window listeners for reliable tracking
-    window.addEventListener("pointermove", onWindowResizeMove);
-    window.addEventListener("pointerup", onWindowResizeUp);
-    window.addEventListener("pointercancel", onWindowResizeUp);
   }
 
   // Drag tracking state
@@ -991,7 +954,7 @@
         isPending &&
         draggingSuggestionId === (s.data as PendingSuggestion).suggestionId}
       {@const shouldHide = isDraggingMidpoint && isPending && !isBeingDragged}
-      {@const handlePos = getHandlePos(s.endAngle, suggestionOuterRadius)}
+      {@const _handlePos = getHandlePos(s.endAngle, suggestionOuterRadius)}
 
       {#if !shouldHide}
         {#if isBeingDragged && dragPreviewAngles}

@@ -104,6 +104,7 @@ export {
   buildPrompt,
   parseResponse,
   isGeminiConfigured,
+  isFullyEnriched,
   clearEnrichmentCache,
   invalidateCacheEntry,
   getCacheStats,

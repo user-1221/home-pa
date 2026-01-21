@@ -76,13 +76,6 @@
     }
   }
 
-  function selectLeaveNowRoute() {
-    if (transitInfo?.leaveNowRoute) {
-      selectedRoute = transitInfo.leaveNowRoute;
-      showLeaveNowRoute = true;
-    }
-  }
-
   // ============================================================================
   // Helper Functions
   // ============================================================================

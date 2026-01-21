@@ -38,7 +38,7 @@
   // Create drag handler for swipe (only used on mobile)
   const swipeHandler = createDragHandler<{ startX: number }>(
     {
-      onStart: (coords, e) => {
+      onStart: (_coords, _e) => {
         if (!isMobile) {
           // Return default context but onMove/onEnd will check isMobile
           return { startX: 0 };
@@ -46,13 +46,13 @@
         isSwiping = true;
         return { startX: translateX };
       },
-      onMove: (coords, delta, context, e) => {
+      onMove: (_coords, delta, context, _e) => {
         if (!isMobile) return; // Disable on desktop
         // Only allow left swipe (dx < 0) to reveal actions
         const newX = context.startX + delta.dx;
         translateX = Math.max(-MAX_SWIPE, Math.min(0, newX));
       },
-      onEnd: (coords, wasDrag, context, e) => {
+      onEnd: (_coords, wasDrag, _context, _e) => {
         if (!isMobile) return; // Disable on desktop
         isSwiping = false;
 
@@ -79,15 +79,6 @@
     },
   );
 
-  // Computed values
-  let typeLabel = $derived(
-    task.type === "期限付き"
-      ? "Deadline"
-      : task.type === "ルーティン"
-        ? "Routine"
-        : "Backlog",
-  );
-
   // Deadline info
   let daysUntilDeadline = $derived(() => {
     if (!task.deadline) return null;
@@ -109,20 +100,6 @@
         (1000 * 60 * 60 * 24),
     );
     return diffDays;
-  });
-
-  let deadlineText = $derived(() => {
-    const days = daysUntilDeadline();
-    if (days === null) return "";
-    if (days < 0) return `${Math.abs(days)} days overdue`;
-    if (days === 0) return "Due today";
-    if (days === 1) return "Due tomorrow";
-    return `${days} days left`;
-  });
-
-  let isUrgent = $derived(() => {
-    const days = daysUntilDeadline();
-    return days !== null && days <= 1;
   });
 
   // Routine progress
@@ -191,6 +168,25 @@
     return task.genre;
   });
 
+  // Complete button icon type based on task type
+  // - Checkmark: Deadline (no recurrence) or Backlog (delete-like action)
+  // - Refresh: Event-linked deadline (advance to next occurrence)
+  // - Plus: Routine (increment counter)
+  let completeIconType = $derived(() => {
+    if (task.type === "期限付き") {
+      // Check if has recurrence (event-linked)
+      if (task.eventLink) {
+        return "refresh"; // Move to next occurrence
+      }
+      return "check"; // No recurrence = delete
+    }
+    if (task.type === "ルーティン") {
+      return "plus"; // Increment counter
+    }
+    // バックログ
+    return "check"; // Delete
+  });
+
   // Location label (UI in Japanese, internal values unchanged)
   let locationLabel = $derived(() => {
     if (task.locationPreference === "home/near_home") return "自宅/自宅付近";
@@ -232,19 +228,52 @@
         title="完了"
         aria-label="Mark complete"
       >
-        <svg
-          class="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="2.5"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M5 13l4 4L19 7"
-          />
-        </svg>
+        {#if completeIconType() === "check"}
+          <!-- Checkmark icon (delete-like action) -->
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+        {:else if completeIconType() === "refresh"}
+          <!-- Refresh/cycle icon (advance to next occurrence) -->
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+        {:else}
+          <!-- Plus icon (increment counter) -->
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2.5"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+        {/if}
       </button>
     {/if}
     <button
@@ -547,19 +576,52 @@
               title="Mark complete"
               aria-label="Mark complete"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="2"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+              {#if completeIconType() === "check"}
+                <!-- Checkmark icon (delete-like action) -->
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+              {:else if completeIconType() === "refresh"}
+                <!-- Refresh/cycle icon (advance to next occurrence) -->
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+              {:else}
+                <!-- Plus icon (increment counter) -->
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+              {/if}
             </button>
           {/if}
           <button

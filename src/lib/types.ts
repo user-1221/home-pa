@@ -120,6 +120,7 @@ export interface DeadlineState {
   createdDay: Date;
   deadlineDay: Date;
   lastCompletedDay: Date | null;
+  previousLastCompletedDay: Date | null; // Saved value before acceptance (for undo)
   actualDurationPoints: DurationPoint[]; // User-completed durations
   // Curves stored as coefficients or serializable form
   // For simplicity: store as array of expected points

@@ -15,6 +15,7 @@
 
 import type { Memo, ImportanceLevel } from "$lib/types.ts";
 import * as v from "valibot";
+import { enrichMemo as enrichMemoRemote } from "./enrich.remote.ts";
 
 // ============================================================================
 // Types
@@ -87,6 +88,23 @@ const DEFAULT_CONFIG: Required<LLMEnrichmentConfig> = {
 
 // Simple in-memory cache (memo.id -> EnrichmentResult)
 const enrichmentCache = new Map<string, EnrichmentResult>();
+
+// ============================================================================
+// Enrichment Status Check
+// ============================================================================
+
+/**
+ * Check if a memo already has all enrichment data filled
+ * Returns true only if ALL four fields are present
+ */
+export function isFullyEnriched(memo: Memo): boolean {
+  return !!(
+    memo.genre &&
+    memo.importance &&
+    memo.sessionDuration !== undefined &&
+    memo.totalDurationExpected !== undefined
+  );
+}
 
 // ============================================================================
 // Fallback Logic
@@ -287,10 +305,11 @@ export function isGeminiConfigured(config: LLMEnrichmentConfig): boolean {
 }
 
 /**
- * Call Gemini API to get enrichment
+ * Call Gemini API to get enrichment (for server-side use)
  * Uses dynamic import to avoid crashes if SDK not installed
+ * Note: Currently unused - batch enrichment uses Remote Function instead
  */
-async function callGemini(
+async function _callGemini(
   memo: Memo,
   config: Required<LLMEnrichmentConfig>,
 ): Promise<EnrichmentResult | null> {
@@ -346,7 +365,7 @@ async function callGemini(
  *
  * Priority:
  * 1. Return cached result if available
- * 2. Try LLM enrichment if configured
+ * 2. Try LLM enrichment via Remote Function (server-side, has API key access)
  * 3. Fall back to rule-based defaults
  *
  * The returned memo has optional fields filled in.
@@ -370,27 +389,17 @@ export async function enrichMemo(
     return applyEnrichment(memo, cached);
   }
 
-  // Try LLM if configured
-  let enrichment: EnrichmentResult | null = null;
+  // Try LLM via Remote Function (server-side where API key is available)
+  let enrichment: EnrichmentResult;
   let source: "llm" | "fallback" = "fallback";
 
-  if (isGeminiConfigured(fullConfig)) {
-    console.log(`[LLM Enrichment] Calling Gemini API...`);
-    enrichment = await callGemini(memo, fullConfig);
-    if (enrichment) {
-      source = "llm";
-      console.log(`[LLM Enrichment] ✓ Gemini response:`, enrichment);
-    } else {
-      console.log(`[LLM Enrichment] ✗ Gemini failed, using fallback`);
-    }
-  } else {
-    console.log(
-      `[LLM Enrichment] Gemini not configured (no API key), using fallback`,
-    );
-  }
-
-  // Use fallback if LLM failed or unavailable
-  if (!enrichment) {
+  try {
+    console.log(`[LLM Enrichment] Calling Remote Function...`);
+    enrichment = await enrichMemoViaAPI(memo);
+    source = "llm";
+    console.log(`[LLM Enrichment] ✓ Remote Function response:`, enrichment);
+  } catch {
+    console.log(`[LLM Enrichment] ✗ Remote Function failed, using fallback`);
     enrichment = getFallbackEnrichment(memo);
     console.log(`[LLM Enrichment] Fallback result:`, enrichment);
   }
@@ -423,6 +432,7 @@ function applyEnrichment(memo: Memo, enrichment: EnrichmentResult): Memo {
  * Enrich multiple memos with rate limiting
  *
  * Processes memos sequentially with delay to respect API quotas.
+ * Skips memos that already have all enrichment data filled.
  * Uses simple sequential processing (no external queue library needed).
  */
 export async function enrichMemos(
@@ -433,42 +443,61 @@ export async function enrichMemos(
     ...DEFAULT_CONFIG,
     ...config,
   };
-  const results: Memo[] = [];
+
+  // Separate already-enriched memos from those needing enrichment
+  const alreadyEnriched = memos.filter(isFullyEnriched);
+  const needsEnrichment = memos.filter((m) => !isFullyEnriched(m));
 
   console.log(
     `[LLM Enrichment] === Batch enrichment started: ${memos.length} memos ===`,
   );
   console.log(
-    `[LLM Enrichment] Gemini configured: ${isGeminiConfigured(fullConfig)}`,
+    `[LLM Enrichment] Already enriched: ${alreadyEnriched.length}, needs enrichment: ${needsEnrichment.length}`,
   );
 
-  for (let i = 0; i < memos.length; i++) {
-    const memo = memos[i];
-    console.log(`[LLM Enrichment] Processing ${i + 1}/${memos.length}...`);
+  // If all memos are already enriched, return early
+  if (needsEnrichment.length === 0) {
+    console.log(`[LLM Enrichment] All memos already enriched, skipping batch`);
+    return memos;
+  }
+
+  // Build a map of memo.id -> enriched memo for results
+  const enrichedMap = new Map<string, Memo>();
+
+  // Add already-enriched memos as-is
+  for (const memo of alreadyEnriched) {
+    enrichedMap.set(memo.id, memo);
+  }
+
+  // Process memos that need enrichment
+  for (let i = 0; i < needsEnrichment.length; i++) {
+    const memo = needsEnrichment[i];
+    console.log(
+      `[LLM Enrichment] Processing ${i + 1}/${needsEnrichment.length}: "${memo.title}"`,
+    );
 
     // Check if cached (no delay needed)
     if (fullConfig.enableCache && enrichmentCache.has(memo.id)) {
       const cached = enrichmentCache.get(memo.id)!;
       console.log(`[LLM Enrichment] ✓ Cache hit for "${memo.title}"`);
-      results.push(applyEnrichment(memo, cached));
+      enrichedMap.set(memo.id, applyEnrichment(memo, cached));
       continue;
     }
 
     // Enrich with delay
     const enriched = await enrichMemo(memo, fullConfig);
-    results.push(enriched);
+    enrichedMap.set(memo.id, enriched);
 
     // Add delay between API calls (not after last one)
-    if (i < memos.length - 1 && isGeminiConfigured(fullConfig)) {
-      console.log(
-        `[LLM Enrichment] Waiting ${fullConfig.requestDelayMs}ms before next request...`,
-      );
+    if (i < needsEnrichment.length - 1) {
       await sleep(fullConfig.requestDelayMs);
     }
   }
 
   console.log(`[LLM Enrichment] === Batch enrichment complete ===`);
-  return results;
+
+  // Return memos in original order
+  return memos.map((m) => enrichedMap.get(m.id) ?? m);
 }
 
 /**
@@ -499,8 +528,6 @@ export function getCacheStats(): { size: number; entries: string[] } {
 // ============================================================================
 // Client-Side API Integration
 // ============================================================================
-
-import { enrichMemo as enrichMemoRemote } from "./enrich.remote.ts";
 
 /**
  * Enrich a memo via Remote Function

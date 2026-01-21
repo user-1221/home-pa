@@ -85,15 +85,10 @@ import {
   enrichMemos,
   type LLMEnrichmentConfig,
 } from "./llm-enrichment.ts";
-import {
-  resetPeriodIfNeeded,
-  incrementCompletion,
-  isSameDay,
-} from "./period-utils.ts";
+import { resetPeriodIfNeeded, incrementCompletion } from "./period-utils.ts";
 import {
   createSuggestionFromMemo,
   isHidden,
-  DISPLAY_THRESHOLD,
   markRoutineAccepted,
   markRoutineCompleted,
   markBacklogAccepted,

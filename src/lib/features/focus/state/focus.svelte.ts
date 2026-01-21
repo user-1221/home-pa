@@ -30,6 +30,7 @@ import {
   moveTimerToDevice,
 } from "./focus.remote.ts";
 import { notifyWarning } from "$lib/utils/notification-utils.ts";
+import { getDeviceId, getDeviceName } from "$lib/utils/device.ts";
 
 // ============================================================================
 // Types
@@ -70,40 +71,9 @@ export interface OtherDeviceSession {
 // ============================================================================
 
 const STORAGE_KEY = "focus_active_session";
-const DEVICE_ID_KEY = "focus_device_id";
 const DEFAULT_WORK_DURATION = 25;
 const DEFAULT_BREAK_DURATION = 5;
 const MAX_SESSION_HOURS = 24;
-
-// ============================================================================
-// Device Identification
-// ============================================================================
-
-function getDeviceId(): string {
-  if (typeof localStorage === "undefined") {
-    return "server";
-  }
-  let deviceId = localStorage.getItem(DEVICE_ID_KEY);
-  if (!deviceId) {
-    deviceId = crypto.randomUUID();
-    localStorage.setItem(DEVICE_ID_KEY, deviceId);
-  }
-  return deviceId;
-}
-
-function getDeviceName(): string {
-  if (typeof navigator === "undefined") {
-    return "Server";
-  }
-  const ua = navigator.userAgent;
-  if (ua.includes("iPhone")) return "iPhone";
-  if (ua.includes("iPad")) return "iPad";
-  if (ua.includes("Android")) return "Android";
-  if (ua.includes("Mac")) return "Mac";
-  if (ua.includes("Windows")) return "Windows";
-  if (ua.includes("Linux")) return "Linux";
-  return "Unknown Device";
-}
 
 // ============================================================================
 // FocusState Class

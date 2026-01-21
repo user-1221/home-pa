@@ -72,7 +72,8 @@ export const [getExample, setExample] = createContext<ExampleState>();
 
 ## Notes
 
-- **Lint errors**: Many currently exist. `SvelteDate` recommendations, etc.
+- **Lint errors**: Remaining errors are `svelte/prefer-svelte-reactivity` warnings (use `SvelteDate`/`SvelteMap`/`SvelteSet`). Many are false positives - the pattern `new Map(this.x)` for immutable state updates is correct and doesn't need `SvelteMap`.
+- **Unused variables**: Prefix with `_` to suppress (e.g., `_unused`).
 
 ## Commands
 
@@ -85,6 +86,55 @@ bun run check      # Full check (type + lint + format)
 ## Preferences
 
 - CPU performance is rarely a concern, so no need to optimize for it in general.
+
+## Architecture Patterns
+
+### Feature Structure
+
+Each feature follows this pattern:
+
+```
+{feature}/
+├── components/     # UI components (.svelte)
+├── state/          # Svelte 5 reactive state classes (.svelte.ts)
+├── services/       # Business logic (optional)
+├── utils/          # Feature-specific utilities (optional)
+├── types/          # Feature-specific types (optional)
+├── __tests__/      # Test files
+└── index.ts        # Barrel exports
+```
+
+### Utils Directory
+
+- Create `utils/` only when a feature has 2+ utility files
+- Single utility functions can stay in the file that uses them
+
+### Service Directory Depth
+
+- Use flat structure for simple services (1-2 files)
+- Use subdirectories when a service domain has 3+ files or distinct sub-concerns
+  - Example: `assistant/services/suggestions/` (engine, scoring, scheduler, LLM)
+
+### Cross-Feature Imports
+
+Allowed cross-feature dependencies:
+
+- assistant → calendar (gap calculation requires events)
+- assistant → tasks (suggestion acceptance marks tasks)
+- focus → tasks (timer completion logs progress)
+- transit → calendar (route planning needs event locations)
+
+Use dynamic imports for circular dependency prevention.
+
+### Remote Functions
+
+- Naming: `{feature}.remote.ts` or `{feature}.functions.remote.ts` (both acceptable)
+- Location: In `state/` directory for data-fetching, `services/` for business logic
+
+### Test File Location
+
+- Place tests in `{feature}/__tests__/` directory
+- Use `.test.ts` suffix
 
 ## Application design & Documentation
 

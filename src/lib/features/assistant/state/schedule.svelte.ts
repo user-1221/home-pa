@@ -651,7 +651,9 @@ class ScheduleState {
     const currentMoved = this.movedSuggestions;
 
     // Try to find in scheduled blocks first
-    let block = result?.scheduled.find((b) => b.suggestionId === suggestionId);
+    const block = result?.scheduled.find(
+      (b) => b.suggestionId === suggestionId,
+    );
     let memoId: string | undefined = block?.memoId;
 
     // If not found, check movedSuggestions

@@ -15,14 +15,11 @@ import {
   type Route,
   type RouteSearchResult,
   type AddressItem,
-  type TransportNode,
 } from "../services/transit-api.remote.ts";
 import {
   loadSyncData,
   saveCachedTransit,
-  removeCachedTransit,
   clearCachedTransit,
-  type SyncedCachedTransit,
 } from "$lib/features/assistant/services/sync.remote.ts";
 import { waitForSync } from "$lib/features/assistant/state/schedule.svelte.ts";
 import { notifyWarning } from "$lib/utils/notification-utils.ts";

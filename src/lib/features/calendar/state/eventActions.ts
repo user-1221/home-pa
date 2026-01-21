@@ -17,7 +17,6 @@ import {
   utcToLocalDateString,
   localDateTimeStringToUTC,
   createDateOnlyUTC,
-  createMultiDayAllDayUTCRange,
 } from "../../../utils/date-utils.ts";
 import ICAL from "ical.js";
 import { saveTemplate } from "./eventTemplate.remote.ts";

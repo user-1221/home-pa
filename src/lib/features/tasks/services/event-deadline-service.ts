@@ -202,7 +202,7 @@ function getNextOccurrenceSimple(
   }
 
   // Parse basic RRULE for simple cases
-  const rrule = event.recurrence.rrule;
+  const _rrule = event.recurrence.rrule;
   const freq = event.recurrence.frequency;
 
   if (!freq) return null;
@@ -477,7 +477,7 @@ export function calculateInitialDeadline(
   eventEnd: Date,
   offset: EventDeadlineOffset,
   isRecurring: boolean,
-  afterDate: Date = new Date(),
+  _afterDate: Date = new Date(),
 ): { deadline: Date; trackedOccurrence: Date } {
   // For non-recurring events, use the event times directly
   if (!isRecurring) {

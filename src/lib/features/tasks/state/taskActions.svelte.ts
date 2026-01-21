@@ -36,7 +36,34 @@ import {
   removeDeadlineAcceptedSlot,
   updateAcceptedSlotDuration,
   advanceEventLinkedDeadline,
+  logTaskCompletion,
 } from "./memo.functions.remote.ts";
+
+// ============================================================================
+// Completion Action Types
+// ============================================================================
+
+type CompletionActionType = "delete" | "advance" | "increment";
+
+/**
+ * Determine the completion action type based on task type and properties
+ */
+function getCompletionActionType(task: Memo): CompletionActionType {
+  if (task.type === "期限付き") {
+    // Check if has recurrence (event-linked)
+    if (task.eventLink) {
+      return "advance"; // Move to next occurrence
+    }
+    return "delete"; // No recurrence = remove task
+  }
+
+  if (task.type === "ルーティン") {
+    return "increment"; // Increment completionsThisPeriod
+  }
+
+  // バックログ
+  return "delete";
+}
 
 // ============================================================================
 // DB Sync Helpers
@@ -101,6 +128,7 @@ function jsonToMemo(json: {
       logged?: boolean;
     }>;
     lastCompletedDay: string | null;
+    previousLastCompletedDay?: string | null;
   };
   eventLink?: {
     type: "calendar" | "timetable";
@@ -171,6 +199,9 @@ function jsonToMemo(json: {
           deadlineDay: json.deadline ? new Date(json.deadline) : new Date(),
           lastCompletedDay: json.deadlineState.lastCompletedDay
             ? new Date(json.deadlineState.lastCompletedDay)
+            : null,
+          previousLastCompletedDay: json.deadlineState.previousLastCompletedDay
+            ? new Date(json.deadlineState.previousLastCompletedDay)
             : null,
           actualDurationPoints: [],
           expectedDurationPoints: [],
@@ -621,6 +652,7 @@ class TaskState {
                 logged?: boolean;
               }[];
               lastCompletedDay: string | null;
+              previousLastCompletedDay: string | null;
             };
           } = {};
 
@@ -666,6 +698,9 @@ class TaskState {
               acceptedSlots: reset.deadlineState.acceptedSlots,
               lastCompletedDay:
                 reset.deadlineState.lastCompletedDay?.toISOString() ?? null,
+              previousLastCompletedDay:
+                reset.deadlineState.previousLastCompletedDay?.toISOString() ??
+                null,
             };
           }
 
@@ -880,35 +915,49 @@ class TaskState {
   }
 
   /**
-   * Mark a task as complete
+   * Mark a task as complete with type-specific behavior
+   *
+   * - Deadline (no recurrence): Delete task
+   * - Deadline (event-linked): Advance to next occurrence
+   * - Routine: Increment completionsThisPeriod by 1
+   * - Backlog: Delete task
+   *
+   * All actions log to TaskCompletionLog for the Report feature.
    */
   async markComplete(taskId: string): Promise<Memo | null> {
     try {
       const existing = this.items.find((t) => t.id === taskId);
       if (!existing) return null;
 
-      const newStatus = {
-        ...existing.status,
-        completionState: "completed" as const,
-      };
+      const actionType = getCompletionActionType(existing);
 
-      // Update in DB
-      const updatedJson = await updateMemo({
-        id: taskId,
-        updates: {
-          status: {
-            timeSpentMinutes: newStatus.timeSpentMinutes,
-            completionState: newStatus.completionState,
-            completionsThisPeriod: newStatus.completionsThisPeriod,
-            periodStartDate: newStatus.periodStartDate?.toISOString(),
-          },
-        },
-      });
-      let updatedMemo = jsonToMemo(updatedJson);
+      // 1. Log completion first (before any destructive action)
+      try {
+        await logTaskCompletion({
+          memoId: taskId,
+          timeSpentMinutes: existing.sessionDuration ?? 30, // Default session duration
+          actionType,
+        });
+      } catch (logErr) {
+        console.warn(
+          "[TaskState.markComplete] Failed to log completion:",
+          logErr,
+        );
+        // Continue with the action even if logging fails
+      }
 
-      // For event-linked deadline tasks, advance to next occurrence (rolling deadline)
-      if (existing.eventLink && existing.type === "期限付き") {
-        try {
+      // 2. Perform type-specific action
+      switch (actionType) {
+        case "delete": {
+          // Deadline (no recurrence) or Backlog: Delete the task
+          await deleteMemo({ id: taskId });
+          this.items = this.items.filter((t) => t.id !== taskId);
+          toastState.show("タスクを完了しました", "success");
+          return null; // Task is gone
+        }
+
+        case "advance": {
+          // Event-linked deadline: Advance to next occurrence
           const advanceResult = await advanceEventLinkedDeadline({
             memoId: taskId,
           });
@@ -916,36 +965,73 @@ class TaskState {
             // Refetch the updated memo to get new deadline
             await this.load();
             const refreshed = this.items.find((t) => t.id === taskId);
-            if (refreshed) {
-              updatedMemo = refreshed;
-              toastState.show(
-                "タスクを完了し、次の締切に更新しました",
-                "success",
-              );
-              return updatedMemo;
-            }
+            toastState.show(
+              "タスクを完了し、次の締切に更新しました",
+              "success",
+            );
+            return refreshed ?? null;
           }
-        } catch (advanceErr) {
-          console.warn(
-            "[TaskState.markComplete] Failed to advance deadline:",
-            advanceErr,
-          );
+          // If no next occurrence, delete
+          await deleteMemo({ id: taskId });
+          this.items = this.items.filter((t) => t.id !== taskId);
+          toastState.show("タスクを完了しました（次の予定なし）", "success");
+          return null;
+        }
+
+        case "increment": {
+          // Routine: Increment completionsThisPeriod
+          const result = await logSuggestionComplete({
+            memoId: taskId,
+            durationMinutes: existing.sessionDuration ?? 30,
+          });
+
+          // Update local state
+          const index = this.items.findIndex((t) => t.id === taskId);
+          if (index !== -1) {
+            const task = this.items[index];
+            const newItems = [...this.items];
+            newItems[index] = {
+              ...task,
+              status: {
+                ...task.status,
+                timeSpentMinutes: result.timeSpentMinutes,
+                completionsThisPeriod: result.completionsThisPeriod,
+              },
+              lastActivity: result.lastActivity
+                ? new Date(result.lastActivity)
+                : task.lastActivity,
+              routineState: result.routineState
+                ? {
+                    ...task.routineState,
+                    acceptedToday: result.routineState.acceptedToday,
+                    completedToday: result.routineState.completedToday,
+                    completedCountThisPeriod:
+                      result.routineState.completedCountThisPeriod,
+                    lastCompletedDay: result.routineState.lastCompletedDay
+                      ? new Date(result.routineState.lastCompletedDay)
+                      : null,
+                    previousLastCompletedDay:
+                      task.routineState?.previousLastCompletedDay ?? null,
+                    wasCappedThisPeriod:
+                      result.routineState.wasCappedThisPeriod,
+                    periodStartDate: result.routineState.periodStartDate
+                      ? new Date(result.routineState.periodStartDate)
+                      : null,
+                    rejectedToday: task.routineState?.rejectedToday ?? false,
+                    acceptedSlot: task.routineState?.acceptedSlot ?? null,
+                  }
+                : task.routineState,
+            };
+            this.items = newItems;
+          }
+
+          toastState.show("完了を記録しました", "success");
+          return this.items.find((t) => t.id === taskId) ?? null;
         }
       }
-
-      // Update store
-      const index = this.items.findIndex((t) => t.id === taskId);
-      if (index !== -1) {
-        const newItems = [...this.items];
-        newItems[index] = updatedMemo;
-        this.items = newItems;
-      }
-
-      toastState.show("タスクを完了しました", "success");
-      return updatedMemo;
     } catch (err) {
       console.error("[TaskState.markComplete] Failed:", err);
-      toastState.show("タスクの更新に失敗しました", "error");
+      toastState.show("タスクの完了に失敗しました", "error");
       return null;
     }
   }
@@ -1253,6 +1339,17 @@ class TaskState {
               previousLastCompletedDay: null,
             },
           };
+        } else if (task.type === "期限付き" && task.deadlineState) {
+          newItems[index] = {
+            ...task,
+            deadlineState: {
+              ...task.deadlineState,
+              acceptedSlots: [],
+              // Restore lastCompletedDay from saved value (undo the acceptance)
+              lastCompletedDay: task.deadlineState.previousLastCompletedDay,
+              previousLastCompletedDay: null,
+            },
+          };
         }
 
         this.items = newItems;
@@ -1353,6 +1450,8 @@ class TaskState {
               deadlineDay:
                 task.deadlineState?.deadlineDay ?? task.deadline ?? new Date(),
               lastCompletedDay: task.deadlineState?.lastCompletedDay ?? null,
+              previousLastCompletedDay:
+                task.deadlineState?.previousLastCompletedDay ?? null,
               actualDurationPoints:
                 task.deadlineState?.actualDurationPoints ?? [],
               expectedDurationPoints:

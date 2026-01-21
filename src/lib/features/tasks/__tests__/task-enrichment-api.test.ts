@@ -11,13 +11,12 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { get } from "svelte/store";
 import {
-  taskState,
   tasks,
   taskActions,
   enrichingTaskIds,
   hasEnrichingTasks,
-} from "./taskActions.svelte.ts";
-import { taskFormState } from "./taskForm.svelte.ts";
+} from "../state/taskActions.svelte.ts";
+import { taskFormState } from "../state/taskForm.svelte.ts";
 import type { Memo } from "$lib/types.ts";
 import type { EnrichmentResult } from "$lib/features/assistant/services/suggestions/llm-enrichment.ts";
 

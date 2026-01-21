@@ -17,8 +17,8 @@ import type { Memo, Gap } from "$lib/types.ts";
 global.fetch = vi.fn();
 
 // Task stores and actions
-import { tasks, taskActions } from "./taskActions.svelte.ts";
-import { taskFormState } from "./taskForm.svelte.ts";
+import { tasks, taskActions } from "../state/taskActions.svelte.ts";
+import { taskFormState } from "../state/taskForm.svelte.ts";
 
 // Schedule state
 import { scheduleState } from "../../assistant/state/schedule.svelte.ts";

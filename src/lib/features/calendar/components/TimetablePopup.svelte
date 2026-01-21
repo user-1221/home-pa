@@ -13,7 +13,12 @@
     type TimetableConfigData,
     type TimetableExceptionRange,
   } from "../utils/timetable-utils";
-  import { invalidateTimetableCache } from "../services/timetable-events";
+  import {
+    invalidateTimetableCache,
+    isTimetableCached,
+    getCachedTimetableData,
+    type TimetableCellData,
+  } from "../services/timetable-events";
   import { unifiedGapState } from "$lib/features/assistant/state/unified-gaps.svelte";
   import { toastState } from "$lib/bootstrap/toast.svelte";
 
@@ -24,22 +29,6 @@
 
   let { isOpen, onClose }: Props = $props();
 
-  // Loading state
-  let isLoading = $state(true);
-
-  // Config state
-  let config = $state<TimetableConfigData>({
-    dayStartTime: "09:00",
-    lunchStartTime: "12:00",
-    lunchEndTime: "13:00",
-    breakDuration: 10,
-    cellDuration: 50,
-    exceptionRanges: [],
-  });
-
-  // Exception ranges state (local for editing)
-  let exceptionRanges = $state<TimetableExceptionRange[]>([]);
-
   // Cells state - Map<dayOfWeek, Map<slotIndex, cell>>
   interface CellData {
     id?: string;
@@ -49,7 +38,54 @@
     attendance: "出席する" | "出席しない";
     workAllowed: "作業可" | "作業不可";
   }
-  let cells = new SvelteMap<number, SvelteMap<number, CellData>>();
+
+  // Helper to build cells map from raw cell data
+  function buildCellsMap(
+    cellsData: TimetableCellData[] | undefined,
+  ): SvelteMap<number, SvelteMap<number, CellData>> {
+    const map = new SvelteMap<number, SvelteMap<number, CellData>>();
+    if (!cellsData) return map;
+    for (const cell of cellsData) {
+      if (!map.has(cell.dayOfWeek)) {
+        map.set(cell.dayOfWeek, new SvelteMap());
+      }
+      map.get(cell.dayOfWeek)?.set(cell.slotIndex, {
+        id: cell.id,
+        dayOfWeek: cell.dayOfWeek,
+        slotIndex: cell.slotIndex,
+        title: cell.title,
+        attendance: cell.attendance as "出席する" | "出席しない",
+        workAllowed: cell.workAllowed as "作業可" | "作業不可",
+      });
+    }
+    return map;
+  }
+
+  // Initialize from cache if available
+  const cached = getCachedTimetableData();
+
+  // Loading state - only true if no cache available
+  let isLoading = $state(!isTimetableCached());
+
+  // Config state - initialize from cache if available
+  let config = $state<TimetableConfigData>(
+    cached?.config ?? {
+      dayStartTime: "09:00",
+      lunchStartTime: "12:00",
+      lunchEndTime: "13:00",
+      breakDuration: 10,
+      cellDuration: 50,
+      exceptionRanges: [],
+    },
+  );
+
+  // Exception ranges state (local for editing) - initialize from cache
+  let exceptionRanges = $state<TimetableExceptionRange[]>(
+    cached?.config.exceptionRanges ?? [],
+  );
+
+  // Cells state - initialize from cache
+  let cells = buildCellsMap(cached?.cells);
 
   // Cell editor state
   let showCellEditor = $state(false);
@@ -89,22 +125,7 @@
         exceptionRanges = configResult.exceptionRanges ?? [];
       }
 
-      // Build cells map using SvelteMap for reactivity
-      const newCells = new SvelteMap<number, SvelteMap<number, CellData>>();
-      for (const cell of cellsResult) {
-        if (!newCells.has(cell.dayOfWeek)) {
-          newCells.set(cell.dayOfWeek, new SvelteMap());
-        }
-        newCells.get(cell.dayOfWeek)?.set(cell.slotIndex, {
-          id: cell.id,
-          dayOfWeek: cell.dayOfWeek,
-          slotIndex: cell.slotIndex,
-          title: cell.title,
-          attendance: cell.attendance as "出席する" | "出席しない",
-          workAllowed: cell.workAllowed as "作業可" | "作業不可",
-        });
-      }
-      cells = newCells;
+      cells = buildCellsMap(cellsResult);
     } catch (error) {
       console.error("Failed to load timetable data:", error);
       toastState.error("時間割データの読み込みに失敗しました");

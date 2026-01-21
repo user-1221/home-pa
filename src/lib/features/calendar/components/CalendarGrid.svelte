@@ -53,7 +53,7 @@
     class="grid min-h-0 flex-1 grid-cols-7"
     style="grid-template-rows: repeat({numWeeks}, minmax(0, 1fr));"
   >
-    {#each calendarDays as day, dayIndex (day.getTime())}
+    {#each calendarDays as day, _dayIndex (day.getTime())}
       {@const dayOfWeek = day.getDay()}
       <!-- Cell wrapper: no padding, handles borders and background -->
       <div

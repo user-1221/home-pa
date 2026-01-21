@@ -7,12 +7,10 @@ declare namespace svelteHTML {
   }
 
   // Allow slot attribute on all elements (for web components)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface HTMLAttributes<_T> {
     slot?: string;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   interface SVGAttributes<_T> {
     slot?: string;
   }

@@ -293,6 +293,7 @@ export function initializeDeadlineState(
     createdDay,
     deadlineDay,
     lastCompletedDay: null,
+    previousLastCompletedDay: null,
     actualDurationPoints: [],
     expectedDurationPoints,
     smoothedMultiplier: 1.0,

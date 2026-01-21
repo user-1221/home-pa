@@ -206,7 +206,7 @@
             bind:value={selectedOffset}
             disabled={isSubmitting}
           >
-            {#each OFFSET_OPTIONS as opt}
+            {#each OFFSET_OPTIONS as opt (opt.value)}
               <option value={opt.value}>{opt.label}</option>
             {/each}
           </select>
