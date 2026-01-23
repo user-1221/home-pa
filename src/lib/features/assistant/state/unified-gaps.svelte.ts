@@ -19,7 +19,13 @@
  *   enrichedGaps (with location labels)
  *       ↓
  *   needsRegeneration flag → schedule regeneration (when on assistant tab)
+ *
+ * @scope page
+ * @owner src/routes/assistant/+page.svelte
+ * @cleanup destroy() called in onDestroy() to clear minute interval
  */
+
+import { getContext, setContext } from "svelte";
 
 import { dataState } from "$lib/bootstrap/data.svelte.ts";
 import { settingsState } from "$lib/bootstrap/settings.svelte.ts";
@@ -43,14 +49,8 @@ import {
 } from "../services/gap-computation/gap-modifier.ts";
 
 // ============================================================================
-// REACTIVE TIME STATE
+// HELPER FUNCTIONS (module-level utilities)
 // ============================================================================
-
-/**
- * Current time in minutes since midnight
- * Updates every minute to trigger gap recalculation
- */
-let currentTimeMinutes = $state(getCurrentMinutes());
 
 /**
  * Get current minutes since midnight
@@ -80,24 +80,6 @@ function dateKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-// Update current time every minute
-if (typeof window !== "undefined") {
-  // Calculate ms until next minute boundary for precise updates
-  const now = new Date();
-  const msUntilNextMinute =
-    (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
-
-  // First update at next minute boundary
-  setTimeout(() => {
-    currentTimeMinutes = getCurrentMinutes();
-
-    // Then update every 60 seconds
-    setInterval(() => {
-      currentTimeMinutes = getCurrentMinutes();
-    }, 60_000);
-  }, msUntilNextMinute);
-}
-
 // ============================================================================
 // TIMETABLE STATE
 // ============================================================================
@@ -119,9 +101,18 @@ let isTimetableLoading = $state(false);
 let isTimetableLoaded = $state(false);
 
 /**
- * Clear the last loaded date key to force a reload
+ * Clear the last loaded date key to force a reload (internal use)
  */
 function clearTimetableDateCache(): void {
+  lastLoadedDateKey = null;
+  isTimetableLoaded = false;
+}
+
+/**
+ * Clear timetable cache.
+ * Called when assistant page mounts to ensure fresh data after navigation.
+ */
+export function clearTimetableCache(): void {
   lastLoadedDateKey = null;
   isTimetableLoaded = false;
 }
@@ -295,7 +286,27 @@ function toEnrichableEvents(events: Event[]): EnrichableEvent[] {
  * - Past time blocking
  * - Regeneration tracking
  */
-class UnifiedGapState {
+export class UnifiedGapState {
+  // ============================================================================
+  // Time State (instance-scoped)
+  // ============================================================================
+
+  /**
+   * Current time in minutes since midnight
+   * Updates every minute to trigger gap recalculation
+   */
+  private _currentTimeMinutes = $state(getCurrentMinutes());
+
+  /**
+   * Timeout ID for initial minute boundary sync
+   */
+  private initialTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Interval ID for minute updates
+   */
+  private minuteInterval: ReturnType<typeof setInterval> | null = null;
+
   // ============================================================================
   // Internal State
   // ============================================================================
@@ -333,6 +344,51 @@ class UnifiedGapState {
   private _movedBlockers = $state<TimeBlocker[]>([]);
 
   // ============================================================================
+  // Constructor & Lifecycle
+  // ============================================================================
+
+  constructor() {
+    // Start minute updates on client-side only
+    if (typeof window !== "undefined") {
+      this.startMinuteUpdates();
+    }
+  }
+
+  /**
+   * Start the minute update interval
+   */
+  private startMinuteUpdates(): void {
+    // Calculate ms until next minute boundary for precise updates
+    const now = new Date();
+    const msUntilNextMinute =
+      (60 - now.getSeconds()) * 1000 - now.getMilliseconds();
+
+    // First update at next minute boundary
+    this.initialTimeout = setTimeout(() => {
+      this._currentTimeMinutes = getCurrentMinutes();
+
+      // Then update every 60 seconds
+      this.minuteInterval = setInterval(() => {
+        this._currentTimeMinutes = getCurrentMinutes();
+      }, 60_000);
+    }, msUntilNextMinute);
+  }
+
+  /**
+   * Clean up timers. Must be called when the state is destroyed.
+   */
+  destroy(): void {
+    if (this.initialTimeout) {
+      clearTimeout(this.initialTimeout);
+      this.initialTimeout = null;
+    }
+    if (this.minuteInterval) {
+      clearInterval(this.minuteInterval);
+      this.minuteInterval = null;
+    }
+  }
+
+  // ============================================================================
   // Loading State (exposed for consumers)
   // ============================================================================
 
@@ -366,14 +422,14 @@ class UnifiedGapState {
    * Current time in minutes (reactive)
    */
   get currentTime(): number {
-    return currentTimeMinutes;
+    return this._currentTimeMinutes;
   }
 
   /**
    * Current time as HH:mm string
    */
   get currentTimeStr(): string {
-    return minutesToTime(currentTimeMinutes);
+    return minutesToTime(this._currentTimeMinutes);
   }
 
   /**
@@ -497,7 +553,7 @@ class UnifiedGapState {
     // Block past time when viewing today
     // Only block from effective start time to current time
     if (this.isTodaySelected) {
-      const currentTimeStr = minutesToTime(currentTimeMinutes);
+      const currentTimeStr = minutesToTime(this._currentTimeMinutes);
 
       // Only add blocker if current time is after effective start time
       if (currentTimeStr > effectiveStart) {
@@ -650,13 +706,74 @@ class UnifiedGapState {
 }
 
 // ============================================================================
-// EXPORTS
+// CONTEXT
+// ============================================================================
+
+const UNIFIED_GAP_STATE_KEY = Symbol("unified-gap-state");
+
+/**
+ * Set the UnifiedGapState in context.
+ * Call this in assistant/+page.svelte before child components render.
+ */
+export function setUnifiedGapState(state: UnifiedGapState): void {
+  setContext(UNIFIED_GAP_STATE_KEY, state);
+}
+
+/**
+ * Get the UnifiedGapState from context.
+ * Throws if not set - call must be within assistant page tree.
+ */
+export function getUnifiedGapState(): UnifiedGapState {
+  const state = getContext<UnifiedGapState | undefined>(UNIFIED_GAP_STATE_KEY);
+  if (!state) {
+    throw new Error(
+      "UnifiedGapState not found in context. Ensure this component is within the assistant page tree.",
+    );
+  }
+  return state;
+}
+
+// ============================================================================
+// CROSS-TREE ACCESS (for components outside assistant tree)
 // ============================================================================
 
 /**
- * Global unified gap state instance
+ * Active instance reference for cross-tree callers (e.g., TimetablePopup)
  */
-export const unifiedGapState = new UnifiedGapState();
+let activeInstance: UnifiedGapState | null = null;
 
-// Note: currentTimeMinutes is NOT exported because it's a $state that gets reassigned.
-// Access via unifiedGapState.currentTime instead.
+/**
+ * Register the active UnifiedGapState instance.
+ * Called by assistant/+page.svelte when mounting.
+ */
+export function registerUnifiedGapState(state: UnifiedGapState): void {
+  activeInstance = state;
+}
+
+/**
+ * Unregister the active UnifiedGapState instance.
+ * Called by assistant/+page.svelte when unmounting.
+ */
+export function unregisterUnifiedGapState(): void {
+  activeInstance = null;
+}
+
+/**
+ * Reload timetable events from outside the assistant tree.
+ * Used by TimetablePopup after saving timetable config.
+ *
+ * @param force - If true, ignores date cache and forces reload
+ * @returns true if reload was triggered, false if assistant page not mounted
+ */
+export function reloadTimetableEvents(force?: boolean): boolean {
+  if (activeInstance) {
+    activeInstance.loadTimetableEvents(force);
+    return true;
+  }
+  // No active instance - assistant page not mounted
+  // Timetable changes will be picked up when user navigates to assistant page
+  console.warn(
+    "[unified-gaps] reloadTimetableEvents called but assistant page not mounted. Changes will apply on next visit.",
+  );
+  return false;
+}

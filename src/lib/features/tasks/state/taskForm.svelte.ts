@@ -5,6 +5,10 @@
  * This form creates rich Memo objects with type, deadline, recurrence, etc.
  *
  * Migrated from writable stores to Svelte 5 reactive class ($state).
+ *
+ * @scope form
+ * @owner src/lib/features/tasks/components/TaskFormDialog.svelte
+ * @cleanup reset() called on form close
  */
 
 import type {

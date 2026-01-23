@@ -7,7 +7,8 @@
     scheduleState,
     type AcceptedMemoInfo,
     type PendingSuggestion,
-  } from "$lib/features/assistant/state/schedule.svelte.ts";
+    getUnifiedGapState,
+  } from "$lib/features/assistant/state";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import type { Event, Gap } from "$lib/types.ts";
   import {
@@ -15,7 +16,9 @@
     endOfDay,
     parseTimeOnDate,
   } from "$lib/utils/date-utils.ts";
-  import { unifiedGapState } from "$lib/features/assistant/state/unified-gaps.svelte.ts";
+
+  // Get page-scoped UnifiedGapState from context
+  const unifiedGapState = getUnifiedGapState();
 
   // Task list - directly from taskState (reactive)
   let taskList = $derived(taskState.items);

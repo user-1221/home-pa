@@ -6,6 +6,10 @@
  * All operations persist to database via Remote Functions.
  *
  * Migrated from writable stores to Svelte 5 reactive class ($state).
+ *
+ * @scope singleton
+ * @owner src/routes/+layout.svelte
+ * @cleanup none - State persists across navigation
  */
 
 import type {

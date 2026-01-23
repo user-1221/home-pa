@@ -60,8 +60,15 @@ export const clearAllData = () => {
 // Feature State Re-exports
 // ============================================================================
 
-// Unified Gap State - single source of truth for gaps
-export { unifiedGapState } from "../features/assistant/state/unified-gaps.svelte.ts";
+// Unified Gap State - single source of truth for gaps (page-scoped)
+export {
+  UnifiedGapState,
+  getUnifiedGapState,
+  setUnifiedGapState,
+  registerUnifiedGapState,
+  unregisterUnifiedGapState,
+  reloadTimetableEvents,
+} from "../features/assistant/state/unified-gaps.svelte.ts";
 
 // Schedule state
 export {

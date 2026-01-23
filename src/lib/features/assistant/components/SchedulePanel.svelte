@@ -6,9 +6,14 @@
    * Shows next task prominently, upcoming tasks list, and dropped warnings.
    */
 
-  import { scheduleState } from "$lib/features/assistant/state/schedule.svelte.ts";
+  import {
+    scheduleState,
+    getUnifiedGapState,
+  } from "$lib/features/assistant/state";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
-  import { unifiedGapState } from "$lib/features/assistant/state/unified-gaps.svelte.ts";
+
+  // Get page-scoped UnifiedGapState from context
+  const unifiedGapState = getUnifiedGapState();
 
   // Get memo title from memoId
   function getMemoTitle(memoId: string): string {

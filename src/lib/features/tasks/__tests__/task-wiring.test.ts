@@ -20,6 +20,7 @@ import { taskFormState } from "../state/taskForm.svelte.ts";
 
 // Schedule state
 import { scheduleState } from "../../assistant/state/schedule.svelte.ts";
+import { UnifiedGapState } from "../../assistant/state/unified-gaps.svelte.ts";
 
 // ============================================================================
 // Test Helpers
@@ -39,8 +40,13 @@ function createTestGap(start: string, end: string): Gap {
   };
 }
 
+// Create a mock UnifiedGapState for testing
+const mockUnifiedGapState = new UnifiedGapState();
+
 function clearAllStores() {
   taskState.set([]);
+  // Inject mock UnifiedGapState before clear (which calls syncBlockersToGapState)
+  scheduleState.setUnifiedGapState(mockUnifiedGapState);
   scheduleState.clear();
   // Mark sync as loaded so tests don't wait for sync timeout
   scheduleState.isSyncLoaded = true;
@@ -536,7 +542,7 @@ describe("Edge Cases - Task Form", () => {
       type: "calendar",
       calendarEventId: "event-123",
       eventTitle: "Meeting",
-      offset: "exact",
+      offset: "same_day_after",
     });
 
     expect(taskFormState.eventLink).not.toBeNull();

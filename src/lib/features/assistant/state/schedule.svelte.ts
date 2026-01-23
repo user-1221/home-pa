@@ -85,7 +85,7 @@ import type {
   PipelineSummary,
 } from "../services/suggestions/index.ts";
 import { createEngine } from "../services/suggestions/index.ts";
-import { unifiedGapState } from "./unified-gaps.svelte.ts";
+import type { UnifiedGapState } from "./unified-gaps.svelte.ts";
 import {
   timeToMinutes,
   minutesToTime,
@@ -148,8 +148,44 @@ const engine = createEngine();
 
 /**
  * Schedule state reactive class
+ *
+ * Manages the suggestion system's state and user interactions.
+ *
+ * @scope singleton
+ * @owner src/routes/+layout.svelte
+ * @cleanup Daily auto-reset via resetStoresIfNewDay()
  */
 class ScheduleState {
+  // ============================================================================
+  // Dependency Injection
+  // ============================================================================
+
+  /**
+   * Reference to UnifiedGapState (injected by assistant/+page.svelte)
+   */
+  private _unifiedGapState: UnifiedGapState | null = null;
+
+  /**
+   * Inject the UnifiedGapState dependency.
+   * Must be called by assistant/+page.svelte before any gap-related methods.
+   */
+  setUnifiedGapState(state: UnifiedGapState): void {
+    this._unifiedGapState = state;
+  }
+
+  /**
+   * Safe accessor for UnifiedGapState.
+   * Throws if not initialized - catches misconfiguration early.
+   */
+  private get unifiedGaps(): UnifiedGapState {
+    if (!this._unifiedGapState) {
+      throw new Error(
+        "UnifiedGapState not set. Call scheduleState.setUnifiedGapState() in assistant/+page.svelte.",
+      );
+    }
+    return this._unifiedGapState;
+  }
+
   // ============================================================================
   // Reactive State
   // ============================================================================
@@ -373,8 +409,15 @@ class ScheduleState {
   /**
    * Sync blocker state to unifiedGapState for availableGaps computation.
    * Call this after any change to acceptedMemos or movedSuggestions.
+   * Safe to call even if unifiedGapState not injected (no-op).
    */
   private syncBlockersToGapState(): void {
+    // Guard: skip if unifiedGapState not yet injected
+    // This allows clear() to be called safely in tests before injection
+    if (!this._unifiedGapState) {
+      return;
+    }
+
     // Convert to TimeBlocker format
     const acceptedBlockers = new Map<
       string,
@@ -396,7 +439,7 @@ class ScheduleState {
       endTime: m.endTime,
     }));
 
-    unifiedGapState.setBlockers(acceptedBlockers, movedBlockers);
+    this._unifiedGapState.setBlockers(acceptedBlockers, movedBlockers);
   }
 
   // ============================================================================
@@ -483,13 +526,13 @@ class ScheduleState {
       // Get available gaps from unified state (already has blockers subtracted)
       // If custom gaps are provided, use enrichedGaps as the base (caller handles blocker subtraction)
       const availableGaps = options?.gaps
-        ? unifiedGapState.availableGaps
-        : unifiedGapState.availableGaps;
+        ? this.unifiedGaps.availableGaps
+        : this.unifiedGaps.availableGaps;
 
       console.log("[Schedule] Generating schedule:", {
         memos: memos.length,
         filteredMemos: filteredMemos.length,
-        enrichedGaps: unifiedGapState.enrichedGaps.length,
+        enrichedGaps: this.unifiedGaps.enrichedGaps.length,
         availableGaps: availableGaps.length,
         movedSuggestions: currentMoved.length,
         acceptedMemos: accepted.size,
@@ -731,7 +774,7 @@ class ScheduleState {
   ): Promise<void> {
     const result = this.result;
     const currentMoved = this.movedSuggestions;
-    const gaps = externalGaps ?? unifiedGapState.enrichedGaps;
+    const gaps = externalGaps ?? this.unifiedGaps.enrichedGaps;
 
     // Check if this is an already moved suggestion being moved again
     const existingMoved = currentMoved.find(
@@ -864,7 +907,7 @@ class ScheduleState {
   ): Promise<void> {
     const result = this.result;
     const currentMoved = this.movedSuggestions;
-    const gaps = externalGaps ?? unifiedGapState.enrichedGaps;
+    const gaps = externalGaps ?? this.unifiedGaps.enrichedGaps;
 
     // Check if this is a moved suggestion
     const movedIdx = currentMoved.findIndex(

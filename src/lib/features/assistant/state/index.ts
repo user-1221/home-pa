@@ -7,4 +7,12 @@ export {
   type PendingSuggestion,
   type MovedSuggestion,
 } from "./schedule.svelte.ts";
-export { unifiedGapState } from "./unified-gaps.svelte.ts";
+export {
+  UnifiedGapState,
+  getUnifiedGapState,
+  setUnifiedGapState,
+  registerUnifiedGapState,
+  unregisterUnifiedGapState,
+  reloadTimetableEvents,
+  clearTimetableCache,
+} from "./unified-gaps.svelte.ts";

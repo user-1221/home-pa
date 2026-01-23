@@ -167,7 +167,7 @@
     tabindex="-1"
   >
     <div
-      class="w-full max-w-md animate-[slideUp_0.2s_ease-out] rounded-xl border border-base-300 bg-base-100 shadow-xl"
+      class="w-full max-w-md animate-[slideUp_0.2s_ease-out_forwards] rounded-xl border border-base-300 bg-base-100 shadow-xl"
       onclick={(e: MouseEvent) => e.stopPropagation()}
       onkeydown={(e: KeyboardEvent) => e.stopPropagation()}
       role="document"

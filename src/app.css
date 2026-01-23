@@ -375,7 +375,7 @@ svg circle[tabindex="0"]:focus-visible {
     max-height: 100% !important;
     margin: 0 !important;
     border-radius: 0 !important;
-    animation: slideUpFromBottom 0.3s ease-out;
+    animation: slideUpFromBottom 0.3s ease-out forwards;
     display: flex !important;
     flex-direction: column !important;
   }

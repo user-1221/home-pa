@@ -16,6 +16,12 @@ import {
   MANDATORY_THRESHOLD,
 } from "../services/suggestions/index.ts";
 import { scheduleState } from "./schedule.svelte.ts";
+import { UnifiedGapState } from "./unified-gaps.svelte.ts";
+
+// Create a mock UnifiedGapState for testing
+const mockUnifiedGapState = new UnifiedGapState();
+// Inject mock before any tests run
+scheduleState.setUnifiedGapState(mockUnifiedGapState);
 
 // ============================================================================
 // Test Fixtures

@@ -47,7 +47,8 @@
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.20.0",
     "vite": "^7.0.4",
-    "vitest": "^4.0.17"
+    "vitest": "^4.0.0",
+    "@types/bun": "latest"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

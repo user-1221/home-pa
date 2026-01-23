@@ -6,10 +6,9 @@ This application is Home-PA (Personal Assistant), SvelteKit + Svelte 5 personal 
 
 - Svelte, SvelteKit
   - Experimental Remote Functions are enabled.
-- Bun
+- Bun (runtime, package manager, test runner)
 - TailwindCSS & DaisyUI
 - Prisma
-- Vitest
 
 ## Directory Structure
 
@@ -37,7 +36,7 @@ src/lib/
 
 ```typescript
 // src/lib/features/{feature}/state/example.svelte.ts
-import { createContext } from "svelte";
+import { getContext, setContext } from "svelte";
 
 export class ExampleState {
   items = $state<Item[]>([]);
@@ -51,23 +50,57 @@ export class ExampleState {
   }
 }
 
-export const [getExample, setExample] = createContext<ExampleState>();
+const EXAMPLE_STATE_KEY = Symbol("example-state");
+
+export function setExampleState(state: ExampleState): void {
+  setContext(EXAMPLE_STATE_KEY, state);
+}
+
+export function getExampleState(): ExampleState {
+  const state = getContext<ExampleState | undefined>(EXAMPLE_STATE_KEY);
+  if (!state) {
+    throw new Error("ExampleState not found in context.");
+  }
+  return state;
+}
 ```
 
 ```svelte
 <script>
   import {
     ExampleState,
-    setExample,
+    setExampleState,
   } from "$lib/features/{feature}/state/example.svelte.ts";
 
   const exampleState = new ExampleState();
-  setExample(exampleState);
+  setExampleState(exampleState);
 
   exampleState.add(item);
 </script>
 
 <span>Current count: {exampleState.count}</span>
+```
+
+### State Scopes
+
+Every state class should declare its scope, owner, and cleanup strategy:
+
+| Scope       | Lifetime                                                           | Instantiation Location                 |
+| ----------- | ------------------------------------------------------------------ | -------------------------------------- |
+| `singleton` | App lifetime                                                       | bootstrap.ts / +layout.svelte          |
+| `layout`    | Layout component lifetime                                          | feature/+layout.svelte                 |
+| `page`      | Page component lifetime                                            | feature/+page.svelte                   |
+| `session`   | User interaction duration (has timers/intervals requiring cleanup) | Controller component, destroy() on end |
+| `form`      | Form open/close cycle (transient UI state)                         | Dialog component, reset() on close     |
+
+```typescript
+/**
+ * Manages task CRUD operations.
+ * @scope singleton
+ * @owner src/routes/+layout.svelte
+ * @cleanup none - State persists across navigation
+ */
+export class TaskState { ... }
 ```
 
 ## Notes
@@ -81,6 +114,8 @@ export const [getExample, setExample] = createContext<ExampleState>();
 bun run dev        # Dev server
 bun run build      # Build
 bun run check      # Full check (type + lint + format)
+bun run test       # Vitest（公式）
+bun run test:watch # Watch mode（Vitest）
 ```
 
 ## Preferences

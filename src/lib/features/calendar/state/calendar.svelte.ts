@@ -12,6 +12,10 @@
  * - Local caching with reactive updates
  *
  * Migrated from writable stores to Svelte 5 reactive class ($state).
+ *
+ * @scope singleton
+ * @owner src/routes/+layout.svelte
+ * @cleanup Manual clear() available, but state persists across navigation
  */
 
 import type { Event } from "../../../types.ts";

@@ -19,7 +19,7 @@
     getCachedTimetableData,
     type TimetableCellData,
   } from "../services/timetable-events";
-  import { unifiedGapState } from "$lib/features/assistant/state/unified-gaps.svelte";
+  import { reloadTimetableEvents } from "$lib/features/assistant/state";
   import { toastState } from "$lib/bootstrap/toast.svelte";
 
   interface Props {
@@ -143,7 +143,7 @@
       // Invalidate cache so timeline picks up the new config
       invalidateTimetableCache();
       // Reload timetable events for the selected date (force reload to bypass date cache)
-      await unifiedGapState.loadTimetableEvents(true);
+      await reloadTimetableEvents(true);
     } catch (error) {
       console.error("Failed to save config:", error);
       toastState.error("設定の保存に失敗しました");
@@ -243,7 +243,7 @@
       });
       // Invalidate cache so timeline picks up the new cell
       invalidateTimetableCache();
-      await unifiedGapState.loadTimetableEvents(true);
+      await reloadTimetableEvents(true);
       showCellEditor = false;
       editingCell = null;
     } catch (error) {
@@ -266,7 +266,7 @@
       cells.get(editingCell.dayOfWeek)?.delete(editingCell.slotIndex);
       // Invalidate cache so timeline picks up the deletion
       invalidateTimetableCache();
-      await unifiedGapState.loadTimetableEvents(true);
+      await reloadTimetableEvents(true);
 
       showCellEditor = false;
       editingCell = null;

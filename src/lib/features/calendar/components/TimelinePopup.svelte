@@ -250,7 +250,7 @@
   aria-label="Close timeline"
 >
   <div
-    class="border-subtle flex h-full w-full animate-[slideUpFromBottom_0.3s_ease-out] flex-col overflow-hidden rounded-none border-0 bg-base-100 shadow-xl md:h-[600px] md:max-h-[80vh] md:max-w-[600px] md:animate-none md:rounded-xl md:border"
+    class="border-subtle flex h-full w-full animate-[slideUpFromBottom_0.3s_ease-out_forwards] flex-col overflow-hidden rounded-none border-0 bg-base-100 shadow-xl md:h-[600px] md:max-h-[80vh] md:max-w-[600px] md:animate-none md:rounded-xl md:border"
     onclick={(e: MouseEvent) => e.stopPropagation()}
     onkeydown={(e: KeyboardEvent) => e.key === "Escape" && onClose()}
     role="dialog"

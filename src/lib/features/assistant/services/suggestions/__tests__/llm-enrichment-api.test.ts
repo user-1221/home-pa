@@ -14,6 +14,9 @@ import type { Memo } from "$lib/types.ts";
 // Import the mocked module to customize behavior
 import { enrichMemo as enrichMemoRemote } from "../enrich.remote.ts";
 
+// Get the mocked function for type-safe assertions
+const mockEnrichMemoRemote = vi.mocked(enrichMemoRemote);
+
 describe("enrichMemoViaAPI", () => {
   const createTestMemo = (overrides?: Partial<Memo>): Memo => ({
     id: "test-id",
@@ -42,9 +45,7 @@ describe("enrichMemoViaAPI", () => {
       totalDurationExpected: 120,
     };
 
-    (enrichMemoRemote as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      mockEnrichment,
-    );
+    mockEnrichMemoRemote.mockResolvedValueOnce(mockEnrichment);
 
     const memo = createTestMemo();
     const result = await enrichMemoViaAPI(memo);
@@ -59,7 +60,7 @@ describe("enrichMemoViaAPI", () => {
   });
 
   it("should use fallback when Remote Function returns error", async () => {
-    (enrichMemoRemote as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+    mockEnrichMemoRemote.mockRejectedValueOnce(
       new Error("Remote function error"),
     );
 
@@ -76,7 +77,8 @@ describe("enrichMemoViaAPI", () => {
   it("should pass through null when Remote Function returns null", async () => {
     // Note: The function doesn't use fallback for null responses,
     // only for errors. This allows the caller to handle null explicitly.
-    (enrichMemoRemote as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    // @ts-expect-error - Testing null response from remote function
+    mockEnrichMemoRemote.mockResolvedValueOnce(null);
 
     const memo = createTestMemo();
     const result = await enrichMemoViaAPI(memo);
@@ -86,7 +88,8 @@ describe("enrichMemoViaAPI", () => {
   });
 
   it("should use fallback when response has invalid format", async () => {
-    (enrichMemoRemote as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    // @ts-expect-error - Testing partial/invalid response from remote function
+    mockEnrichMemoRemote.mockResolvedValueOnce({
       // Missing required fields
       genre: "勉強",
     });
@@ -107,9 +110,7 @@ describe("enrichMemoViaAPI", () => {
       totalDurationExpected: 60,
     };
 
-    (enrichMemoRemote as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      mockEnrichment,
-    );
+    mockEnrichMemoRemote.mockResolvedValueOnce(mockEnrichment);
 
     const memo = createTestMemo({
       deadline: new Date("2025-12-31"),
@@ -130,9 +131,7 @@ describe("enrichMemoViaAPI", () => {
   });
 
   it("should handle empty title gracefully", async () => {
-    (enrichMemoRemote as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-      new Error("Invalid title"),
-    );
+    mockEnrichMemoRemote.mockRejectedValueOnce(new Error("Invalid title"));
 
     const memo = createTestMemo({ title: "" });
     const result = await enrichMemoViaAPI(memo);
@@ -150,9 +149,7 @@ describe("enrichMemoViaAPI", () => {
       totalDurationExpected: 60,
     };
 
-    (enrichMemoRemote as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      mockEnrichment,
-    );
+    mockEnrichMemoRemote.mockResolvedValueOnce(mockEnrichment);
 
     // Create memo with minimal required fields
     const memo: Memo = {

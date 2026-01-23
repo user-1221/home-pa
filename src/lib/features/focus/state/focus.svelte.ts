@@ -16,6 +16,10 @@
  * - User opens Pomodoro → startPomodoro() → cycles begin
  * - Planned end time reached → complete() auto-called
  * - Session completes → taskActions.logProgress() called
+ *
+ * @scope session
+ * @owner src/lib/features/focus/components/FocusPanel.svelte
+ * @cleanup destroy() stops interval, clearStorage() on session complete/cancel
  */
 
 import {
