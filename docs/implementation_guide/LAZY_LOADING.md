@@ -97,6 +97,59 @@ Skeleton for PersonalAssistantView with circular timeline placeholder.
 
 **Total deferred:** ~4200 lines from initial bundle
 
+## Animation Behavior with Lazy Loading
+
+### The Re-Animation Problem
+
+When lazy-loading animated modals (slide-up, fade-in, etc.), the component swap from skeleton to loaded content causes the **animation to replay**. This happens because the entire DOM subtree is replaced with a new element.
+
+**Important:** `animation-fill-mode: forwards` does NOT prevent this because it's a completely new DOM element, not the same element with updated content.
+
+### Solution: Use a Stable Wrapper
+
+For animated modals, use `ModalContainer` to keep the animated wrapper stable while only the content inside changes:
+
+```svelte
+<script>
+  import LazyLoad from "$lib/features/shared/components/LazyLoad.svelte";
+  import ModalContainer from "$lib/features/shared/components/ModalContainer.svelte";
+  import ModalSkeletonContent from "$lib/features/shared/components/skeletons/ModalSkeletonContent.svelte";
+
+  let formState = getFormState();
+</script>
+
+{#if formState.isOpen}
+  <ModalContainer fullscreenMobile onClose={() => formState.close()}>
+    <LazyLoad
+      loader={() => import("./MyForm.svelte")}
+      props={{ contentOnly: true }}
+    >
+      <ModalSkeletonContent rows={5} />
+    </LazyLoad>
+  </ModalContainer>
+{/if}
+```
+
+### Key Components
+
+| Component               | Purpose                                           |
+| ----------------------- | ------------------------------------------------- |
+| `ModalContainer`        | Stable animated wrapper that doesn't get replaced |
+| `ModalSkeletonContent`  | Skeleton content without modal wrapper            |
+| Form with `contentOnly` | Form renders content only, no modal wrapper       |
+
+### How It Works
+
+1. `ModalContainer` provides the modal structure with animation
+2. `LazyLoad` swaps content inside: skeleton → loaded form
+3. The animated wrapper never gets replaced, so animation runs only once
+4. Forms must support `contentOnly` prop to skip their own modal wrapper
+
+### Components Using This Pattern
+
+- `TaskForm` + `TaskView.svelte`
+- `EventForm` + `calendar/+page.svelte`
+
 ## When to Use Lazy Loading
 
 ### Good Candidates

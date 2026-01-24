@@ -33,7 +33,6 @@ import type {
   RoutineState,
   DeadlineState,
   BacklogState,
-  DurationPoint,
 } from "$lib/types.ts";
 import { isSameDay, isSameWeek, isSameMonth } from "./period-utils.ts";
 import {
@@ -53,8 +52,7 @@ export interface ScoreInput {
 export interface ScoreOutput {
   need: number; // 0.0–1.0 (≥1.0 = mandatory, <0.5 = hidden)
   importance: number; // Discrete: 0.0, 0.1, 0.2
-  duration: number; // Ideal duration (minutes)
-  minDuration: number; // Minimum acceptable duration
+  duration: number; // Duration in minutes (both ideal and minimum - no shrinking)
   isHidden: boolean; // True if need < 0.5
 }
 
@@ -72,9 +70,63 @@ export const DISPLAY_THRESHOLD = SCORING_CONFIG.displayThreshold;
 export const MANDATORY_THRESHOLD = SCORING_CONFIG.mandatoryThreshold;
 
 // Duration constants from centralized config
-const DEFAULT_MIN_DURATION = DURATION_CONFIG.minSession;
 const DEFAULT_SESSION_DURATION = DURATION_CONFIG.defaultSession;
-const MIN_DURATION_FLOOR = DURATION_CONFIG.absoluteFloor;
+
+// Weights for linear regression (actual data points count more than expected)
+const ACTUAL_WEIGHT = 2.0;
+const EXPECTED_WEIGHT = 1.0;
+
+// ============================================================================
+// LINEAR REGRESSION HELPERS
+// ============================================================================
+
+/**
+ * Calculate day index (0-based offset from createdDay)
+ */
+function getDayIndex(createdDay: Date, targetDay: Date): number {
+  const created = new Date(createdDay);
+  created.setHours(0, 0, 0, 0);
+
+  const target = new Date(targetDay);
+  target.setHours(0, 0, 0, 0);
+
+  return Math.floor((target.getTime() - created.getTime()) / MS_PER_DAY);
+}
+
+/**
+ * Weighted linear regression (重み付き最小二乗法)
+ * Returns slope and intercept for the fitted line: y = slope * x + intercept
+ *
+ * Actual data points have 2x weight vs expected values.
+ */
+function weightedLinearRegression(
+  points: Array<{ x: number; y: number; weight: number }>,
+): { slope: number; intercept: number } | null {
+  if (points.length < 2) return null;
+
+  let sumW = 0;
+  let sumWX = 0;
+  let sumWY = 0;
+  let sumWXY = 0;
+  let sumWX2 = 0;
+
+  for (const { x, y, weight } of points) {
+    sumW += weight;
+    sumWX += weight * x;
+    sumWY += weight * y;
+    sumWXY += weight * x * y;
+    sumWX2 += weight * x * x;
+  }
+
+  const denom = sumW * sumWX2 - sumWX * sumWX;
+  if (denom === 0) return null;
+
+  const slope = (sumW * sumWXY - sumWX * sumWY) / denom;
+  return {
+    slope,
+    intercept: (sumWY - slope * sumWX) / sumW,
+  };
+}
 
 // ============================================================================
 // IMPORTANCE CALCULATION (Discrete Values)
@@ -269,63 +321,97 @@ export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
 
 /**
  * Initialize deadline state if not present
+ * Creates fixed-length arrays for linear regression-based duration prediction
+ *
+ * Also handles migration from old data:
+ * - If expectedDurations is empty, recompute from createdAt/deadline/sessionDuration
+ * - If actualDurations is shorter than totalDays, extend with zeros
  */
 export function initializeDeadlineState(
   memo: Memo,
   _currentTime: Date,
 ): DeadlineState {
-  if (memo.deadlineState) {
-    return memo.deadlineState;
-  }
-
   const createdDay = new Date(memo.createdAt);
   const deadlineDay = memo.deadline ? new Date(memo.deadline) : createdDay;
-  const minDuration = memo.sessionDuration ?? DEFAULT_MIN_DURATION;
+  const baseDuration = memo.sessionDuration ?? DEFAULT_SESSION_DURATION;
 
-  // Generate expected duration curve (linear from min to 5x min)
-  const expectedDurationPoints = generateExpectedDurationCurve(
-    createdDay,
-    deadlineDay,
-    minDuration,
+  // Calculate total days (inclusive of both creation and deadline)
+  const totalDays = Math.max(
+    1,
+    Math.ceil((deadlineDay.getTime() - createdDay.getTime()) / MS_PER_DAY) + 1,
   );
+
+  // If state exists, check if arrays need to be computed/extended
+  if (memo.deadlineState) {
+    const state = memo.deadlineState;
+    let needsUpdate = false;
+
+    // Compute expectedDurations if empty (migration from old format)
+    let expectedDurations = state.expectedDurations;
+    if (!expectedDurations || expectedDurations.length === 0) {
+      expectedDurations = generateExpectedDurations(totalDays, baseDuration);
+      needsUpdate = true;
+    }
+
+    // Extend actualDurations if too short
+    let actualDurations = state.actualDurations ?? [];
+    if (actualDurations.length < totalDays) {
+      actualDurations = [
+        ...actualDurations,
+        ...new Array(totalDays - actualDurations.length).fill(0),
+      ];
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
+      return {
+        ...state,
+        createdDay,
+        deadlineDay,
+        actualDurations,
+        expectedDurations,
+        totalDays,
+      };
+    }
+
+    return state;
+  }
+
+  // Create fresh state
+  const expectedDurations = generateExpectedDurations(totalDays, baseDuration);
+  const actualDurations = new Array<number>(totalDays).fill(0);
 
   return {
     createdDay,
     deadlineDay,
     lastCompletedDay: null,
     previousLastCompletedDay: null,
-    actualDurationPoints: [],
-    expectedDurationPoints,
-    smoothedMultiplier: 1.0,
+    actualDurations,
+    expectedDurations,
+    totalDays,
     rejectedToday: false,
     acceptedSlots: [],
   };
 }
 
 /**
- * Generate expected duration curve from creation to deadline
- * Duration scales from min_duration to 5 × min_duration
+ * Generate fixed-length expected duration array
+ * Linear interpolation from baseDuration to 5 × baseDuration
  */
-function generateExpectedDurationCurve(
-  createdDay: Date,
-  deadlineDay: Date,
-  minDuration: number,
-): DurationPoint[] {
-  const points: DurationPoint[] = [];
-  const totalDays = Math.max(
-    1,
-    Math.ceil((deadlineDay.getTime() - createdDay.getTime()) / MS_PER_DAY),
-  );
+function generateExpectedDurations(
+  totalDays: number,
+  baseDuration: number,
+): number[] {
+  const durations: number[] = [];
 
-  for (let i = 0; i <= totalDays; i++) {
-    const day = new Date(createdDay.getTime() + i * MS_PER_DAY);
-    // Linear interpolation: min_duration → 5 × min_duration
-    const progress = totalDays > 0 ? i / totalDays : 1;
-    const duration = minDuration * (1 + 4 * progress);
-    points.push({ day, duration: Math.round(duration) });
+  for (let i = 0; i < totalDays; i++) {
+    // Linear interpolation: baseDuration at day 0, 5*baseDuration at last day
+    const progress = totalDays > 1 ? i / (totalDays - 1) : 1;
+    const duration = baseDuration * (1 + 4 * progress);
+    durations.push(Math.round(duration));
   }
 
-  return points;
+  return durations;
 }
 
 /**
@@ -390,48 +476,68 @@ export function calculateDeadlineNeed(memo: Memo, currentTime: Date): number {
 }
 
 /**
- * Calculate suggested duration for deadline task using adaptive model
+ * Calculate suggested duration for deadline task using weighted linear regression
  *
- * Uses smoothed duration curve with constraints:
- * - min_duration ≤ duration ≤ 5 × min_duration
- * - Smoothing factor α ≤ 0.3 to prevent instability
+ * Algorithm:
+ * 1. Merge actual and expected durations (actual if non-zero, else expected)
+ * 2. Apply weighted linear regression (actual points have 2x weight)
+ * 3. Use fitted line to get duration for today
+ * 4. Constrain to [baseDuration, 5 × baseDuration]
  */
 export function calculateDeadlineDuration(
   memo: Memo,
   currentTime: Date,
-): { duration: number; minDuration: number } {
+): number {
   const state = initializeDeadlineState(memo, currentTime);
-  const minDuration = memo.sessionDuration ?? DEFAULT_MIN_DURATION;
-  const maxDuration = minDuration * 5;
+  const baseDuration = memo.sessionDuration ?? DEFAULT_SESSION_DURATION;
+  const maxDuration = baseDuration * 5;
 
-  // Find expected duration for today
-  const today = currentTime;
-  let expectedDuration = minDuration;
+  // Calculate current day index
+  const todayIndex = getDayIndex(state.createdDay, currentTime);
 
-  for (const point of state.expectedDurationPoints) {
-    if (isSameDay(new Date(point.day), today)) {
-      expectedDuration = point.duration;
-      break;
-    }
-    // Use closest previous point
-    if (new Date(point.day) < today) {
-      expectedDuration = point.duration;
-    }
+  // If before creation, use base duration
+  if (todayIndex < 0) {
+    return baseDuration;
+  }
+  // If after deadline, use max duration
+  if (todayIndex >= state.totalDays) {
+    return maxDuration;
   }
 
-  // Apply smoothed multiplier from actual data
-  let adjustedDuration = expectedDuration * state.smoothedMultiplier;
+  // Build merged data points for regression
+  // Use actual if non-zero, otherwise expected
+  // Actual points have 2x weight
+  const points: Array<{ x: number; y: number; weight: number }> = [];
+
+  for (let i = 0; i < state.totalDays; i++) {
+    const hasActual = state.actualDurations[i] > 0;
+    points.push({
+      x: i,
+      y: hasActual ? state.actualDurations[i] : state.expectedDurations[i],
+      weight: hasActual ? ACTUAL_WEIGHT : EXPECTED_WEIGHT,
+    });
+  }
+
+  // Apply weighted linear regression
+  const regression = weightedLinearRegression(points);
+
+  let predictedDuration: number;
+
+  if (regression) {
+    // Use fitted line: y = slope * x + intercept
+    predictedDuration = regression.slope * todayIndex + regression.intercept;
+  } else {
+    // Fallback: use expected duration for today
+    predictedDuration = state.expectedDurations[todayIndex] ?? baseDuration;
+  }
 
   // Apply constraints
-  adjustedDuration = Math.max(
-    minDuration,
-    Math.min(maxDuration, adjustedDuration),
+  predictedDuration = Math.max(
+    baseDuration,
+    Math.min(maxDuration, predictedDuration),
   );
 
-  return {
-    duration: Math.round(adjustedDuration),
-    minDuration: Math.max(MIN_DURATION_FLOOR, minDuration),
-  };
+  return Math.round(predictedDuration);
 }
 
 // ============================================================================
@@ -542,28 +648,16 @@ export function clamp(value: number, min: number, max: number): number {
 
 /**
  * Select session duration for a memo
- * Returns both ideal duration and minimum acceptable duration
+ * Returns the duration in minutes (no shrinking - duration is both ideal and minimum)
  */
-export function selectDuration(
-  memo: Memo,
-  currentTime: Date,
-): { duration: number; minDuration: number } {
+export function selectDuration(memo: Memo, currentTime: Date): number {
   // Deadline tasks use adaptive duration
   if (memo.type === "期限付き") {
     return calculateDeadlineDuration(memo, currentTime);
   }
 
   // Other types use sessionDuration or defaults
-  const baseDuration = memo.sessionDuration ?? DEFAULT_SESSION_DURATION;
-  const minDuration = Math.max(
-    MIN_DURATION_FLOOR,
-    Math.min(baseDuration, DEFAULT_MIN_DURATION),
-  );
-
-  return {
-    duration: baseDuration,
-    minDuration,
-  };
+  return memo.sessionDuration ?? DEFAULT_SESSION_DURATION;
 }
 
 // ============================================================================
@@ -579,7 +673,7 @@ export function scoreMemo(input: ScoreInput): ScoreOutput {
 
   const need = calculateNeed(memo, currentTime);
   const importance = calculateImportance(memo);
-  const { duration, minDuration } = selectDuration(memo, currentTime);
+  const duration = selectDuration(memo, currentTime);
   const isHidden = need < DISPLAY_THRESHOLD;
 
   // Log scores for each task
@@ -588,7 +682,6 @@ export function scoreMemo(input: ScoreInput): ScoreOutput {
     need: need.toFixed(3),
     importance: importance.toFixed(3),
     duration: `${duration}min`,
-    minDuration: `${minDuration}min`,
     isHidden,
     threshold: DISPLAY_THRESHOLD,
   });
@@ -597,7 +690,6 @@ export function scoreMemo(input: ScoreInput): ScoreOutput {
     need,
     importance,
     duration,
-    minDuration,
     isHidden,
   };
 }
@@ -613,7 +705,6 @@ export function memoToSuggestion(memo: Memo, score: ScoreOutput): Suggestion {
     need: score.need,
     importance: score.importance,
     duration: score.duration,
-    minDuration: score.minDuration,
     locationPreference: memo.locationPreference,
     isHidden: score.isHidden,
   };
@@ -725,8 +816,13 @@ export function markRoutineCompleted(memo: Memo, currentTime: Date): Memo {
 }
 
 /**
- * Update deadline state when task session is completed
- * Records actual duration and updates smoothed curve
+ * Update deadline state when task session is recorded
+ * Sums the duration to the corresponding day's slot in actualDurations array
+ *
+ * Called on:
+ * - Suggestion acceptance (with possibly modified duration)
+ * - Timer completion (adds actual time spent)
+ * Multiple sessions on the same day are summed
  */
 export function recordDeadlineSession(
   memo: Memo,
@@ -736,37 +832,29 @@ export function recordDeadlineSession(
   if (memo.type !== "期限付き") return memo;
 
   const state = initializeDeadlineState(memo, currentTime);
-  const SMOOTHING_ALPHA = 0.3;
 
-  // Add actual duration point
-  const newActualPoints: DurationPoint[] = [
-    ...state.actualDurationPoints,
-    { day: currentTime, duration: actualDuration },
-  ];
+  // Calculate day index (0-based, from createdDay)
+  const dayIndex = getDayIndex(state.createdDay, currentTime);
 
-  // Calculate new smoothed multiplier
-  // Compare actual duration to expected duration for today
-  const minDuration = memo.sessionDuration ?? DEFAULT_MIN_DURATION;
-  let expectedToday = minDuration;
-  for (const point of state.expectedDurationPoints) {
-    if (isSameDay(new Date(point.day), currentTime)) {
-      expectedToday = point.duration;
-      break;
-    }
+  // Validate index is within bounds
+  if (dayIndex < 0 || dayIndex >= state.totalDays) {
+    console.warn(
+      `[recordDeadlineSession] Day index ${dayIndex} out of bounds for task ${memo.id}`,
+    );
+    return memo;
   }
 
-  const actualRatio = actualDuration / expectedToday;
-  const newMultiplier =
-    SMOOTHING_ALPHA * actualRatio +
-    (1 - SMOOTHING_ALPHA) * state.smoothedMultiplier;
+  // Create new array with summed duration for this day
+  const newActualDurations = [...state.actualDurations];
+  newActualDurations[dayIndex] =
+    (newActualDurations[dayIndex] ?? 0) + actualDuration;
 
   return {
     ...memo,
     deadlineState: {
       ...state,
       lastCompletedDay: currentTime,
-      actualDurationPoints: newActualPoints,
-      smoothedMultiplier: newMultiplier,
+      actualDurations: newActualDurations,
     },
     lastActivity: currentTime,
   };

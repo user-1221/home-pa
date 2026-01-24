@@ -15,7 +15,6 @@ import type { Gap, Suggestion, LocationLabel } from "$lib/types.ts";
 import { canFit } from "./location-matching.ts";
 import { MANDATORY_THRESHOLD } from "./suggestion-scoring.ts";
 import {
-  DURATION_CONFIG,
   EXTENSION_CONFIG,
   GAP_CONFIG,
 } from "$lib/features/assistant/config/suggestion-config.ts";
@@ -94,21 +93,16 @@ export interface DurationExtensionConfig {
   minExtensionMinutes: number;
   maxExtensionFactor: number;
   extensionStepMinutes: number;
-  allowShrinking: boolean;
-  minDurationMinutes: number;
 }
 
 /**
  * Default extension config from centralized source.
- * Note: allowShrinking is false to enforce the 30-min rule.
  */
 export const DEFAULT_EXTENSION_CONFIG: DurationExtensionConfig = {
   enabled: EXTENSION_CONFIG.enabled,
   minExtensionMinutes: EXTENSION_CONFIG.minExtraMinutes,
   maxExtensionFactor: EXTENSION_CONFIG.maxFactor,
   extensionStepMinutes: EXTENSION_CONFIG.stepMinutes,
-  allowShrinking: EXTENSION_CONFIG.allowShrinking,
-  minDurationMinutes: DURATION_CONFIG.absoluteFloor,
 };
 
 // ============================================================================
@@ -308,8 +302,7 @@ function* permutations<T>(arr: T[]): Generator<T[]> {
  * Returns number of suggestions that can be scheduled (higher = better)
  *
  * Since we don't have travel time, we just check if suggestions fit in order
- * Now uses flexible duration (can shrink to fit smaller gaps)
- * NEW: Uses suggestion-specific minDuration for flexible mandatory shrinking
+ * Can extend duration when gaps have extra room
  */
 function evaluateOrder(
   order: Suggestion[],
@@ -323,26 +316,20 @@ function evaluateOrder(
   let totalDuration = 0;
 
   for (const suggestion of order) {
-    // Get suggestion-specific minimum duration
-    const suggestionMinDuration =
-      suggestion.minDuration ?? extensionConfig.minDurationMinutes;
-
     // Find a gap that can fit this suggestion
     let found = false;
     for (let i = gapIndex; i < simGaps.length; i++) {
       const gap = simGaps[i];
 
-      // Calculate effective duration (can extend or shrink)
-      // NEW: Pass suggestion's minDuration for flexible mandatory shrinking
+      // Calculate effective duration (can extend, no shrinking)
       const effectiveDuration = calculateEffectiveDuration(
         suggestion.duration,
         gap.remaining,
         extensionConfig,
-        suggestionMinDuration,
       );
 
       // Skip if can't fit
-      if (effectiveDuration < suggestionMinDuration - TOLERANCE) {
+      if (effectiveDuration <= 0) {
         continue;
       }
 
@@ -455,41 +442,24 @@ function totalRemainingCapacity(gaps: MutableGap[]): number {
 
 /**
  * Calculate effective duration based on available gap time
- * Can EXTEND duration when extra time is available, or SHRINK when gap is smaller
- *
- * NEW: Supports suggestion-specific minDuration for mandatory tasks
- * Mandatory tasks can be shortened down to their minDuration to fit gaps
+ * Can EXTEND duration when extra time is available (no shrinking)
  *
  * @param baseDuration - Original/ideal session duration in minutes
  * @param availableTime - Remaining gap time in minutes
  * @param config - Extension configuration
- * @param suggestionMinDuration - Suggestion-specific minimum duration (optional)
- * @returns Effective duration (extended, base, or shrunk)
+ * @returns Effective duration (extended or base), or 0 if can't fit
  */
 export function calculateEffectiveDuration(
   baseDuration: number,
   availableTime: number,
   config: DurationExtensionConfig = DEFAULT_EXTENSION_CONFIG,
-  suggestionMinDuration?: number,
 ): number {
-  // Use suggestion-specific min duration if provided, otherwise use config
-  const effectiveMinDuration =
-    suggestionMinDuration ?? config.minDurationMinutes;
-
-  // If gap is too small even for minimum, return 0 to indicate can't fit
-  if (availableTime < effectiveMinDuration) {
+  // If gap is smaller than base duration, can't fit (no shrinking)
+  if (availableTime < baseDuration) {
     return 0;
   }
 
-  // If gap is smaller than base duration, shrink if allowed
-  if (availableTime < baseDuration) {
-    if (config.allowShrinking && availableTime >= effectiveMinDuration) {
-      return availableTime; // Use all available time
-    }
-    return 0; // Can't fit
-  }
-
-  // Gap equals base duration - use as is
+  // Gap equals or exceeds base duration - check for extension
   if (!config.enabled) return baseDuration;
 
   // Check if there's enough extra time for extension
@@ -519,8 +489,6 @@ export function calculateEffectiveDuration(
  * Assign an ordered list of suggestions to gaps
  * Returns scheduled blocks and updated gaps
  *
- * NEW: Uses suggestion's minDuration for flexible shrinking of mandatory tasks
- *
  * @param orderedSuggestions - Suggestions in order to assign
  * @param gaps - Mutable gaps to assign into
  * @param extensionConfig - Optional config for duration extension
@@ -536,24 +504,17 @@ export function assignOrderToGaps(
   for (const suggestion of orderedSuggestions) {
     let allocated = false;
 
-    // Get suggestion-specific minimum duration (new field)
-    // Falls back to config if not specified
-    const suggestionMinDuration =
-      suggestion.minDuration ?? extensionConfig.minDurationMinutes;
-
     for (const gap of gaps) {
-      // Calculate effective duration (may extend OR shrink)
-      // Returns 0 if gap is too small even for minimum duration
-      // NEW: Pass suggestion's minDuration for flexible mandatory shrinking
+      // Calculate effective duration (may extend, no shrinking)
+      // Returns 0 if gap is smaller than suggestion.duration
       const effectiveDuration = calculateEffectiveDuration(
         suggestion.duration,
         gap.remaining,
         extensionConfig,
-        suggestionMinDuration,
       );
 
       // Skip if can't fit (duration is 0)
-      if (effectiveDuration < suggestionMinDuration - TOLERANCE) {
+      if (effectiveDuration <= 0) {
         continue;
       }
 

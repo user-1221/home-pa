@@ -10,7 +10,7 @@
     initializeStores,
     loadSyncedData,
   } from "$lib/bootstrap/bootstrap.ts";
-  import { loadTasks } from "$lib/features/tasks/state/taskActions.svelte.ts";
+  import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import { calendarState } from "$lib/bootstrap/index.svelte.ts";
   import { authClient } from "$lib/auth-client";
   import { goto } from "$app/navigation";
@@ -42,7 +42,7 @@
       dataLoaded = true;
 
       // Load tasks
-      loadTasks();
+      taskState.load();
 
       // Load calendar events for current window (3 months before/after)
       const now = new Date();

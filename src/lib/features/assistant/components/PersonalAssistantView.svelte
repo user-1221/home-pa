@@ -446,11 +446,11 @@
   ) {
     const { memoId, duration } = event.detail;
 
-    // Log progress via taskActions (updates DB AND store reactively)
-    const { taskActions: actions } = await import(
+    // Log progress via taskState (updates DB AND store reactively)
+    const { taskState } = await import(
       "$lib/features/tasks/state/taskActions.svelte.ts"
     );
-    await actions.logProgress(memoId, duration);
+    await taskState.logProgress(memoId, duration);
 
     // Remove from accepted list
     await scheduleState.completeSuggestion(memoId, duration);

@@ -179,6 +179,7 @@ model Memo {
   deadlineAcceptedSlots     Json?      // Array of {startTime, endTime, duration, logged?} for accepted time slots
   deadlineLastCompletedDay  DateTime?  // Date of last acceptance (for day boundary reset)
   deadlinePreviousLastCompletedDay DateTime?  // Saved value before acceptance (for undo)
+  deadlineActualDurations   Json?      // Array of numbers: summed durations per day from createdDay
 
   // ============================================================================
   // EVENT LINK (for event-tagged deadline tasks)

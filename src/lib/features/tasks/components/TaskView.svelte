@@ -2,7 +2,8 @@
   import TaskCard from "./TaskCard.svelte";
   import Skeleton from "$lib/features/shared/components/Skeleton.svelte";
   import LazyLoad from "$lib/features/shared/components/LazyLoad.svelte";
-  import ModalSkeleton from "$lib/features/shared/components/skeletons/ModalSkeleton.svelte";
+  import ModalContainer from "$lib/features/shared/components/ModalContainer.svelte";
+  import ModalSkeletonContent from "$lib/features/shared/components/skeletons/ModalSkeletonContent.svelte";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import { taskFormState } from "$lib/features/tasks/state/taskForm.svelte.ts";
   import type { Memo, MemoType } from "$lib/types.ts";
@@ -86,6 +87,7 @@
         viewBox="0 0 24 24"
         stroke="currentColor"
         stroke-width="2"
+        aria-hidden="true"
       >
         <path
           stroke-linecap="round"
@@ -131,6 +133,7 @@
         viewBox="0 0 24 24"
         stroke="currentColor"
         stroke-width="2"
+        aria-hidden="true"
       >
         <path
           stroke-linecap="round"
@@ -158,6 +161,7 @@
               viewBox="0 0 24 24"
               stroke="currentColor"
               stroke-width="1.5"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"
@@ -196,6 +200,7 @@
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                   stroke-width="1.5"
+                  aria-hidden="true"
                 >
                   <path
                     stroke-linecap="round"
@@ -222,9 +227,14 @@
   </div>
 </div>
 
-<!-- Task Form Modal (lazy-loaded) -->
+<!-- Task Form Modal (lazy-loaded with stable container to prevent re-animation) -->
 {#if taskFormState.isOpen}
-  <LazyLoad loader={() => import("./TaskForm.svelte")}>
-    <ModalSkeleton rows={5} fullscreenMobile={true} />
-  </LazyLoad>
+  <ModalContainer fullscreenMobile onClose={() => taskFormState.closeForm()}>
+    <LazyLoad
+      loader={() => import("./TaskForm.svelte")}
+      props={{ contentOnly: true }}
+    >
+      <ModalSkeletonContent rows={5} />
+    </LazyLoad>
+  </ModalContainer>
 {/if}

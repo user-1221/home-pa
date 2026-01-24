@@ -203,27 +203,28 @@ describe("Suggestion Engine - Integration Tests", () => {
 
   it("prioritizes mandatory tasks over optional ones", async () => {
     const now = new Date();
-    // Set deadline to yesterday to ensure need = 1.0 (past deadline is mandatory)
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
+    // Set deadline to today to ensure need = 1.0 (at deadline = mandatory)
+    // Using today instead of yesterday so duration calculation stays within bounds
+    const today = new Date(now);
+    today.setHours(23, 59, 59, 999); // End of day
 
     // Create deadline memo FIRST and backlog SECOND
     // to avoid any ordering issues
     const deadlineMemo = createTestMemo({
       title: "Deadline today!",
       type: "期限付き",
-      deadline: yesterday, // Past deadline = definitely mandatory
+      deadline: today, // At deadline = mandatory
       sessionDuration: 30,
       createdAt: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), // Created a week ago
       // Initialize deadline state to avoid potential issues
       deadlineState: {
         createdDay: new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000),
-        deadlineDay: yesterday,
+        deadlineDay: today,
         lastCompletedDay: null,
         previousLastCompletedDay: null,
-        actualDurationPoints: [],
-        expectedDurationPoints: [],
-        smoothedMultiplier: 1.0,
+        actualDurations: [],
+        expectedDurations: [],
+        totalDays: 8,
         rejectedToday: false,
         acceptedSlots: [],
       },
@@ -237,8 +238,8 @@ describe("Suggestion Engine - Integration Tests", () => {
 
     const memos: Memo[] = [backlogMemo, deadlineMemo];
 
-    // Only one 30-min gap - should prioritize deadline
-    const gaps: Gap[] = [createTestGap("09:00", "09:30")];
+    // One gap large enough for either task - should prioritize deadline (need=1.0 vs 0.5)
+    const gaps: Gap[] = [createTestGap("09:00", "12:00")];
 
     const { schedule } = await engine.generateSchedule(memos, gaps, {
       skipLLMEnrichment: true,

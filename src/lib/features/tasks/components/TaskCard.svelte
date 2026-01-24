@@ -3,6 +3,7 @@
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import { createDragHandler } from "$lib/utils/pointer-drag.ts";
   import { browser } from "$app/environment";
+  import { onDestroy } from "svelte";
 
   interface Props {
     task: Memo;
@@ -22,6 +23,8 @@
   // Check if we're on mobile (screen width < 768px, which is Tailwind's md breakpoint)
   let isMobile = $state(false);
 
+  let cleanupResize: (() => void) | undefined;
+
   if (browser) {
     const checkMobile = () => {
       const wasMobile = isMobile;
@@ -33,7 +36,12 @@
     };
     checkMobile();
     window.addEventListener("resize", checkMobile);
+    cleanupResize = () => window.removeEventListener("resize", checkMobile);
   }
+
+  onDestroy(() => {
+    cleanupResize?.();
+  });
 
   // Create drag handler for swipe (only used on mobile)
   const swipeHandler = createDragHandler<{ startX: number }>(
@@ -236,6 +244,7 @@
             viewBox="0 0 24 24"
             stroke="currentColor"
             stroke-width="2.5"
+            aria-hidden="true"
           >
             <path
               stroke-linecap="round"
@@ -251,6 +260,7 @@
             viewBox="0 0 24 24"
             stroke="currentColor"
             stroke-width="2"
+            aria-hidden="true"
           >
             <path
               stroke-linecap="round"
@@ -266,6 +276,7 @@
             viewBox="0 0 24 24"
             stroke="currentColor"
             stroke-width="2.5"
+            aria-hidden="true"
           >
             <path
               stroke-linecap="round"
@@ -288,6 +299,7 @@
         viewBox="0 0 24 24"
         stroke="currentColor"
         stroke-width="2"
+        aria-hidden="true"
       >
         <path
           stroke-linecap="round"
@@ -308,6 +320,7 @@
         viewBox="0 0 24 24"
         stroke="currentColor"
         stroke-width="2"
+        aria-hidden="true"
       >
         <path
           stroke-linecap="round"
@@ -401,6 +414,7 @@
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                   stroke-width="2"
+                  aria-hidden="true"
                 >
                   <path
                     stroke-linecap="round"
@@ -584,6 +598,7 @@
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                   stroke-width="2"
+                  aria-hidden="true"
                 >
                   <path
                     stroke-linecap="round"
@@ -599,6 +614,7 @@
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                   stroke-width="2"
+                  aria-hidden="true"
                 >
                   <path
                     stroke-linecap="round"
@@ -614,6 +630,7 @@
                   viewBox="0 0 24 24"
                   stroke="currentColor"
                   stroke-width="2"
+                  aria-hidden="true"
                 >
                   <path
                     stroke-linecap="round"
@@ -636,6 +653,7 @@
               viewBox="0 0 24 24"
               stroke="currentColor"
               stroke-width="2"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"
@@ -656,6 +674,7 @@
               viewBox="0 0 24 24"
               stroke="currentColor"
               stroke-width="2"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"

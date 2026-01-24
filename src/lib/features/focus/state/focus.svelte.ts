@@ -417,7 +417,7 @@ class FocusState {
     console.log("[Focus] Completing session:", { memoId, duration });
 
     // Dynamic import to avoid circular dependencies
-    const { taskActions } = await import(
+    const { taskState } = await import(
       "$lib/features/tasks/state/taskActions.svelte.ts"
     );
     const { scheduleState } = await import(
@@ -425,7 +425,7 @@ class FocusState {
     );
 
     // Log progress to task
-    await taskActions.logProgress(memoId, duration);
+    await taskState.logProgress(memoId, duration);
 
     // Remove from accepted memos
     await scheduleState.completeSuggestion(memoId, duration);
@@ -790,7 +790,7 @@ class FocusState {
 
     try {
       // Dynamic import to avoid circular dependencies
-      const { taskActions } = await import(
+      const { taskState } = await import(
         "$lib/features/tasks/state/taskActions.svelte.ts"
       );
       const { scheduleState } = await import(
@@ -798,7 +798,7 @@ class FocusState {
       );
 
       // Log progress to task
-      await taskActions.logProgress(session.memoId, duration);
+      await taskState.logProgress(session.memoId, duration);
 
       // Remove from accepted memos
       await scheduleState.completeSuggestion(session.memoId, duration);

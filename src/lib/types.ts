@@ -114,18 +114,17 @@ export interface AcceptedSlot {
 
 /**
  * Explicit state flags for Deadline tasks
- * Includes adaptive duration curve state
+ * Uses fixed-length arrays for linear regression-based duration prediction
  */
 export interface DeadlineState {
   createdDay: Date;
   deadlineDay: Date;
   lastCompletedDay: Date | null;
   previousLastCompletedDay: Date | null; // Saved value before acceptance (for undo)
-  actualDurationPoints: DurationPoint[]; // User-completed durations
-  // Curves stored as coefficients or serializable form
-  // For simplicity: store as array of expected points
-  expectedDurationPoints: DurationPoint[]; // Baseline expected durations
-  smoothedMultiplier: number; // Smoothed adjustment factor (default 1.0)
+  // Fixed-length arrays indexed by day offset from createdDay (day 0 = createdDay)
+  actualDurations: number[]; // Summed durations per day, 0 = no session
+  expectedDurations: number[]; // Linear curve from base to 5x base
+  totalDays: number; // Array length (deadline - created + 1)
   rejectedToday: boolean; // If true, task cannot be regenerated today
   acceptedSlots: AcceptedSlot[]; // Time slots where this task is accepted
 }
@@ -221,8 +220,7 @@ export interface Suggestion {
   memoId: string; // Reference to source memo
   need: number; // 0.0–1.0 (≥1.0 = mandatory, <0.5 = hidden)
   importance: number; // Discrete: 0.0, 0.2, or 0.4
-  duration: number; // Ideal duration (minutes) - can be shortened for mandatory
-  minDuration: number; // Minimum acceptable duration (minutes)
+  duration: number; // Duration in minutes (both ideal and minimum - no shrinking)
   locationPreference: LocationPreference;
   isHidden?: boolean; // True if need < 0.5 (should not be displayed)
 }

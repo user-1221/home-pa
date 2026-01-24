@@ -18,6 +18,16 @@
     getColorValue,
   } from "../utils/calendar-helpers.ts";
 
+  interface Props {
+    /**
+     * When true, renders only the form content without the modal wrapper.
+     * Used with ModalContainer for lazy-loading to prevent re-animation.
+     */
+    contentOnly?: boolean;
+  }
+
+  let { contentOnly = false }: Props = $props();
+
   // Form state
   let eventTitle = $state("");
   let eventStartDate = $state("");
@@ -708,770 +718,771 @@
   });
 </script>
 
-<div
-  class="modal-open modal-mobile-fullscreen modal z-[2100] md:modal-middle"
-  onkeydown={(e: KeyboardEvent) => e.key === "Escape" && eventFormState.close()}
-  role="dialog"
-  aria-modal="true"
-  aria-label="Event form"
-  tabindex="-1"
->
+{#snippet formContent()}
   <div
-    class="modal-box h-full w-full max-w-[500px] overflow-hidden p-0 md:h-auto md:max-h-[90vh] md:overflow-y-auto"
-    onclick={(e: MouseEvent) => e.stopPropagation()}
-    onkeydown={(e: KeyboardEvent) =>
-      e.key === "Escape" && eventFormState.close()}
-    role="dialog"
-    aria-modal="true"
-    tabindex="-1"
+    class="border-subtle flex flex-shrink-0 items-center justify-between border-b bg-base-100 p-4"
   >
-    <div
-      class="border-subtle flex flex-shrink-0 items-center justify-between border-b bg-base-100 p-4"
+    <Button
+      variant="ghost"
+      size="sm"
+      class="btn-square md:hidden"
+      onclick={() => eventFormState.close()}
+      aria-label="Close"
     >
-      <Button
-        variant="ghost"
-        size="sm"
-        class="btn-square md:hidden"
-        onclick={() => eventFormState.close()}
-        aria-label="Close"
-      >
-        ✕
-      </Button>
-      <h3 class="flex-1 text-left text-lg font-medium md:flex-none">
-        {isEventEditing ? "予定を編集" : "新しい予定"}
-      </h3>
-      {#if isEventEditing}
-        <div class="flex gap-2 md:hidden">
-          <Button
-            variant="danger"
-            size="sm"
-            rounded="sharp"
-            onclick={handleDelete}
-            disabled={isDeleting}
-            loading={isDeleting}
-          >
-            削除
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            rounded="sharp"
-            onclick={() => eventActions.submitEventForm()}
-          >
-            更新
-          </Button>
-        </div>
-      {:else}
-        <Button
-          variant="primary"
-          size="sm"
-          rounded="sharp"
-          class="md:hidden"
-          onclick={() => eventActions.submitEventForm()}
-        >
-          作成
-        </Button>
-      {/if}
-    </div>
-
-    <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-      <!-- Title with Template Suggestions -->
-      <div class="form-control relative">
-        <input
-          id="event-title"
-          type="text"
-          class="w-full border-0 border-b border-base-300 bg-transparent px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none {eventFormState
-            .errors.title
-            ? 'border-[var(--color-error-500)]'
-            : ''}"
-          bind:value={eventTitle}
-          placeholder="タイトル"
-          onfocus={() => (titleInputFocused = true)}
-          onblur={() => {
-            // Delay hiding to allow clicking on suggestions
-            setTimeout(() => {
-              titleInputFocused = false;
-              showTemplateSuggestions = false;
-            }, 150);
-          }}
-        />
-        {#if eventFormState.errors.title}
-          <p class="label">
-            <span class="label-text-alt text-[var(--color-error-500)]"
-              >{eventFormState.errors.title}</span
-            >
-          </p>
-        {/if}
-
-        <!-- Template Suggestions Dropdown -->
-        {#if showTemplateSuggestions && templateSuggestions.length > 0}
-          <div
-            class="absolute top-full right-0 left-0 z-50 mt-1 rounded-lg border border-base-300 bg-base-100 shadow-lg"
-          >
-            {#each templateSuggestions as template (template.id)}
-              <button
-                type="button"
-                class="flex w-full items-center gap-3 px-3 py-2 text-left first:rounded-t-lg last:rounded-b-lg hover:bg-base-200"
-                onclick={() => applyTemplate(template)}
-              >
-                <!-- Color indicator -->
-                <div
-                  class="h-3 w-3 shrink-0 rounded-full"
-                  style="background-color: {template.color
-                    ? getColorValue(template.color)
-                    : 'var(--color-primary)'};"
-                ></div>
-                <div class="min-w-0 flex-1">
-                  <div class="truncate text-sm font-medium">
-                    {template.title}
-                  </div>
-                  <div
-                    class="flex items-center gap-2 text-xs text-base-content/60"
-                  >
-                    <span
-                      >{template.timeLabel === "all-day"
-                        ? "終日"
-                        : template.timeLabel === "some-timing"
-                          ? "時間未定"
-                          : (template.defaultStartTime ?? "時間あり")}</span
-                    >
-                    {#if template.address}
-                      <span>• {template.address}</span>
-                    {/if}
-                  </div>
-                </div>
-                <span class="text-xs text-base-content/40">
-                  {"⭐".repeat(
-                    template.importance === "high"
-                      ? 3
-                      : template.importance === "medium"
-                        ? 2
-                        : 1,
-                  )}
-                </span>
-              </button>
-            {/each}
-          </div>
-        {/if}
-      </div>
-
-      <!-- Time Label Switches -->
-      <div class="form-control">
-        <div class="flex gap-2">
-          <button
-            type="button"
-            class="btn flex-1 transition-all duration-200 btn-sm
-              {timeMode === 'all-day'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
-              : 'border-base-300 btn-ghost'}
-              {isGreyState ? 'opacity-60' : ''}"
-            onclick={() => {
-              isLocalEdit = true;
-              if (timeMode === "all-day") {
-                // Toggle off - return to default timed mode
-                timeMode = "default";
-                eventTimeLabel = "timed";
-                eventStartTime = "12:00";
-                eventEndTime = "13:00";
-                previousStartTime = "12:00";
-                isManualDateOrTimeEdit = true;
-                lastStoreTimeLabel = "timed";
-                eventFormState.switchTimeLabel("timed");
-              } else {
-                // Switch to all-day mode
-                timeMode = "all-day";
-                eventTimeLabel = "all-day";
-                eventStartTime = "00:00";
-                eventEndTime = "23:59";
-                previousStartTime = "00:00";
-                isManualDateOrTimeEdit = false;
-                lastStoreTimeLabel = "all-day";
-                eventFormState.switchTimeLabel("all-day");
-              }
-              isLocalEdit = false;
-            }}
-          >
-            終日
-          </button>
-          <button
-            type="button"
-            class="btn flex-1 transition-all duration-200 btn-sm
-              {timeMode === 'some-timing'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
-              : 'border-base-300 btn-ghost'}"
-            onclick={() => {
-              isLocalEdit = true;
-              if (timeMode === "some-timing") {
-                // Toggle off - return to default timed mode
-                timeMode = "default";
-                eventTimeLabel = "timed";
-                eventStartTime = "12:00";
-                eventEndTime = "13:00";
-                previousStartTime = "12:00";
-                isManualDateOrTimeEdit = true;
-                lastStoreTimeLabel = "timed";
-                eventFormState.switchTimeLabel("timed");
-              } else {
-                // Switch to some-timing mode - keep existing dates, just grey them out
-                timeMode = "some-timing";
-                eventTimeLabel = "some-timing";
-                // Don't modify dates or times - keep them as-is (displayed greyed)
-                isManualDateOrTimeEdit = false;
-                lastStoreTimeLabel = "some-timing";
-                eventFormState.switchTimeLabel("some-timing");
-              }
-              isLocalEdit = false;
-            }}
-          >
-            どこかのタイミングで
-          </button>
-        </div>
-      </div>
-
-      <!-- Date Settings -->
-      <div class="form-control">
-        <div class="flex items-center justify-between gap-2">
-          <label class="label flex-shrink-0" for="event-start-date-btn">
-            <span class="label-text text-sm text-[var(--color-text-secondary)]"
-              >開始</span
-            >
-          </label>
-          <div class="flex flex-shrink-0 items-center gap-2">
-            <DatePicker
-              id="event-start-date"
-              bind:value={eventStartDate}
-              active={activeDatePicker === "start"}
-              disabled={eventTimeLabel === "some-timing"}
-              onclick={() =>
-                (activeDatePicker =
-                  activeDatePicker === "start" ? null : "start")}
-              class="w-auto"
-            />
-            <input
-              id="event-start-time"
-              type="time"
-              class="input-bordered input w-auto min-w-[120px] {eventFormState
-                .errors.start
-                ? 'input-error'
-                : ''} {eventTimeLabel === 'some-timing'
-                ? 'cursor-not-allowed opacity-50'
-                : ''}"
-              value={eventStartTime}
-              disabled={eventTimeLabel === "some-timing"}
-              onfocus={() =>
-                eventTimeLabel === "all-day" && switchToTimedMode()}
-              oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
-                if (eventTimeLabel === "all-day") {
-                  switchToTimedMode();
-                }
-                handleStartTimeChange(e.currentTarget.value);
-              }}
-            />
-          </div>
-        </div>
-        {#if eventFormState.errors.start}
-          <p class="label">
-            <span class="label-text-alt text-[var(--color-error-500)]"
-              >{eventFormState.errors.start}</span
-            >
-          </p>
-        {/if}
-
-        <!-- Start Date Calendar Picker -->
-        {#if activeDatePicker === "start"}
-          <div
-            id="shared-calendar-section"
-            bind:this={startDateCalendarRef}
-            class="mt-3 flex justify-center"
-          >
-            <div class="rounded-box border border-base-300 bg-base-200 p-3">
-              <div
-                class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
-              >
-                {activePickerLabel()}を選択
-              </div>
-              <calendar-date
-                class="cally bg-base-200"
-                value={eventStartDate}
-                use:calendarChangeAction
-              >
-                <svg
-                  aria-label="Previous"
-                  class="size-4 fill-current"
-                  slot="previous"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
-                </svg>
-                <svg
-                  aria-label="Next"
-                  class="size-4 fill-current"
-                  slot="next"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
-                </svg>
-                <calendar-month></calendar-month>
-              </calendar-date>
-            </div>
-          </div>
-        {/if}
-      </div>
-
-      <!-- Time Settings -->
-      <div class="form-control">
-        <div class="flex items-center justify-between gap-2">
-          <label class="label flex-shrink-0" for="event-end-date-btn">
-            <span class="label-text text-sm text-[var(--color-text-secondary)]"
-              >終了</span
-            >
-          </label>
-          <div class="flex flex-shrink-0 items-center gap-2">
-            <DatePicker
-              id="event-end-date"
-              bind:value={eventEndDate}
-              active={activeDatePicker === "end"}
-              disabled={eventTimeLabel === "some-timing"}
-              onclick={() =>
-                (activeDatePicker = activeDatePicker === "end" ? null : "end")}
-              class="w-auto"
-            />
-            <input
-              id="event-end-time"
-              type="time"
-              class="input-bordered input w-auto min-w-[120px] {eventFormState
-                .errors.end
-                ? 'input-error'
-                : ''} {eventTimeLabel === 'some-timing'
-                ? 'cursor-not-allowed opacity-50'
-                : ''}"
-              bind:value={eventEndTime}
-              disabled={eventTimeLabel === "some-timing"}
-              onfocus={() =>
-                eventTimeLabel === "all-day" && switchToTimedMode()}
-              oninput={() =>
-                eventTimeLabel === "all-day" && switchToTimedMode()}
-            />
-          </div>
-        </div>
-        {#if eventFormState.errors.end}
-          <p class="label">
-            <span class="label-text-alt text-[var(--color-error-500)]"
-              >{eventFormState.errors.end}</span
-            >
-          </p>
-        {/if}
-
-        <!-- End Date Calendar Picker -->
-        {#if activeDatePicker === "end"}
-          <div
-            id="shared-calendar-section"
-            bind:this={endDateCalendarRef}
-            class="mt-3 flex justify-center"
-          >
-            <div class="rounded-box border border-base-300 bg-base-200 p-3">
-              <div
-                class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
-              >
-                {activePickerLabel()}を選択
-              </div>
-              <calendar-date
-                class="cally bg-base-200"
-                value={eventEndDate}
-                use:calendarChangeAction
-              >
-                <svg
-                  aria-label="Previous"
-                  class="size-4 fill-current"
-                  slot="previous"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
-                </svg>
-                <svg
-                  aria-label="Next"
-                  class="size-4 fill-current"
-                  slot="next"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
-                </svg>
-                <calendar-month></calendar-month>
-              </calendar-date>
-            </div>
-          </div>
-        {/if}
-      </div>
-
-      <!-- Recurrence Toggle -->
-      <div class="form-control py-2">
-        <label class="label cursor-pointer justify-start gap-2">
-          <input
-            type="checkbox"
-            class="toggle toggle-primary"
-            bind:checked={isRecurring}
-          />
-          <span class="label-text text-sm text-base-content">繰り返し設定</span>
-        </label>
-      </div>
-
-      {#if isRecurring}
-        <div
-          bind:this={recurrenceSectionRef}
-          class="card flex flex-col gap-4 p-4"
-        >
-          <div class="form-control">
-            <div class="flex flex-nowrap items-center gap-2">
-              <span
-                class="label-text text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
-                >繰り返し</span
-              >
-              <input
-                id="recurrence-interval-input"
-                type="number"
-                min="1"
-                class="input-bordered input w-[60px] text-center text-sm"
-                bind:value={recurrenceInterval}
-                placeholder="1"
-              />
-              <select
-                class="select-bordered select text-sm"
-                bind:value={recurrenceFrequency}
-              >
-                <option value="DAILY">日</option>
-                <option value="WEEKLY">週</option>
-                <option value="MONTHLY">月</option>
-                <option value="YEARLY">年</option>
-              </select>
-              <span
-                class="text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
-                >ごと</span
-              >
-            </div>
-          </div>
-
-          {#if recurrenceFrequency === "WEEKLY"}
-            <div class="form-control">
-              <div class="flex flex-nowrap items-center gap-2">
-                <span
-                  class="label-text text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
-                  >曜日</span
-                >
-                <div
-                  class="flex flex-wrap gap-1"
-                  role="group"
-                  aria-label="曜日"
-                >
-                  {#each ["日", "月", "火", "水", "木", "金", "土"] as day, i (i)}
-                    <label
-                      class="btn btn-sm {weeklyDays[i]
-                        ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
-                        : 'border-base-300 btn-ghost'} cursor-pointer transition-all duration-200"
-                    >
-                      <input
-                        type="checkbox"
-                        class="hidden"
-                        bind:checked={weeklyDays[i]}
-                      />
-                      {day}
-                    </label>
-                  {/each}
-                </div>
-              </div>
-            </div>
-          {/if}
-
-          {#if recurrenceFrequency === "MONTHLY"}
-            {@const startDate = new Date(
-              eventStartDate + "T" + (eventStartTime || "00:00"),
-            )}
-            {@const dayOfMonth = startDate.getDate()}
-            {@const weekdays = ["日", "月", "火", "水", "木", "金", "土"]}
-            {@const weekday = weekdays[startDate.getDay()]}
-            {@const weekOfMonth = Math.ceil(dayOfMonth / 7)}
-            {@const positionText =
-              weekOfMonth > 4 ? "最終" : `第${weekOfMonth}`}
-
-            <fieldset class="form-control">
-              <legend class="label">
-                <span
-                  class="label-text text-sm text-[var(--color-text-secondary)]"
-                  >繰り返しパターン</span
-                >
-              </legend>
-              <div class="flex flex-col gap-2">
-                <label
-                  class="card cursor-pointer border border-base-300 p-2 transition-all duration-200 {monthlyType ===
-                  'dayOfMonth'
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-                    : ''}"
-                >
-                  <div class="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="monthly-type"
-                      value="dayOfMonth"
-                      class="radio radio-sm radio-primary"
-                      bind:group={monthlyType}
-                    />
-                    <span class="text-sm">毎月{dayOfMonth}日</span>
-                  </div>
-                </label>
-                <label
-                  class="card cursor-pointer border border-base-300 p-2 transition-all duration-200 {monthlyType ===
-                  'nthWeekday'
-                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-                    : ''}"
-                >
-                  <div class="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="monthly-type"
-                      value="nthWeekday"
-                      class="radio radio-sm radio-primary"
-                      bind:group={monthlyType}
-                    />
-                    <span class="text-sm">毎月{positionText}{weekday}曜日</span>
-                  </div>
-                </label>
-              </div>
-            </fieldset>
-          {/if}
-
-          {#if recurrenceFrequency === "YEARLY"}
-            {@const startDate = new Date(
-              eventStartDate + "T" + (eventStartTime || "00:00"),
-            )}
-            {@const month = startDate.getMonth() + 1}
-            {@const day = startDate.getDate()}
-
-            <div class="form-control">
-              <span class="label">
-                <span
-                  class="label-text text-sm text-[var(--color-text-secondary)]"
-                  >繰り返しパターン</span
-                >
-              </span>
-              <div class="rounded bg-base-100 p-2 text-sm text-base-content">
-                毎年{month}月{day}日
-              </div>
-            </div>
-          {/if}
-
-          <div class="form-control">
-            <div class="flex flex-nowrap items-center gap-2">
-              <span
-                class="label-text text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
-                >終了日（空欄 = ずっと繰り返す）</span
-              >
-              <div class="min-w-0 flex-1">
-                <DatePicker
-                  id="recurrence-end"
-                  bind:value={recurrenceEndDate}
-                  active={activeDatePicker === "recurrence-end"}
-                  onclick={() =>
-                    (activeDatePicker =
-                      activeDatePicker === "recurrence-end"
-                        ? null
-                        : "recurrence-end")}
-                />
-              </div>
-            </div>
-
-            {#if activeDatePicker === "recurrence-end"}
-              <div
-                id="shared-calendar-section"
-                bind:this={recurrenceEndCalendarRef}
-                class="mt-3 flex justify-center"
-              >
-                <div
-                  class="rounded-box border border-base-content/10 bg-base-300 p-3"
-                >
-                  <div
-                    class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
-                  >
-                    {activePickerLabel()}を選択
-                  </div>
-                  <calendar-date
-                    class="cally bg-base-300"
-                    value={recurrenceEndDate}
-                    use:calendarChangeAction
-                  >
-                    <svg
-                      aria-label="Previous"
-                      class="size-4 fill-current"
-                      slot="previous"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
-                    </svg>
-                    <svg
-                      aria-label="Next"
-                      class="size-4 fill-current"
-                      slot="next"
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
-                    </svg>
-                    <calendar-month></calendar-month>
-                  </calendar-date>
-                </div>
-              </div>
-            {/if}
-          </div>
-        </div>
-      {/if}
-
-      <!-- Address -->
-      <div class="form-control">
-        <label class="label" for="event-address">
-          <span class="label-text text-sm text-[var(--color-text-secondary)]"
-            >場所</span
-          >
-        </label>
-        <input
-          id="event-address"
-          type="text"
-          class="input-bordered input w-full"
-          bind:value={eventAddress}
-          placeholder="場所を入力（任意）"
-        />
-      </div>
-
-      <!-- Importance -->
-      <div class="form-control">
-        <span class="label">
-          <span class="label-text text-sm text-[var(--color-text-secondary)]"
-            >重要度</span
-          >
-        </span>
-        <div class="flex gap-2" role="group" aria-label="重要度">
-          <button
-            type="button"
-            class="btn flex-1 btn-sm {eventImportance === 'low'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-              : 'border-base-300 btn-ghost'} border transition-all duration-200"
-            onclick={() => (eventImportance = "low")}
-          >
-            ⭐
-          </button>
-          <button
-            type="button"
-            class="btn flex-1 btn-sm {eventImportance === 'medium'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-              : 'border-base-300 btn-ghost'} border transition-all duration-200"
-            onclick={() => (eventImportance = "medium")}
-          >
-            ⭐⭐
-          </button>
-          <button
-            type="button"
-            class="btn flex-1 btn-sm {eventImportance === 'high'
-              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-              : 'border-base-300 btn-ghost'} border transition-all duration-200"
-            onclick={() => (eventImportance = "high")}
-          >
-            ⭐⭐⭐
-          </button>
-        </div>
-      </div>
-
-      <!-- Color Picker -->
-      <div class="form-control">
-        <span class="label">
-          <span class="label-text text-sm text-[var(--color-text-secondary)]"
-            >カラー</span
-          >
-        </span>
-        <div class="flex flex-wrap gap-2" role="group" aria-label="カラー選択">
-          <!-- Auto color option -->
-          <button
-            type="button"
-            class="flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 {eventColor ===
-            undefined
-              ? 'ring-opacity-30 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
-              : 'border-base-300 hover:border-base-content/30'}"
-            onclick={() => (eventColor = undefined)}
-            title="自動"
-          >
-            <span class="text-xs text-base-content/60">自動</span>
-          </button>
-          {#each EVENT_COLOR_PALETTE as color (color.key)}
-            <button
-              type="button"
-              class="h-8 w-8 rounded-full border-2 transition-all duration-200 {eventColor ===
-              color.key
-                ? 'ring-opacity-30 scale-110 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
-                : 'border-transparent hover:scale-105'}"
-              style="background-color: {color.value};"
-              onclick={() => (eventColor = color.key)}
-              title={color.label}
-              aria-label={color.label}
-            ></button>
-          {/each}
-        </div>
-      </div>
-    </div>
-
-    <!-- General Error Display -->
-    {#if eventFormState.errors.general}
-      <div
-        class="mx-4 flex items-center gap-2 rounded-lg border border-[var(--color-error-500)] bg-[var(--color-error-100)] p-3"
-      >
-        <div class="text-xl">⚠️</div>
-        <div class="text-sm text-[var(--color-error-500)]">
-          {eventFormState.errors.general}
-        </div>
-      </div>
-    {/if}
-
-    <!-- Desktop Action Bar -->
-    <div
-      class="hidden flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 md:flex"
-    >
-      {#if isEventEditing}
+      ✕
+    </Button>
+    <h3 class="flex-1 text-left text-lg font-medium md:flex-none">
+      {isEventEditing ? "予定を編集" : "新しい予定"}
+    </h3>
+    {#if isEventEditing}
+      <div class="flex gap-2 md:hidden">
         <Button
           variant="danger"
+          size="sm"
           rounded="sharp"
-          class="mr-auto"
           onclick={handleDelete}
           disabled={isDeleting}
           loading={isDeleting}
         >
-          {isDeleting ? "削除中..." : "削除"}
-        </Button>
-        <Button variant="ghost" onclick={() => eventActions.cancelEventForm()}>
-          キャンセル
+          削除
         </Button>
         <Button
           variant="primary"
+          size="sm"
           rounded="sharp"
           onclick={() => eventActions.submitEventForm()}
         >
           更新
         </Button>
-      {:else}
-        <Button variant="ghost" onclick={() => eventActions.cancelEventForm()}>
-          キャンセル
-        </Button>
-        <Button
-          variant="primary"
-          rounded="sharp"
-          onclick={() => eventActions.submitEventForm()}
+      </div>
+    {:else}
+      <Button
+        variant="primary"
+        size="sm"
+        rounded="sharp"
+        class="md:hidden"
+        onclick={() => eventActions.submitEventForm()}
+      >
+        作成
+      </Button>
+    {/if}
+  </div>
+
+  <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+    <!-- Title with Template Suggestions -->
+    <div class="form-control relative">
+      <input
+        id="event-title"
+        type="text"
+        class="w-full border-0 border-b border-base-300 bg-transparent px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none {eventFormState
+          .errors.title
+          ? 'border-[var(--color-error-500)]'
+          : ''}"
+        bind:value={eventTitle}
+        placeholder="タイトル"
+        onfocus={() => (titleInputFocused = true)}
+        onblur={() => {
+          // Delay hiding to allow clicking on suggestions
+          setTimeout(() => {
+            titleInputFocused = false;
+            showTemplateSuggestions = false;
+          }, 150);
+        }}
+      />
+      {#if eventFormState.errors.title}
+        <p class="label">
+          <span class="label-text-alt text-[var(--color-error-500)]"
+            >{eventFormState.errors.title}</span
+          >
+        </p>
+      {/if}
+
+      <!-- Template Suggestions Dropdown -->
+      {#if showTemplateSuggestions && templateSuggestions.length > 0}
+        <div
+          class="absolute top-full right-0 left-0 z-50 mt-1 rounded-lg border border-base-300 bg-base-100 shadow-lg"
         >
-          作成
-        </Button>
+          {#each templateSuggestions as template (template.id)}
+            <button
+              type="button"
+              class="flex w-full items-center gap-3 px-3 py-2 text-left first:rounded-t-lg last:rounded-b-lg hover:bg-base-200"
+              onclick={() => applyTemplate(template)}
+            >
+              <!-- Color indicator -->
+              <div
+                class="h-3 w-3 shrink-0 rounded-full"
+                style="background-color: {template.color
+                  ? getColorValue(template.color)
+                  : 'var(--color-primary)'};"
+              ></div>
+              <div class="min-w-0 flex-1">
+                <div class="truncate text-sm font-medium">
+                  {template.title}
+                </div>
+                <div
+                  class="flex items-center gap-2 text-xs text-base-content/60"
+                >
+                  <span
+                    >{template.timeLabel === "all-day"
+                      ? "終日"
+                      : template.timeLabel === "some-timing"
+                        ? "時間未定"
+                        : (template.defaultStartTime ?? "時間あり")}</span
+                  >
+                  {#if template.address}
+                    <span>• {template.address}</span>
+                  {/if}
+                </div>
+              </div>
+              <span class="text-xs text-base-content/40">
+                {"⭐".repeat(
+                  template.importance === "high"
+                    ? 3
+                    : template.importance === "medium"
+                      ? 2
+                      : 1,
+                )}
+              </span>
+            </button>
+          {/each}
+        </div>
       {/if}
     </div>
+
+    <!-- Time Label Switches -->
+    <div class="form-control">
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="btn flex-1 transition-all duration-200 btn-sm
+              {timeMode === 'all-day'
+            ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
+            : 'border-base-300 btn-ghost'}
+              {isGreyState ? 'opacity-60' : ''}"
+          onclick={() => {
+            isLocalEdit = true;
+            if (timeMode === "all-day") {
+              // Toggle off - return to default timed mode
+              timeMode = "default";
+              eventTimeLabel = "timed";
+              eventStartTime = "12:00";
+              eventEndTime = "13:00";
+              previousStartTime = "12:00";
+              isManualDateOrTimeEdit = true;
+              lastStoreTimeLabel = "timed";
+              eventFormState.switchTimeLabel("timed");
+            } else {
+              // Switch to all-day mode
+              timeMode = "all-day";
+              eventTimeLabel = "all-day";
+              eventStartTime = "00:00";
+              eventEndTime = "23:59";
+              previousStartTime = "00:00";
+              isManualDateOrTimeEdit = false;
+              lastStoreTimeLabel = "all-day";
+              eventFormState.switchTimeLabel("all-day");
+            }
+            isLocalEdit = false;
+          }}
+        >
+          終日
+        </button>
+        <button
+          type="button"
+          class="btn flex-1 transition-all duration-200 btn-sm
+              {timeMode === 'some-timing'
+            ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
+            : 'border-base-300 btn-ghost'}"
+          onclick={() => {
+            isLocalEdit = true;
+            if (timeMode === "some-timing") {
+              // Toggle off - return to default timed mode
+              timeMode = "default";
+              eventTimeLabel = "timed";
+              eventStartTime = "12:00";
+              eventEndTime = "13:00";
+              previousStartTime = "12:00";
+              isManualDateOrTimeEdit = true;
+              lastStoreTimeLabel = "timed";
+              eventFormState.switchTimeLabel("timed");
+            } else {
+              // Switch to some-timing mode - keep existing dates, just grey them out
+              timeMode = "some-timing";
+              eventTimeLabel = "some-timing";
+              // Don't modify dates or times - keep them as-is (displayed greyed)
+              isManualDateOrTimeEdit = false;
+              lastStoreTimeLabel = "some-timing";
+              eventFormState.switchTimeLabel("some-timing");
+            }
+            isLocalEdit = false;
+          }}
+        >
+          どこかのタイミングで
+        </button>
+      </div>
+    </div>
+
+    <!-- Date Settings -->
+    <div class="form-control">
+      <div class="flex items-center justify-between gap-2">
+        <label class="label flex-shrink-0" for="event-start-date-btn">
+          <span class="label-text text-sm text-[var(--color-text-secondary)]"
+            >開始</span
+          >
+        </label>
+        <div class="flex flex-shrink-0 items-center gap-2">
+          <DatePicker
+            id="event-start-date"
+            bind:value={eventStartDate}
+            active={activeDatePicker === "start"}
+            disabled={eventTimeLabel === "some-timing"}
+            onclick={() =>
+              (activeDatePicker =
+                activeDatePicker === "start" ? null : "start")}
+            class="w-auto"
+          />
+          <input
+            id="event-start-time"
+            type="time"
+            class="input-bordered input w-auto min-w-[120px] {eventFormState
+              .errors.start
+              ? 'input-error'
+              : ''} {eventTimeLabel === 'some-timing'
+              ? 'cursor-not-allowed opacity-50'
+              : ''}"
+            value={eventStartTime}
+            disabled={eventTimeLabel === "some-timing"}
+            onfocus={() => eventTimeLabel === "all-day" && switchToTimedMode()}
+            oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+              if (eventTimeLabel === "all-day") {
+                switchToTimedMode();
+              }
+              handleStartTimeChange(e.currentTarget.value);
+            }}
+          />
+        </div>
+      </div>
+      {#if eventFormState.errors.start}
+        <p class="label">
+          <span class="label-text-alt text-[var(--color-error-500)]"
+            >{eventFormState.errors.start}</span
+          >
+        </p>
+      {/if}
+
+      <!-- Start Date Calendar Picker -->
+      {#if activeDatePicker === "start"}
+        <div
+          id="shared-calendar-section"
+          bind:this={startDateCalendarRef}
+          class="mt-3 flex justify-center"
+        >
+          <div class="rounded-box border border-base-300 bg-base-200 p-3">
+            <div
+              class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
+            >
+              {activePickerLabel()}を選択
+            </div>
+            <calendar-date
+              class="cally bg-base-200"
+              value={eventStartDate}
+              use:calendarChangeAction
+            >
+              <svg
+                aria-label="Previous"
+                class="size-4 fill-current"
+                slot="previous"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+              >
+                <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+              </svg>
+              <svg
+                aria-label="Next"
+                class="size-4 fill-current"
+                slot="next"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+              >
+                <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
+              </svg>
+              <calendar-month></calendar-month>
+            </calendar-date>
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Time Settings -->
+    <div class="form-control">
+      <div class="flex items-center justify-between gap-2">
+        <label class="label flex-shrink-0" for="event-end-date-btn">
+          <span class="label-text text-sm text-[var(--color-text-secondary)]"
+            >終了</span
+          >
+        </label>
+        <div class="flex flex-shrink-0 items-center gap-2">
+          <DatePicker
+            id="event-end-date"
+            bind:value={eventEndDate}
+            active={activeDatePicker === "end"}
+            disabled={eventTimeLabel === "some-timing"}
+            onclick={() =>
+              (activeDatePicker = activeDatePicker === "end" ? null : "end")}
+            class="w-auto"
+          />
+          <input
+            id="event-end-time"
+            type="time"
+            class="input-bordered input w-auto min-w-[120px] {eventFormState
+              .errors.end
+              ? 'input-error'
+              : ''} {eventTimeLabel === 'some-timing'
+              ? 'cursor-not-allowed opacity-50'
+              : ''}"
+            bind:value={eventEndTime}
+            disabled={eventTimeLabel === "some-timing"}
+            onfocus={() => eventTimeLabel === "all-day" && switchToTimedMode()}
+            oninput={() => eventTimeLabel === "all-day" && switchToTimedMode()}
+          />
+        </div>
+      </div>
+      {#if eventFormState.errors.end}
+        <p class="label">
+          <span class="label-text-alt text-[var(--color-error-500)]"
+            >{eventFormState.errors.end}</span
+          >
+        </p>
+      {/if}
+
+      <!-- End Date Calendar Picker -->
+      {#if activeDatePicker === "end"}
+        <div
+          id="shared-calendar-section"
+          bind:this={endDateCalendarRef}
+          class="mt-3 flex justify-center"
+        >
+          <div class="rounded-box border border-base-300 bg-base-200 p-3">
+            <div
+              class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
+            >
+              {activePickerLabel()}を選択
+            </div>
+            <calendar-date
+              class="cally bg-base-200"
+              value={eventEndDate}
+              use:calendarChangeAction
+            >
+              <svg
+                aria-label="Previous"
+                class="size-4 fill-current"
+                slot="previous"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+              >
+                <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+              </svg>
+              <svg
+                aria-label="Next"
+                class="size-4 fill-current"
+                slot="next"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+              >
+                <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
+              </svg>
+              <calendar-month></calendar-month>
+            </calendar-date>
+          </div>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Recurrence Toggle -->
+    <div class="form-control py-2">
+      <label class="label cursor-pointer justify-start gap-2">
+        <input
+          type="checkbox"
+          class="toggle toggle-primary"
+          bind:checked={isRecurring}
+        />
+        <span class="label-text text-sm text-base-content">繰り返し設定</span>
+      </label>
+    </div>
+
+    {#if isRecurring}
+      <div
+        bind:this={recurrenceSectionRef}
+        class="card flex flex-col gap-4 p-4"
+      >
+        <div class="form-control">
+          <div class="flex flex-nowrap items-center gap-2">
+            <span
+              class="label-text text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
+              >繰り返し</span
+            >
+            <input
+              id="recurrence-interval-input"
+              type="number"
+              min="1"
+              class="input-bordered input w-[60px] text-center text-sm"
+              bind:value={recurrenceInterval}
+              placeholder="1"
+            />
+            <select
+              class="select-bordered select text-sm"
+              bind:value={recurrenceFrequency}
+            >
+              <option value="DAILY">日</option>
+              <option value="WEEKLY">週</option>
+              <option value="MONTHLY">月</option>
+              <option value="YEARLY">年</option>
+            </select>
+            <span
+              class="text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
+              >ごと</span
+            >
+          </div>
+        </div>
+
+        {#if recurrenceFrequency === "WEEKLY"}
+          <div class="form-control">
+            <div class="flex flex-nowrap items-center gap-2">
+              <span
+                class="label-text text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
+                >曜日</span
+              >
+              <div class="flex flex-wrap gap-1" role="group" aria-label="曜日">
+                {#each ["日", "月", "火", "水", "木", "金", "土"] as day, i (i)}
+                  <label
+                    class="btn btn-sm {weeklyDays[i]
+                      ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
+                      : 'border-base-300 btn-ghost'} cursor-pointer transition-all duration-200"
+                  >
+                    <input
+                      type="checkbox"
+                      class="hidden"
+                      bind:checked={weeklyDays[i]}
+                    />
+                    {day}
+                  </label>
+                {/each}
+              </div>
+            </div>
+          </div>
+        {/if}
+
+        {#if recurrenceFrequency === "MONTHLY"}
+          {@const startDate = new Date(
+            eventStartDate + "T" + (eventStartTime || "00:00"),
+          )}
+          {@const dayOfMonth = startDate.getDate()}
+          {@const weekdays = ["日", "月", "火", "水", "木", "金", "土"]}
+          {@const weekday = weekdays[startDate.getDay()]}
+          {@const weekOfMonth = Math.ceil(dayOfMonth / 7)}
+          {@const positionText = weekOfMonth > 4 ? "最終" : `第${weekOfMonth}`}
+
+          <fieldset class="form-control">
+            <legend class="label">
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
+                >繰り返しパターン</span
+              >
+            </legend>
+            <div class="flex flex-col gap-2">
+              <label
+                class="card cursor-pointer border border-base-300 p-2 transition-all duration-200 {monthlyType ===
+                'dayOfMonth'
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+                  : ''}"
+              >
+                <div class="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="monthly-type"
+                    value="dayOfMonth"
+                    class="radio radio-sm radio-primary"
+                    bind:group={monthlyType}
+                  />
+                  <span class="text-sm">毎月{dayOfMonth}日</span>
+                </div>
+              </label>
+              <label
+                class="card cursor-pointer border border-base-300 p-2 transition-all duration-200 {monthlyType ===
+                'nthWeekday'
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+                  : ''}"
+              >
+                <div class="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="monthly-type"
+                    value="nthWeekday"
+                    class="radio radio-sm radio-primary"
+                    bind:group={monthlyType}
+                  />
+                  <span class="text-sm">毎月{positionText}{weekday}曜日</span>
+                </div>
+              </label>
+            </div>
+          </fieldset>
+        {/if}
+
+        {#if recurrenceFrequency === "YEARLY"}
+          {@const startDate = new Date(
+            eventStartDate + "T" + (eventStartTime || "00:00"),
+          )}
+          {@const month = startDate.getMonth() + 1}
+          {@const day = startDate.getDate()}
+
+          <div class="form-control">
+            <span class="label">
+              <span
+                class="label-text text-sm text-[var(--color-text-secondary)]"
+                >繰り返しパターン</span
+              >
+            </span>
+            <div class="rounded bg-base-100 p-2 text-sm text-base-content">
+              毎年{month}月{day}日
+            </div>
+          </div>
+        {/if}
+
+        <div class="form-control">
+          <div class="flex flex-nowrap items-center gap-2">
+            <span
+              class="label-text text-xs whitespace-nowrap text-[var(--color-text-secondary)]"
+              >終了日（空欄 = ずっと繰り返す）</span
+            >
+            <div class="min-w-0 flex-1">
+              <DatePicker
+                id="recurrence-end"
+                bind:value={recurrenceEndDate}
+                active={activeDatePicker === "recurrence-end"}
+                onclick={() =>
+                  (activeDatePicker =
+                    activeDatePicker === "recurrence-end"
+                      ? null
+                      : "recurrence-end")}
+              />
+            </div>
+          </div>
+
+          {#if activeDatePicker === "recurrence-end"}
+            <div
+              id="shared-calendar-section"
+              bind:this={recurrenceEndCalendarRef}
+              class="mt-3 flex justify-center"
+            >
+              <div
+                class="rounded-box border border-base-content/10 bg-base-300 p-3"
+              >
+                <div
+                  class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
+                >
+                  {activePickerLabel()}を選択
+                </div>
+                <calendar-date
+                  class="cally bg-base-300"
+                  value={recurrenceEndDate}
+                  use:calendarChangeAction
+                >
+                  <svg
+                    aria-label="Previous"
+                    class="size-4 fill-current"
+                    slot="previous"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+                  </svg>
+                  <svg
+                    aria-label="Next"
+                    class="size-4 fill-current"
+                    slot="next"
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
+                  </svg>
+                  <calendar-month></calendar-month>
+                </calendar-date>
+              </div>
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
+
+    <!-- Address -->
+    <div class="form-control">
+      <label class="label" for="event-address">
+        <span class="label-text text-sm text-[var(--color-text-secondary)]"
+          >場所</span
+        >
+      </label>
+      <input
+        id="event-address"
+        type="text"
+        class="input-bordered input w-full"
+        bind:value={eventAddress}
+        placeholder="場所を入力（任意）"
+      />
+    </div>
+
+    <!-- Importance -->
+    <div class="form-control">
+      <span class="label">
+        <span class="label-text text-sm text-[var(--color-text-secondary)]"
+          >重要度</span
+        >
+      </span>
+      <div class="flex gap-2" role="group" aria-label="重要度">
+        <button
+          type="button"
+          class="btn flex-1 btn-sm {eventImportance === 'low'
+            ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+            : 'border-base-300 btn-ghost'} border transition-all duration-200"
+          onclick={() => (eventImportance = "low")}
+        >
+          ⭐
+        </button>
+        <button
+          type="button"
+          class="btn flex-1 btn-sm {eventImportance === 'medium'
+            ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+            : 'border-base-300 btn-ghost'} border transition-all duration-200"
+          onclick={() => (eventImportance = "medium")}
+        >
+          ⭐⭐
+        </button>
+        <button
+          type="button"
+          class="btn flex-1 btn-sm {eventImportance === 'high'
+            ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+            : 'border-base-300 btn-ghost'} border transition-all duration-200"
+          onclick={() => (eventImportance = "high")}
+        >
+          ⭐⭐⭐
+        </button>
+      </div>
+    </div>
+
+    <!-- Color Picker -->
+    <div class="form-control">
+      <span class="label">
+        <span class="label-text text-sm text-[var(--color-text-secondary)]"
+          >カラー</span
+        >
+      </span>
+      <div class="flex flex-wrap gap-2" role="group" aria-label="カラー選択">
+        <!-- Auto color option -->
+        <button
+          type="button"
+          class="flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 {eventColor ===
+          undefined
+            ? 'ring-opacity-30 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
+            : 'border-base-300 hover:border-base-content/30'}"
+          onclick={() => (eventColor = undefined)}
+          title="自動"
+        >
+          <span class="text-xs text-base-content/60">自動</span>
+        </button>
+        {#each EVENT_COLOR_PALETTE as color (color.key)}
+          <button
+            type="button"
+            class="h-8 w-8 rounded-full border-2 transition-all duration-200 {eventColor ===
+            color.key
+              ? 'ring-opacity-30 scale-110 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
+              : 'border-transparent hover:scale-105'}"
+            style="background-color: {color.value};"
+            onclick={() => (eventColor = color.key)}
+            title={color.label}
+            aria-label={color.label}
+          ></button>
+        {/each}
+      </div>
+    </div>
   </div>
-  <div class="modal-backdrop bg-base-content/40 backdrop-blur-sm"></div>
-</div>
+
+  <!-- General Error Display -->
+  {#if eventFormState.errors.general}
+    <div
+      class="mx-4 flex items-center gap-2 rounded-lg border border-[var(--color-error-500)] bg-[var(--color-error-100)] p-3"
+    >
+      <div class="text-xl">⚠️</div>
+      <div class="text-sm text-[var(--color-error-500)]">
+        {eventFormState.errors.general}
+      </div>
+    </div>
+  {/if}
+
+  <!-- Desktop Action Bar -->
+  <div
+    class="hidden flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 md:flex"
+  >
+    {#if isEventEditing}
+      <Button
+        variant="danger"
+        rounded="sharp"
+        class="mr-auto"
+        onclick={handleDelete}
+        disabled={isDeleting}
+        loading={isDeleting}
+      >
+        {isDeleting ? "削除中..." : "削除"}
+      </Button>
+      <Button variant="ghost" onclick={() => eventActions.cancelEventForm()}>
+        キャンセル
+      </Button>
+      <Button
+        variant="primary"
+        rounded="sharp"
+        onclick={() => eventActions.submitEventForm()}
+      >
+        更新
+      </Button>
+    {:else}
+      <Button variant="ghost" onclick={() => eventActions.cancelEventForm()}>
+        キャンセル
+      </Button>
+      <Button
+        variant="primary"
+        rounded="sharp"
+        onclick={() => eventActions.submitEventForm()}
+      >
+        作成
+      </Button>
+    {/if}
+  </div>
+{/snippet}
+
+{#if contentOnly}
+  {@render formContent()}
+{:else}
+  <div
+    class="modal-open modal-mobile-fullscreen modal z-[2100] md:modal-middle"
+    onkeydown={(e: KeyboardEvent) =>
+      e.key === "Escape" && eventFormState.close()}
+    role="dialog"
+    aria-modal="true"
+    aria-label="Event form"
+    tabindex="-1"
+  >
+    <div
+      class="modal-box h-full w-full max-w-[500px] overflow-hidden p-0 md:h-auto md:max-h-[90vh] md:overflow-y-auto"
+      onclick={(e: MouseEvent) => e.stopPropagation()}
+      onkeydown={(e: KeyboardEvent) =>
+        e.key === "Escape" && eventFormState.close()}
+      role="dialog"
+      aria-modal="true"
+      tabindex="-1"
+    >
+      {@render formContent()}
+    </div>
+    <div class="modal-backdrop bg-base-content/40 backdrop-blur-sm"></div>
+  </div>
+{/if}
 
 <!-- Recurring Delete Dialog -->
 {#if showRecurringDeleteDialog}

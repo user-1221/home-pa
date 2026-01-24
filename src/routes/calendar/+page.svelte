@@ -1,17 +1,22 @@
 <script lang="ts">
   import CalendarTabView from "$lib/features/calendar/components/CalendarTabView.svelte";
   import LazyLoad from "$lib/features/shared/components/LazyLoad.svelte";
-  import ModalSkeleton from "$lib/features/shared/components/skeletons/ModalSkeleton.svelte";
+  import ModalContainer from "$lib/features/shared/components/ModalContainer.svelte";
+  import ModalSkeletonContent from "$lib/features/shared/components/skeletons/ModalSkeletonContent.svelte";
   import { eventFormState } from "$lib/bootstrap/compat.svelte.ts";
 </script>
 
 <CalendarTabView />
 
-<!-- Event Form Modal (lazy-loaded) - rendered at page level to avoid stacking context issues -->
+<!-- Event Form Modal (lazy-loaded with stable container to prevent re-animation) -->
 {#if eventFormState.isOpen}
-  <LazyLoad
-    loader={() => import("$lib/features/calendar/components/EventForm.svelte")}
-  >
-    <ModalSkeleton rows={6} fullscreenMobile={true} />
-  </LazyLoad>
+  <ModalContainer fullscreenMobile onClose={() => eventFormState.close()}>
+    <LazyLoad
+      loader={() =>
+        import("$lib/features/calendar/components/EventForm.svelte")}
+      props={{ contentOnly: true }}
+    >
+      <ModalSkeletonContent rows={6} />
+    </LazyLoad>
+  </ModalContainer>
 {/if}

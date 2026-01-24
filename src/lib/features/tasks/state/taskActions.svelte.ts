@@ -133,6 +133,9 @@ function jsonToMemo(json: {
     }>;
     lastCompletedDay: string | null;
     previousLastCompletedDay?: string | null;
+    actualDurations?: number[];
+    expectedDurations?: number[];
+    totalDays?: number;
   };
   eventLink?: {
     type: "calendar" | "timetable";
@@ -207,9 +210,9 @@ function jsonToMemo(json: {
           previousLastCompletedDay: json.deadlineState.previousLastCompletedDay
             ? new Date(json.deadlineState.previousLastCompletedDay)
             : null,
-          actualDurationPoints: [],
-          expectedDurationPoints: [],
-          smoothedMultiplier: 1.0,
+          actualDurations: json.deadlineState.actualDurations ?? [],
+          expectedDurations: json.deadlineState.expectedDurations ?? [],
+          totalDays: json.deadlineState.totalDays ?? 1,
           rejectedToday: json.deadlineState.rejectedToday ?? false,
           acceptedSlots: json.deadlineState.acceptedSlots ?? [],
         }
@@ -1456,11 +1459,12 @@ class TaskState {
               lastCompletedDay: task.deadlineState?.lastCompletedDay ?? null,
               previousLastCompletedDay:
                 task.deadlineState?.previousLastCompletedDay ?? null,
-              actualDurationPoints:
-                task.deadlineState?.actualDurationPoints ?? [],
-              expectedDurationPoints:
-                task.deadlineState?.expectedDurationPoints ?? [],
-              smoothedMultiplier: task.deadlineState?.smoothedMultiplier ?? 1.0,
+              actualDurations:
+                result.actualDurations ??
+                task.deadlineState?.actualDurations ??
+                [],
+              expectedDurations: task.deadlineState?.expectedDurations ?? [],
+              totalDays: task.deadlineState?.totalDays ?? 1,
               rejectedToday: task.deadlineState?.rejectedToday ?? false,
               acceptedSlots: result.acceptedSlots,
             },
@@ -1748,119 +1752,3 @@ class TaskState {
  * Global task state instance
  */
 export const taskState = new TaskState();
-
-// ============================================================================
-// Backwards Compatibility Exports
-// ============================================================================
-
-// Note: writable/derived imports removed - backwards compat exports use manual subscribe pattern
-
-/**
- * @deprecated Use taskState.items directly instead
- * Legacy store for backwards compatibility
- */
-export const tasks = {
-  subscribe(callback: (value: Memo[]) => void) {
-    callback(taskState.items);
-    return () => {};
-  },
-  set(value: Memo[]) {
-    taskState.items = value;
-  },
-  update(fn: (value: Memo[]) => Memo[]) {
-    taskState.items = fn(taskState.items);
-  },
-};
-
-/**
- * @deprecated Use taskState.isLoading directly instead
- */
-export const isTasksLoading = {
-  subscribe(callback: (value: boolean) => void) {
-    callback(taskState.isLoading);
-    return () => {};
-  },
-  set(value: boolean) {
-    taskState.isLoading = value;
-  },
-};
-
-/**
- * @deprecated Use taskState.enrichingIds directly instead
- */
-export const enrichingTaskIds = {
-  subscribe(callback: (value: Set<string>) => void) {
-    callback(taskState.enrichingIds);
-    return () => {};
-  },
-  update(fn: (value: Set<string>) => Set<string>) {
-    taskState.enrichingIds = fn(taskState.enrichingIds);
-  },
-};
-
-/**
- * @deprecated Use taskState.hasEnriching directly instead
- */
-export const hasEnrichingTasks = {
-  subscribe(callback: (value: boolean) => void) {
-    callback(taskState.hasEnriching);
-    return () => {};
-  },
-};
-
-/**
- * @deprecated Use taskState.load() instead
- */
-export async function loadTasks(): Promise<void> {
-  return taskState.load();
-}
-
-/**
- * @deprecated Use taskState.isEnriching() instead
- */
-export function isTaskEnriching(taskId: string): boolean {
-  return taskState.isEnriching(taskId);
-}
-
-/**
- * @deprecated Use taskState methods directly instead
- * Legacy actions object for backwards compatibility
- */
-export const taskActions = {
-  create: () => taskState.create(),
-  update: () => taskState.update(),
-  delete: (taskId: string) => taskState.delete(taskId),
-  markComplete: (taskId: string) => taskState.markComplete(taskId),
-  getActive: () => taskState.getActive(),
-  getAll: () => taskState.getAll(),
-  submit: () => taskState.submit(),
-  edit: (task: Memo) => taskState.edit(task),
-  startCreate: () => taskState.startCreate(),
-  cancel: () => taskState.cancel(),
-  logProgress: (memoId: string, durationMinutes: number) =>
-    taskState.logProgress(memoId, durationMinutes),
-  markAccepted: (
-    memoId: string,
-    slot?: { startTime: string; endTime: string; duration: number },
-  ) => taskState.markAccepted(memoId, slot),
-  resetAccepted: (memoId: string) => taskState.resetAccepted(memoId),
-  markRejected: (memoId: string) => taskState.markRejected(memoId),
-  addAcceptedSlot: (
-    memoId: string,
-    slot: { startTime: string; endTime: string; duration: number },
-  ) => taskState.addAcceptedSlot(memoId, slot),
-  removeAcceptedSlot: (memoId: string, startTime: string) =>
-    taskState.removeAcceptedSlot(memoId, startTime),
-  updateAcceptedSlotDuration: (
-    memoId: string,
-    startTime: string,
-    newDuration: number,
-    newEndTime: string,
-  ) =>
-    taskState.updateAcceptedSlotDuration(
-      memoId,
-      startTime,
-      newDuration,
-      newEndTime,
-    ),
-};

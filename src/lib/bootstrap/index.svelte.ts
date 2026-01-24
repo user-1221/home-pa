@@ -86,17 +86,7 @@ export {
 } from "../features/focus/state/index.ts";
 
 // Task state
-export {
-  taskState,
-  // Legacy exports for backwards compatibility
-  taskActions,
-  tasks,
-  isTasksLoading,
-  enrichingTaskIds,
-  hasEnrichingTasks,
-  loadTasks,
-  isTaskEnriching,
-} from "../features/tasks/state/taskActions.svelte.ts";
+export { taskState } from "../features/tasks/state/taskActions.svelte.ts";
 
 // Task form
 export {

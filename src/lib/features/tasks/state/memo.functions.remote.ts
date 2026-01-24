@@ -73,6 +73,9 @@ const DeadlineStateSchema = v.optional(
     acceptedSlots: v.array(AcceptedSlotSchema),
     lastCompletedDay: v.nullable(v.string()),
     previousLastCompletedDay: v.nullable(v.string()),
+    actualDurations: v.optional(v.array(v.number())),
+    expectedDurations: v.optional(v.array(v.number())),
+    totalDays: v.optional(v.number()),
   }),
 );
 
@@ -244,6 +247,8 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
                 memo.deadlineLastCompletedDay?.toISOString() ?? null,
               previousLastCompletedDay:
                 memo.deadlinePreviousLastCompletedDay?.toISOString() ?? null,
+              actualDurations:
+                (memo.deadlineActualDurations as number[]) ?? undefined,
             }
           : undefined,
       // Event link (for event-tagged deadline tasks)
@@ -771,6 +776,46 @@ export const logSuggestionComplete = command(
             index === 0 ? { ...slot, logged: true } : slot,
           );
         }
+
+        // Add timer duration to actualDurations for linear regression
+        const createdDay = new Date(existing.createdAt);
+        createdDay.setHours(0, 0, 0, 0);
+        const today = new Date(now);
+        today.setHours(0, 0, 0, 0);
+        const dayIndex = Math.floor(
+          (today.getTime() - createdDay.getTime()) / (24 * 60 * 60 * 1000),
+        );
+
+        // Calculate total days for array size
+        const deadlineDay = existing.deadline
+          ? new Date(existing.deadline)
+          : createdDay;
+        deadlineDay.setHours(0, 0, 0, 0);
+        const totalDays = Math.max(
+          1,
+          Math.ceil(
+            (deadlineDay.getTime() - createdDay.getTime()) /
+              (24 * 60 * 60 * 1000),
+          ) + 1,
+        );
+
+        // Get or initialize actualDurations array
+        let actualDurations =
+          (existing.deadlineActualDurations as number[]) ?? [];
+        if (actualDurations.length < totalDays) {
+          actualDurations = [
+            ...actualDurations,
+            ...new Array(totalDays - actualDurations.length).fill(0),
+          ];
+        }
+
+        // Sum duration to today's index (if within bounds)
+        if (dayIndex >= 0 && dayIndex < totalDays) {
+          actualDurations[dayIndex] =
+            (actualDurations[dayIndex] ?? 0) + input.durationMinutes;
+        }
+
+        updateData.deadlineActualDurations = actualDurations;
       }
 
       // Update memo with progress
@@ -1068,6 +1113,7 @@ export const markMemoRejected = command(
 /**
  * Add an accepted time slot to a deadline task
  * This is called when a deadline suggestion is accepted with time slot info.
+ * Also records the duration in actualDurations array for linear regression.
  */
 export const addDeadlineAcceptedSlot = command(
   v.object({
@@ -1107,26 +1153,69 @@ export const addDeadlineAcceptedSlot = command(
       // Save previous lastCompletedDay only when adding first slot (for undo)
       const isFirstSlot = currentSlots.length === 0;
 
+      // Update actualDurations array for linear regression
+      const now = new Date();
+      const createdDay = new Date(existing.createdAt);
+      createdDay.setHours(0, 0, 0, 0);
+      const today = new Date(now);
+      today.setHours(0, 0, 0, 0);
+      const dayIndex = Math.floor(
+        (today.getTime() - createdDay.getTime()) / (24 * 60 * 60 * 1000),
+      );
+
+      // Calculate total days for array size
+      const deadlineDay = existing.deadline
+        ? new Date(existing.deadline)
+        : createdDay;
+      deadlineDay.setHours(0, 0, 0, 0);
+      const totalDays = Math.max(
+        1,
+        Math.ceil(
+          (deadlineDay.getTime() - createdDay.getTime()) /
+            (24 * 60 * 60 * 1000),
+        ) + 1,
+      );
+
+      // Get or initialize actualDurations array
+      let actualDurations =
+        (existing.deadlineActualDurations as number[]) ?? [];
+      if (actualDurations.length < totalDays) {
+        // Extend array with zeros if needed
+        actualDurations = [
+          ...actualDurations,
+          ...new Array(totalDays - actualDurations.length).fill(0),
+        ];
+      }
+
+      // Sum duration to today's index (if within bounds)
+      if (dayIndex >= 0 && dayIndex < totalDays) {
+        actualDurations[dayIndex] =
+          (actualDurations[dayIndex] ?? 0) + input.slot.duration;
+      }
+
       await prisma.memo.update({
         where: { id: input.memoId },
         data: {
           deadlineAcceptedSlots: newSlots,
-          deadlineLastCompletedDay: new Date(),
+          deadlineActualDurations: actualDurations,
+          deadlineLastCompletedDay: now,
           ...(isFirstSlot && {
             deadlinePreviousLastCompletedDay: existing.deadlineLastCompletedDay,
           }),
-          lastActivity: new Date(),
+          lastActivity: now,
         },
       });
 
       console.log(
         `[addDeadlineAcceptedSlot] Added slot to memo ${input.memoId}:`,
         input.slot,
+        `actualDurations[${dayIndex}] = ${actualDurations[dayIndex]}`,
       );
 
       return {
         id: input.memoId,
         acceptedSlots: newSlots,
+        actualDurations,
       };
     } catch (err) {
       console.error("[addDeadlineAcceptedSlot] Error:", err);

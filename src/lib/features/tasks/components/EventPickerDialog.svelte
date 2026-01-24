@@ -167,6 +167,7 @@
             viewBox="0 0 24 24"
             stroke="currentColor"
             stroke-width="2"
+            aria-hidden="true"
           >
             <path
               stroke-linecap="round"
@@ -178,8 +179,10 @@
       </div>
 
       <!-- Tabs -->
-      <div class="flex border-b border-base-300">
+      <div class="flex border-b border-base-300" role="tablist">
         <button
+          role="tab"
+          aria-selected={activeTab === "calendar"}
           class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors
             {activeTab === 'calendar'
             ? 'border-b-2 border-[var(--color-primary)] text-[var(--color-primary)]'
@@ -189,6 +192,8 @@
           カレンダー
         </button>
         <button
+          role="tab"
+          aria-selected={activeTab === "timetable"}
           class="flex-1 px-4 py-2.5 text-sm font-medium transition-colors
             {activeTab === 'timetable'
             ? 'border-b-2 border-[var(--color-primary)] text-[var(--color-primary)]'
@@ -203,8 +208,14 @@
       <div class="min-h-0 flex-1 overflow-y-auto">
         {#if activeTab === "calendar"}
           {#if isLoadingCalendar}
-            <div class="flex items-center justify-center p-8">
-              <span class="loading loading-md loading-spinner"></span>
+            <div
+              class="flex items-center justify-center p-8"
+              aria-live="polite"
+            >
+              <span
+                class="loading loading-md loading-spinner"
+                aria-label="読み込み中"
+              ></span>
             </div>
           {:else if calendarEvents.length === 0}
             <div class="p-8 text-center text-sm text-base-content/60">
@@ -239,6 +250,7 @@
                     viewBox="0 0 24 24"
                     stroke="currentColor"
                     stroke-width="2"
+                    aria-hidden="true"
                   >
                     <path
                       stroke-linecap="round"
@@ -251,8 +263,11 @@
             </div>
           {/if}
         {:else if isLoadingTimetable}
-          <div class="flex items-center justify-center p-8">
-            <span class="loading loading-md loading-spinner"></span>
+          <div class="flex items-center justify-center p-8" aria-live="polite">
+            <span
+              class="loading loading-md loading-spinner"
+              aria-label="読み込み中"
+            ></span>
           </div>
         {:else if timetableItems.length === 0}
           <div class="p-8 text-center text-sm text-base-content/60">

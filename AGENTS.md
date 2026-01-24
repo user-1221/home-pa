@@ -175,6 +175,7 @@ Use dynamic imports for circular dependency prevention.
 
 - Read `docs/` for application design and documentation.
 - **UI work**: Always refer to `docs/skills/designer.md` for design guidelines.
+- **After substantial UI changes**: Run `/web-design-guidelines` to review against best practices.
 
 ## TypeScript Debugger
 

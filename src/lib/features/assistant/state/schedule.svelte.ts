@@ -628,7 +628,7 @@ class ScheduleState {
     // IMPORTANT: Mark the source memo as accepted
     // This updates routineState.acceptedToday = true (or backlogState)
     // causing the scoring function to return a low score for this memo
-    const { taskActions, taskState } = await import(
+    const { taskState } = await import(
       "$lib/features/tasks/state/taskActions.svelte.ts"
     );
 
@@ -637,14 +637,14 @@ class ScheduleState {
 
     if (memo?.type === "期限付き") {
       // For deadline tasks, add the accepted slot
-      await taskActions.addAcceptedSlot(block.memoId, {
+      await taskState.addAcceptedSlot(block.memoId, {
         startTime: block.startTime,
         endTime: block.endTime,
         duration: block.duration,
       });
     } else {
       // For routine/backlog tasks, mark as accepted with slot info for persistence
-      await taskActions.markAccepted(block.memoId, {
+      await taskState.markAccepted(block.memoId, {
         startTime: block.startTime,
         endTime: block.endTime,
         duration: block.duration,
@@ -735,10 +735,10 @@ class ScheduleState {
     );
 
     // Persist rejection to memo state
-    const { taskActions, taskState } = await import(
+    const { taskState } = await import(
       "$lib/features/tasks/state/taskActions.svelte.ts"
     );
-    await taskActions.markRejected(memoId);
+    await taskState.markRejected(memoId);
 
     // Regenerate to get new suggestion for the gap
     // Use taskState.items directly (Svelte 5 reactive, already updated)
@@ -1119,10 +1119,10 @@ class ScheduleState {
     this.acceptedMemos = newMap;
 
     // Persist the duration change to the database
-    const { taskActions } = await import(
+    const { taskState } = await import(
       "$lib/features/tasks/state/taskActions.svelte.ts"
     );
-    await taskActions.updateAcceptedSlotDuration(
+    await taskState.updateAcceptedSlotDuration(
       memoId,
       info.startTime,
       newDuration,
@@ -1148,10 +1148,10 @@ class ScheduleState {
     console.log("[Schedule] Deleted accepted memo:", memoId);
 
     // Reset the memo's acceptedToday flag so it can reappear
-    const { taskActions } = await import(
+    const { taskState } = await import(
       "$lib/features/tasks/state/taskActions.svelte.ts"
     );
-    await taskActions.resetAccepted(memoId);
+    await taskState.resetAccepted(memoId);
 
     // Regenerate to fill the freed gap
     await this.regenerate(memos);
@@ -1202,10 +1202,10 @@ class ScheduleState {
     console.log("[Schedule] Missed suggestion:", memoId);
 
     // Reset the memo's acceptedToday flag so it can reappear
-    const { taskActions, taskState } = await import(
+    const { taskState } = await import(
       "$lib/features/tasks/state/taskActions.svelte.ts"
     );
-    await taskActions.resetAccepted(memoId);
+    await taskState.resetAccepted(memoId);
 
     // Regenerate to potentially show the task again
     // Use taskState.items directly (Svelte 5 reactive, already updated)

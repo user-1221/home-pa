@@ -1,6 +1,6 @@
 <script lang="ts">
   import { taskFormState } from "$lib/features/tasks/state/taskForm.svelte.ts";
-  import { taskActions } from "$lib/features/tasks/state/taskActions.svelte.ts";
+  import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import Button from "$lib/features/shared/components/Button.svelte";
   import TextInput from "$lib/features/shared/components/TextInput.svelte";
   import type {
@@ -11,6 +11,16 @@
   import type { EventDeadlineOffset } from "../types/event-link.ts";
   import { OFFSET_OPTIONS } from "../types/event-link.ts";
   import EventPickerDialog from "./EventPickerDialog.svelte";
+
+  interface Props {
+    /**
+     * When true, renders only the form content without the modal wrapper.
+     * Used with ModalContainer for lazy-loading to prevent re-animation.
+     */
+    contentOnly?: boolean;
+  }
+
+  let { contentOnly = false }: Props = $props();
 
   // Advanced settings section state
   let showAdvancedSettings = $state(false);
@@ -98,7 +108,7 @@
 
   async function handleSubmit(e: Event) {
     e.preventDefault();
-    await taskActions.submit();
+    await taskState.submit();
   }
 
   function handleTypeChange(type: MemoType) {
@@ -106,292 +116,185 @@
   }
 </script>
 
-{#if taskFormState.isOpen}
+{#snippet formContent()}
+  <!-- Header -->
   <div
-    class="modal-open modal-mobile-fullscreen modal z-[2100] md:modal-middle"
-    onkeydown={(e: KeyboardEvent) => e.key === "Escape" && handleClose()}
-    role="dialog"
-    aria-modal="true"
-    aria-label="Task form"
-    tabindex="-1"
+    class="sticky top-0 z-10 flex min-h-14 flex-shrink-0 items-center justify-between border-b border-base-300 bg-base-100 px-4 md:min-h-16 md:px-5"
   >
-    <div
-      class="modal-box h-full w-full max-w-[500px] overflow-hidden rounded-none border-none bg-base-100 p-0 shadow-none md:h-auto md:max-h-[90vh] md:overflow-y-auto md:rounded-2xl md:border md:border-base-300/50 md:shadow-xl"
-      onclick={(e: MouseEvent) => e.stopPropagation()}
-      onkeydown={(e: KeyboardEvent) => e.key === "Escape" && handleClose()}
-      role="dialog"
-      aria-modal="true"
-      tabindex="-1"
+    <button
+      class="btn btn-circle text-base-content/60 btn-ghost btn-sm hover:text-base-content md:hidden"
+      onclick={handleClose}
+      aria-label="Close"
     >
-      <!-- Header -->
-      <div
-        class="sticky top-0 z-10 flex min-h-14 flex-shrink-0 items-center justify-between border-b border-base-300 bg-base-100 px-4 md:min-h-16 md:px-5"
+      <svg
+        class="h-5 w-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="1.5"
+        aria-hidden="true"
       >
-        <button
-          class="btn btn-circle text-base-content/60 btn-ghost btn-sm hover:text-base-content md:hidden"
-          onclick={handleClose}
-          aria-label="Close"
-        >
-          <svg
-            class="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M6 18L18 6M6 6l12 12"
+        />
+      </svg>
+    </button>
 
-        <div
-          class="flex flex-1 items-center justify-center gap-3 md:flex-none md:justify-start"
+    <div
+      class="flex flex-1 items-center justify-center gap-3 md:flex-none md:justify-start"
+    >
+      <div
+        class="hidden h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-primary-100)] md:flex"
+      >
+        <svg
+          class="h-4 w-4 text-[var(--color-primary)]"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="1.5"
+          aria-hidden="true"
         >
-          <div
-            class="hidden h-9 w-9 items-center justify-center rounded-lg bg-[var(--color-primary-100)] md:flex"
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+          />
+        </svg>
+      </div>
+      <h3 class="text-base font-medium tracking-tight text-base-content">
+        {taskFormState.isEditing ? "タスクを編集" : "新しいタスク"}
+      </h3>
+    </div>
+
+    <button
+      type="button"
+      class="btn gap-1 text-sm font-medium shadow-sm btn-sm btn-primary md:hidden"
+      disabled={!taskFormState.isValid || taskFormState.isSubmitting}
+      onclick={async (e: MouseEvent) => {
+        e.preventDefault();
+        await taskState.submit();
+      }}
+    >
+      {#if taskFormState.isSubmitting}
+        <span class="loading loading-sm loading-spinner"></span>
+      {:else}
+        {taskFormState.isEditing ? "更新" : "作成"}
+      {/if}
+    </button>
+
+    <button
+      class="btn hidden btn-circle text-base-content/60 btn-ghost btn-sm hover:text-base-content md:flex"
+      onclick={handleClose}
+      aria-label="Close"
+    >
+      <svg
+        class="h-5 w-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="1.5"
+        aria-hidden="true"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M6 18L18 6M6 6l12 12"
+        />
+      </svg>
+    </button>
+  </div>
+
+  <form
+    onsubmit={handleSubmit}
+    class="flex min-h-0 flex-1 flex-col overflow-hidden"
+  >
+    <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <!-- Basic Info Section -->
+      <div class="space-y-4 p-4 md:p-5">
+        <!-- Title -->
+        <TextInput
+          id="title"
+          label="タイトル"
+          placeholder="タスクのタイトルを入力"
+          bind:value={taskFormState.title}
+          error={taskFormState.errors.title}
+        />
+
+        <!-- Type -->
+        <div class="space-y-1.5">
+          <span class="text-xs font-medium text-[var(--color-text-muted)]"
+            >タイプ</span
           >
-            <svg
-              class="h-4 w-4 text-[var(--color-primary)]"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
+          <div class="flex gap-2" role="group" aria-label="タスクタイプ">
+            {#each typeOptions as option (option)}
+              <button
+                type="button"
+                class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2.5 text-sm font-medium transition-all duration-150
+                      {taskFormState.type === option.value
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary)]'
+                  : 'border-base-300 bg-base-100 text-base-content/70 hover:border-base-300 hover:bg-base-200/50 hover:text-base-content'}"
+                onclick={() => handleTypeChange(option.value)}
+                aria-pressed={taskFormState.type === option.value}
+              >
+                {option.label}
+              </button>
+            {/each}
           </div>
-          <h3 class="text-base font-medium tracking-tight text-base-content">
-            {taskFormState.isEditing ? "タスクを編集" : "新しいタスク"}
-          </h3>
         </div>
-
-        <button
-          type="button"
-          class="btn gap-1 text-sm font-medium shadow-sm btn-sm btn-primary md:hidden"
-          disabled={!taskFormState.isValid || taskFormState.isSubmitting}
-          onclick={async (e: MouseEvent) => {
-            e.preventDefault();
-            await taskActions.submit();
-          }}
-        >
-          {#if taskFormState.isSubmitting}
-            <span class="loading loading-sm loading-spinner"></span>
-          {:else}
-            {taskFormState.isEditing ? "更新" : "作成"}
-          {/if}
-        </button>
-
-        <button
-          class="btn hidden btn-circle text-base-content/60 btn-ghost btn-sm hover:text-base-content md:flex"
-          onclick={handleClose}
-          aria-label="Close"
-        >
-          <svg
-            class="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
       </div>
 
-      <form
-        onsubmit={handleSubmit}
-        class="flex min-h-0 flex-1 flex-col overflow-hidden"
+      <!-- Scheduling Section -->
+      <div
+        class="space-y-4 border-t border-base-300/60 bg-[var(--color-surface-50)] p-4 md:p-5"
       >
-        <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
-          <!-- Basic Info Section -->
-          <div class="space-y-4 p-4 md:p-5">
-            <!-- Title -->
-            <TextInput
-              id="title"
-              label="タイトル"
-              placeholder="タスクのタイトルを入力"
-              bind:value={taskFormState.title}
-              error={taskFormState.errors.title}
-            />
-
-            <!-- Type -->
-            <div class="space-y-1.5">
-              <span class="text-xs font-medium text-[var(--color-text-muted)]"
-                >タイプ</span
-              >
-              <div class="flex gap-2" role="group" aria-label="タスクタイプ">
-                {#each typeOptions as option (option)}
-                  <button
-                    type="button"
-                    class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2.5 text-sm font-medium transition-all duration-150
-                      {taskFormState.type === option.value
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary)]'
-                      : 'border-base-300 bg-base-100 text-base-content/70 hover:border-base-300 hover:bg-base-200/50 hover:text-base-content'}"
-                    onclick={() => handleTypeChange(option.value)}
-                    aria-pressed={taskFormState.type === option.value}
-                  >
-                    {option.label}
-                  </button>
-                {/each}
-              </div>
-            </div>
-          </div>
-
-          <!-- Scheduling Section -->
-          <div
-            class="space-y-4 border-t border-base-300/60 bg-[var(--color-surface-50)] p-4 md:p-5"
+        <div class="flex items-center gap-2">
+          <svg
+            class="h-4 w-4 text-[var(--color-text-secondary)]"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
           >
-            <div class="flex items-center gap-2">
-              <svg
-                class="h-4 w-4 text-[var(--color-text-secondary)]"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                />
-              </svg>
-              <span
-                class="text-xs font-medium text-[var(--color-text-secondary)]"
-                >スケジュール</span
-              >
-            </div>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+            />
+          </svg>
+          <span class="text-xs font-medium text-[var(--color-text-secondary)]"
+            >スケジュール</span
+          >
+        </div>
 
-            <!-- Deadline -->
-            {#if taskFormState.showDeadlineField}
-              <div class="space-y-1.5">
-                <label
-                  class="text-xs font-medium text-[var(--color-text-muted)]"
-                  for="deadline"
-                >
-                  期限
-                </label>
+        <!-- Deadline -->
+        {#if taskFormState.showDeadlineField}
+          <div class="space-y-1.5">
+            <label
+              class="text-xs font-medium text-[var(--color-text-muted)]"
+              for="deadline"
+            >
+              期限
+            </label>
 
-                <!-- Show event link if set -->
-                {#if taskFormState.eventLink}
-                  <div
-                    class="rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary-100)] p-3"
-                  >
-                    <div class="flex items-start justify-between gap-2">
-                      <div class="min-w-0 flex-1">
-                        <div
-                          class="flex items-center gap-1.5 text-xs text-[var(--color-primary)]"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                            class="h-3.5 w-3.5"
-                          >
-                            <path
-                              d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
-                            />
-                            <path
-                              d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
-                            />
-                          </svg>
-                          イベント連携
-                        </div>
-                        <div
-                          class="mt-1 truncate text-sm font-medium text-base-content"
-                        >
-                          {taskFormState.eventLink.eventTitle}
-                        </div>
-                        <div
-                          class="mt-0.5 text-xs text-[var(--color-text-secondary)]"
-                        >
-                          {taskFormState.eventLink.type === "calendar"
-                            ? "カレンダー予定"
-                            : "時間割"}
-                          • {OFFSET_OPTIONS.find(
-                            (o) => o.value === taskFormState.eventLink?.offset,
-                          )?.label ?? ""}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        class="btn btn-circle text-base-content/40 btn-ghost btn-xs hover:text-base-content"
-                        onclick={() => taskFormState.clearEventLink()}
-                        aria-label="イベント連携を解除"
-                      >
-                        <svg
-                          class="h-4 w-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    </div>
-                    <!-- Offset selector -->
+            <!-- Show event link if set -->
+            {#if taskFormState.eventLink}
+              <div
+                class="rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary-100)] p-3"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0 flex-1">
                     <div
-                      class="mt-2 border-t border-[var(--color-primary)]/20 pt-2"
-                    >
-                      <select
-                        class="select w-full border-base-300 bg-base-100 select-sm focus:border-[var(--color-primary)] focus:outline-none"
-                        value={taskFormState.eventLink.offset}
-                        onchange={(
-                          e: Event & { currentTarget: HTMLSelectElement },
-                        ) => {
-                          if (taskFormState.eventLink) {
-                            taskFormState.setEventLink({
-                              ...taskFormState.eventLink,
-                              offset: e.currentTarget
-                                .value as EventDeadlineOffset,
-                            });
-                          }
-                        }}
-                      >
-                        {#each OFFSET_OPTIONS as opt (opt.value)}
-                          <option value={opt.value}>{opt.label}</option>
-                        {/each}
-                      </select>
-                    </div>
-                  </div>
-                {:else}
-                  <!-- Manual deadline input or event link button -->
-                  <div class="flex gap-2">
-                    <input
-                      id="deadline"
-                      type="date"
-                      bind:value={taskFormState.deadline}
-                      class="input flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none {taskFormState
-                        .errors.deadline
-                        ? 'border-error'
-                        : ''}"
-                    />
-                    <button
-                      type="button"
-                      class="btn gap-1.5 border border-base-300 bg-base-100 text-sm text-base-content/70 btn-ghost hover:border-base-300 hover:bg-base-200 hover:text-base-content"
-                      onclick={() => (showEventPicker = true)}
-                      aria-label="イベントから選択"
+                      class="flex items-center gap-1.5 text-xs text-[var(--color-primary)]"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 20 20"
                         fill="currentColor"
-                        class="h-4 w-4"
+                        class="h-3.5 w-3.5"
+                        aria-hidden="true"
                       >
                         <path
                           d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
@@ -400,333 +303,452 @@
                           d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
                         />
                       </svg>
-                      連携
-                    </button>
+                      イベント連携
+                    </div>
+                    <div
+                      class="mt-1 truncate text-sm font-medium text-base-content"
+                    >
+                      {taskFormState.eventLink.eventTitle}
+                    </div>
+                    <div
+                      class="mt-0.5 text-xs text-[var(--color-text-secondary)]"
+                    >
+                      {taskFormState.eventLink.type === "calendar"
+                        ? "カレンダー予定"
+                        : "時間割"}
+                      • {OFFSET_OPTIONS.find(
+                        (o) => o.value === taskFormState.eventLink?.offset,
+                      )?.label ?? ""}
+                    </div>
                   </div>
-                {/if}
-
-                {#if taskFormState.errors.deadline}
-                  <p class="text-xs text-error">
-                    {taskFormState.errors.deadline}
-                  </p>
-                {/if}
-              </div>
-            {/if}
-
-            <!-- Recurrence Goal -->
-            {#if taskFormState.showRecurrenceFields}
-              <div class="space-y-1.5">
-                <label
-                  class="text-xs font-medium text-[var(--color-text-muted)]"
-                  for="recurrence-count"
+                  <button
+                    type="button"
+                    class="btn btn-circle text-base-content/40 btn-ghost btn-xs hover:text-base-content"
+                    onclick={() => taskFormState.clearEventLink()}
+                    aria-label="イベント連携を解除"
+                  >
+                    <svg
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      aria-hidden="true"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                <!-- Offset selector -->
+                <div
+                  class="mt-2 border-t border-[var(--color-primary)]/20 pt-2"
                 >
-                  目標
-                </label>
-                <div class="flex items-center gap-2">
-                  <input
-                    id="recurrence-count"
-                    type="number"
-                    min="1"
-                    max="100"
-                    bind:value={taskFormState.recurrenceCount}
-                    class="input w-20 border-base-300 bg-base-100 text-center focus:border-[var(--color-primary)] focus:outline-none"
-                    aria-label="回数"
-                  />
-                  <span class="text-sm text-[var(--color-text-muted)]"
-                    >回 /</span
-                  >
                   <select
-                    id="recurrence-period"
-                    bind:value={taskFormState.recurrencePeriod}
-                    class="select flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
-                    aria-label="期間"
+                    class="select w-full border-base-300 bg-base-100 select-sm focus:border-[var(--color-primary)] focus:outline-none"
+                    value={taskFormState.eventLink.offset}
+                    onchange={(
+                      e: Event & { currentTarget: HTMLSelectElement },
+                    ) => {
+                      if (taskFormState.eventLink) {
+                        taskFormState.setEventLink({
+                          ...taskFormState.eventLink,
+                          offset: e.currentTarget.value as EventDeadlineOffset,
+                        });
+                      }
+                    }}
                   >
-                    {#each periodOptions as option (option.value)}
-                      <option value={option.value}>{option.label}</option>
+                    {#each OFFSET_OPTIONS as opt (opt.value)}
+                      <option value={opt.value}>{opt.label}</option>
                     {/each}
                   </select>
                 </div>
-                {#if taskFormState.errors.recurrence}
-                  <p class="text-xs text-error">
-                    {taskFormState.errors.recurrence}
-                  </p>
-                {/if}
+              </div>
+            {:else}
+              <!-- Manual deadline input or event link button -->
+              <div class="flex gap-2">
+                <input
+                  id="deadline"
+                  type="date"
+                  bind:value={taskFormState.deadline}
+                  autocomplete="off"
+                  class="input flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none {taskFormState
+                    .errors.deadline
+                    ? 'border-error'
+                    : ''}"
+                />
+                <button
+                  type="button"
+                  class="btn gap-1.5 border border-base-300 bg-base-100 text-sm text-base-content/70 btn-ghost hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+                  onclick={() => (showEventPicker = true)}
+                  aria-label="イベントから選択"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    class="h-4 w-4"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
+                    />
+                    <path
+                      d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
+                    />
+                  </svg>
+                  連携
+                </button>
               </div>
             {/if}
 
-            <!-- Location -->
+            {#if taskFormState.errors.deadline}
+              <p class="text-xs text-error">
+                {taskFormState.errors.deadline}
+              </p>
+            {/if}
+          </div>
+        {/if}
+
+        <!-- Recurrence Goal -->
+        {#if taskFormState.showRecurrenceFields}
+          <div class="space-y-1.5">
+            <label
+              class="text-xs font-medium text-[var(--color-text-muted)]"
+              for="recurrence-count"
+            >
+              目標
+            </label>
+            <div class="flex items-center gap-2">
+              <input
+                id="recurrence-count"
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                bind:value={taskFormState.recurrenceCount}
+                class="input w-20 border-base-300 bg-base-100 text-center focus:border-[var(--color-primary)] focus:outline-none"
+                aria-label="回数"
+              />
+              <span class="text-sm text-[var(--color-text-muted)]">回 /</span>
+              <select
+                id="recurrence-period"
+                bind:value={taskFormState.recurrencePeriod}
+                class="select flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                aria-label="期間"
+              >
+                {#each periodOptions as option (option.value)}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
+            </div>
+            {#if taskFormState.errors.recurrence}
+              <p class="text-xs text-error">
+                {taskFormState.errors.recurrence}
+              </p>
+            {/if}
+          </div>
+        {/if}
+
+        <!-- Location -->
+        <div class="space-y-1.5">
+          <span class="text-xs font-medium text-[var(--color-text-muted)]"
+            >場所</span
+          >
+          <div class="flex gap-2" role="group" aria-label="場所">
+            {#each locationOptions as option (option.value)}
+              <label
+                class="flex flex-1 cursor-pointer items-center justify-center rounded-lg border px-3 py-2.5 text-sm font-medium transition-all duration-150
+                      {taskFormState.locationPreference === option.value
+                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary)]'
+                  : 'border-base-300 bg-base-100 text-base-content/70 hover:border-base-300 hover:bg-base-200/50 hover:text-base-content'}"
+              >
+                <input
+                  type="radio"
+                  name="location"
+                  value={option.value}
+                  checked={taskFormState.locationPreference === option.value}
+                  onchange={() =>
+                    taskFormState.updateField(
+                      "locationPreference",
+                      option.value,
+                    )}
+                  class="hidden"
+                />
+                {option.label}
+              </label>
+            {/each}
+          </div>
+        </div>
+      </div>
+
+      <!-- Advanced Settings Collapsible -->
+      <div class="border-t border-base-300/60 bg-base-100 p-4 md:p-5">
+        <button
+          type="button"
+          class="flex w-full items-center gap-2 rounded-lg py-1 text-sm font-medium text-[var(--color-text-secondary)] transition-colors duration-150 hover:text-base-content"
+          onclick={() => (showAdvancedSettings = !showAdvancedSettings)}
+        >
+          <svg
+            class="h-4 w-4 transition-transform duration-200 {showAdvancedSettings
+              ? 'rotate-90'
+              : ''}"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.5"
+            aria-hidden="true"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
+          詳細設定
+        </button>
+
+        {#if showAdvancedSettings}
+          <div
+            class="mt-4 flex flex-col gap-4 rounded-lg border border-base-300/60 bg-[var(--color-bg-grid)] p-4"
+          >
+            <!-- Genre -->
+            <div class="space-y-1.5">
+              <label
+                class="text-xs font-medium text-[var(--color-text-muted)]"
+                for="genre"
+              >
+                ジャンル
+              </label>
+              <select
+                id="genre"
+                class="select w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                bind:value={taskFormState.genre}
+              >
+                <option value="">未設定（AIが推定）</option>
+                {#each genreOptions as genre (genre)}
+                  <option value={genre}>{genre}</option>
+                {/each}
+              </select>
+            </div>
+
+            <!-- Importance -->
             <div class="space-y-1.5">
               <span class="text-xs font-medium text-[var(--color-text-muted)]"
-                >場所</span
+                >重要度</span
               >
-              <div class="flex gap-2" role="group" aria-label="場所">
-                {#each locationOptions as option (option.value)}
-                  <label
-                    class="flex flex-1 cursor-pointer items-center justify-center rounded-lg border px-3 py-2.5 text-sm font-medium transition-all duration-150
-                      {taskFormState.locationPreference === option.value
+              <div class="flex gap-2" role="group" aria-label="重要度">
+                <button
+                  type="button"
+                  class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-150
+                        {taskFormState.importance === ''
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary)]'
+                    : 'border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
+                  onclick={() => taskFormState.updateField("importance", "")}
+                >
+                  未設定
+                </button>
+                {#each importanceOptions as option (option.value)}
+                  <button
+                    type="button"
+                    class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-150
+                          {taskFormState.importance === option.value
                       ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary)]'
-                      : 'border-base-300 bg-base-100 text-base-content/70 hover:border-base-300 hover:bg-base-200/50 hover:text-base-content'}"
+                      : 'border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
+                    onclick={() =>
+                      taskFormState.updateField("importance", option.value)}
                   >
-                    <input
-                      type="radio"
-                      name="location"
-                      value={option.value}
-                      checked={taskFormState.locationPreference ===
-                        option.value}
-                      onchange={() =>
-                        taskFormState.updateField(
-                          "locationPreference",
-                          option.value,
-                        )}
-                      class="hidden"
-                    />
                     {option.label}
-                  </label>
+                  </button>
                 {/each}
               </div>
             </div>
-          </div>
 
-          <!-- Advanced Settings Collapsible -->
-          <div class="border-t border-base-300/60 bg-base-100 p-4 md:p-5">
-            <button
-              type="button"
-              class="flex w-full items-center gap-2 rounded-lg py-1 text-sm font-medium text-[var(--color-text-secondary)] transition-colors duration-150 hover:text-base-content"
-              onclick={() => (showAdvancedSettings = !showAdvancedSettings)}
-            >
-              <svg
-                class="h-4 w-4 transition-transform duration-200 {showAdvancedSettings
-                  ? 'rotate-90'
-                  : ''}"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M9 5l7 7-7 7"
+            <!-- Session Duration & Total Duration (only in edit mode) -->
+            {#if taskFormState.isEditing}
+              <div class="space-y-1.5">
+                <label
+                  class="text-xs font-medium text-[var(--color-text-muted)]"
+                  for="sessionDuration"
+                >
+                  1回のセッション時間（分）
+                </label>
+                <input
+                  id="sessionDuration"
+                  type="number"
+                  min="5"
+                  max="480"
+                  step="5"
+                  placeholder="例: 30"
+                  class="input w-full border-base-300 bg-base-100 placeholder:text-base-content/50 focus:border-[var(--color-primary)] focus:outline-none"
+                  value={taskFormState.sessionDuration ?? ""}
+                  onchange={(
+                    e: Event & { currentTarget: HTMLInputElement },
+                  ) => {
+                    const val = e.currentTarget.value;
+                    taskFormState.updateField(
+                      "sessionDuration",
+                      val ? parseInt(val, 10) : null,
+                    );
+                  }}
                 />
-              </svg>
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                />
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-              </svg>
-              詳細設定
-            </button>
+              </div>
 
-            {#if showAdvancedSettings}
-              <div
-                class="mt-4 flex flex-col gap-4 rounded-lg border border-base-300/60 bg-[var(--color-bg-grid)] p-4"
-              >
-                <!-- Genre -->
+              <!-- Total Duration: Only show for backlog tasks (removed from routine and deadline) -->
+              {#if taskFormState.type === "バックログ"}
                 <div class="space-y-1.5">
                   <label
                     class="text-xs font-medium text-[var(--color-text-muted)]"
-                    for="genre"
+                    for="totalDuration"
                   >
-                    ジャンル
+                    合計所要時間（分）
                   </label>
-                  <select
-                    id="genre"
-                    class="select w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
-                    bind:value={taskFormState.genre}
-                  >
-                    <option value="">未設定（AIが推定）</option>
-                    {#each genreOptions as genre (genre)}
-                      <option value={genre}>{genre}</option>
-                    {/each}
-                  </select>
+                  <input
+                    id="totalDuration"
+                    type="number"
+                    min="5"
+                    max="9999"
+                    step="5"
+                    placeholder="例: 120"
+                    class="input w-full border-base-300 bg-base-100 placeholder:text-base-content/50 focus:border-[var(--color-primary)] focus:outline-none"
+                    value={taskFormState.totalDurationExpected ?? ""}
+                    onchange={(
+                      e: Event & { currentTarget: HTMLInputElement },
+                    ) => {
+                      const val = e.currentTarget.value;
+                      taskFormState.updateField(
+                        "totalDurationExpected",
+                        val ? parseInt(val, 10) : null,
+                      );
+                    }}
+                  />
                 </div>
-
-                <!-- Importance -->
-                <div class="space-y-1.5">
-                  <span
-                    class="text-xs font-medium text-[var(--color-text-muted)]"
-                    >重要度</span
-                  >
-                  <div class="flex gap-2" role="group" aria-label="重要度">
-                    <button
-                      type="button"
-                      class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-150
-                        {taskFormState.importance === ''
-                        ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary)]'
-                        : 'border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
-                      onclick={() =>
-                        taskFormState.updateField("importance", "")}
-                    >
-                      未設定
-                    </button>
-                    {#each importanceOptions as option (option.value)}
-                      <button
-                        type="button"
-                        class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-150
-                          {taskFormState.importance === option.value
-                          ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary)]'
-                          : 'border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
-                        onclick={() =>
-                          taskFormState.updateField("importance", option.value)}
-                      >
-                        {option.label}
-                      </button>
-                    {/each}
-                  </div>
-                </div>
-
-                <!-- Session Duration & Total Duration (only in edit mode) -->
-                {#if taskFormState.isEditing}
-                  <div class="space-y-1.5">
-                    <label
-                      class="text-xs font-medium text-[var(--color-text-muted)]"
-                      for="sessionDuration"
-                    >
-                      1回のセッション時間（分）
-                    </label>
-                    <input
-                      id="sessionDuration"
-                      type="number"
-                      min="5"
-                      max="480"
-                      placeholder="例: 30"
-                      class="input w-full border-base-300 bg-base-100 placeholder:text-base-content/50 focus:border-[var(--color-primary)] focus:outline-none"
-                      value={taskFormState.sessionDuration ?? ""}
-                      onchange={(
-                        e: Event & { currentTarget: HTMLInputElement },
-                      ) => {
-                        const val = e.currentTarget.value;
-                        taskFormState.updateField(
-                          "sessionDuration",
-                          val ? parseInt(val, 10) : null,
-                        );
-                      }}
-                    />
-                  </div>
-
-                  <!-- Total Duration: Only show for backlog tasks (removed from routine and deadline) -->
-                  {#if taskFormState.type === "バックログ"}
-                    <div class="space-y-1.5">
-                      <label
-                        class="text-xs font-medium text-[var(--color-text-muted)]"
-                        for="totalDuration"
-                      >
-                        合計所要時間（分）
-                      </label>
-                      <input
-                        id="totalDuration"
-                        type="number"
-                        min="5"
-                        max="9999"
-                        placeholder="例: 120"
-                        class="input w-full border-base-300 bg-base-100 placeholder:text-base-content/50 focus:border-[var(--color-primary)] focus:outline-none"
-                        value={taskFormState.totalDurationExpected ?? ""}
-                        onchange={(
-                          e: Event & { currentTarget: HTMLInputElement },
-                        ) => {
-                          const val = e.currentTarget.value;
-                          taskFormState.updateField(
-                            "totalDurationExpected",
-                            val ? parseInt(val, 10) : null,
-                          );
-                        }}
-                      />
-                    </div>
-                  {/if}
-                {/if}
-              </div>
+              {/if}
             {/if}
           </div>
+        {/if}
+      </div>
 
-          <!-- Errors Section -->
-          {#if taskFormState.errors.enrichedFieldsCleared || taskFormState.errors.general}
-            <div class="space-y-2 px-4 pb-4 md:px-5 md:pb-5">
-              <!-- Enriched Fields Cleared Warning -->
-              {#if taskFormState.errors.enrichedFieldsCleared}
-                <div
-                  class="flex items-center gap-3 rounded-lg border border-[var(--color-warning-500)]/30 bg-[var(--color-warning-100)] p-3"
-                >
-                  <svg
-                    class="h-5 w-5 flex-shrink-0 text-[var(--color-warning-500)]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
-                  <p class="text-sm text-[var(--color-warning-500)]">
-                    {taskFormState.errors.enrichedFieldsCleared}
-                  </p>
-                </div>
-              {/if}
+      <!-- Errors Section -->
+      {#if taskFormState.errors.enrichedFieldsCleared || taskFormState.errors.general}
+        <div class="space-y-2 px-4 pb-4 md:px-5 md:pb-5">
+          <!-- Enriched Fields Cleared Warning -->
+          {#if taskFormState.errors.enrichedFieldsCleared}
+            <div
+              class="flex items-center gap-3 rounded-lg border border-[var(--color-warning-500)]/30 bg-[var(--color-warning-100)] p-3"
+            >
+              <svg
+                class="h-5 w-5 flex-shrink-0 text-[var(--color-warning-500)]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <p class="text-sm text-[var(--color-warning-500)]">
+                {taskFormState.errors.enrichedFieldsCleared}
+              </p>
+            </div>
+          {/if}
 
-              <!-- General Error Display -->
-              {#if taskFormState.errors.general}
-                <div
-                  class="flex items-center gap-3 rounded-lg border border-[var(--color-error-500)]/30 bg-[var(--color-error-100)] p-3"
-                >
-                  <svg
-                    class="h-5 w-5 flex-shrink-0 text-[var(--color-error-500)]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                    />
-                  </svg>
-                  <p class="text-sm text-[var(--color-error-500)]">
-                    {taskFormState.errors.general}
-                  </p>
-                </div>
-              {/if}
+          <!-- General Error Display -->
+          {#if taskFormState.errors.general}
+            <div
+              class="flex items-center gap-3 rounded-lg border border-[var(--color-error-500)]/30 bg-[var(--color-error-100)] p-3"
+            >
+              <svg
+                class="h-5 w-5 flex-shrink-0 text-[var(--color-error-500)]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <p class="text-sm text-[var(--color-error-500)]">
+                {taskFormState.errors.general}
+              </p>
             </div>
           {/if}
         </div>
+      {/if}
+    </div>
 
-        <!-- Desktop Action Bar -->
-        <div
-          class="hidden flex-shrink-0 items-center justify-end gap-3 border-t border-base-300 bg-[var(--color-bg-grid)] p-4 md:flex md:p-5"
-        >
-          <Button variant="ghost" size="sm" type="button" onclick={handleClose}>
-            キャンセル
-          </Button>
-          <Button
-            variant="primary"
-            size="sm"
-            type="submit"
-            disabled={!taskFormState.isValid || taskFormState.isSubmitting}
-            loading={taskFormState.isSubmitting}
-          >
-            {taskFormState.isSubmitting
-              ? "保存中..."
-              : taskFormState.isEditing
-                ? "更新"
-                : "作成"}
-          </Button>
-        </div>
-      </form>
+    <!-- Desktop Action Bar -->
+    <div
+      class="hidden flex-shrink-0 items-center justify-end gap-3 border-t border-base-300 bg-[var(--color-bg-grid)] p-4 md:flex md:p-5"
+    >
+      <Button variant="ghost" size="sm" type="button" onclick={handleClose}>
+        キャンセル
+      </Button>
+      <Button
+        variant="primary"
+        size="sm"
+        type="submit"
+        disabled={!taskFormState.isValid || taskFormState.isSubmitting}
+        loading={taskFormState.isSubmitting}
+      >
+        {taskFormState.isSubmitting
+          ? "保存中..."
+          : taskFormState.isEditing
+            ? "更新"
+            : "作成"}
+      </Button>
+    </div>
+  </form>
+{/snippet}
+
+{#if contentOnly}
+  {@render formContent()}
+{:else if taskFormState.isOpen}
+  <div
+    class="modal-open modal-mobile-fullscreen modal z-[2100] md:modal-middle"
+    onkeydown={(e: KeyboardEvent) => e.key === "Escape" && handleClose()}
+    role="dialog"
+    aria-modal="true"
+    aria-label="Task form"
+    tabindex="-1"
+  >
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="modal-box h-full w-full max-w-[500px] overflow-hidden rounded-none border-none bg-base-100 p-0 shadow-none md:h-auto md:max-h-[90vh] md:overflow-y-auto md:rounded-2xl md:border md:border-base-300/50 md:shadow-xl"
+      onclick={(e: MouseEvent) => e.stopPropagation()}
+      onkeydown={(e: KeyboardEvent) => e.key === "Escape" && handleClose()}
+    >
+      {@render formContent()}
     </div>
     <div class="modal-backdrop bg-black/40 backdrop-blur-sm"></div>
   </div>

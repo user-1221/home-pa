@@ -57,18 +57,13 @@ export const SCORING_CONFIG = {
  *
  * Note: These were previously duplicated as:
  * - DEFAULT_SESSION_DURATION (scoring.ts)
- * - DEFAULT_MIN_DURATION (scoring.ts)
  * - MIN_DURATION_FLOOR (scoring.ts)
- * - MIN_SESSION_MINUTES (scheduler.ts) - same as absoluteFloor!
  */
 export const DURATION_CONFIG = {
   /** Default session duration in minutes (used when memo has no sessionDuration) */
   defaultSession: 30,
 
-  /** Default minimum duration for non-deadline tasks */
-  minSession: 15,
-
-  /** Absolute floor - no session can be shorter than this */
+  /** Absolute floor - no session can be shorter than this (used in deadline calculations) */
   absoluteFloor: 10,
 } as const;
 
@@ -77,10 +72,10 @@ export const DURATION_CONFIG = {
 // ============================================================================
 
 /**
- * Configuration for duration extension/shrinking when fitting suggestions to gaps.
+ * Configuration for duration extension when fitting suggestions to gaps.
  *
  * Extension: When a gap has extra room, suggestions can be extended up to maxFactor.
- * Shrinking: DISABLED - tasks are never shrunk below their baseDuration.
+ * Shrinking: DISABLED - tasks are never shrunk below their duration.
  */
 export const EXTENSION_CONFIG = {
   /** Enable duration extension when gaps have extra time */
@@ -94,16 +89,6 @@ export const EXTENSION_CONFIG = {
 
   /** Extension step size in minutes */
   stepMinutes: 10,
-
-  /**
-   * IMPORTANT: Never shrink below baseDuration.
-   * If gap is smaller than task's session duration, don't schedule it.
-   * This was set to `false` to fix the 30-min rule bypass bug.
-   */
-  allowShrinking: false,
-
-  /** Minimum duration when shrinking (only used if allowShrinking is true) */
-  minDurationMinutes: DURATION_CONFIG.absoluteFloor,
 } as const;
 
 // ============================================================================
