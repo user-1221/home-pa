@@ -246,7 +246,7 @@
         };
       case "drag-preview":
         return {
-          label: "プレビュー",
+          label: "移動",
           class:
             "bg-[var(--color-primary-100)] text-[var(--color-primary-800)] border border-[var(--color-primary)]/30 animate-pulse",
         };
@@ -257,30 +257,77 @@
 </script>
 
 <div
-  class="group relative overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm transition-all duration-300 ease-out hover:shadow-md"
+  class="group relative mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm transition-all duration-300 ease-out hover:shadow-md"
 >
   <!-- Subtle gradient overlay for depth -->
   <div
     class="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/50 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"
   ></div>
 
-  <div class="relative p-4">
+  <div class="relative flex h-[100px] flex-col justify-evenly p-4">
     {#if selectedItem}
       {#if selectedItem.type === "pending-suggestion"}
         <!-- Pending Suggestion -->
         <div class="flex items-start justify-between gap-3">
           <div class="flex min-w-0 flex-1 flex-col gap-2">
-            <div class="flex items-center gap-2">
-              <span class="badge flex-shrink-0 badge-sm {badgeConfig.class}">
-                {badgeConfig.label}
-              </span>
-              <h3
-                class="truncate text-base font-medium text-[var(--color-text-primary)]"
-              >
-                {selectedItem.title}
-              </h3>
+            <div class="flex h-9 min-w-0 items-center justify-between gap-2">
+              <div class="flex min-w-0 items-center gap-2">
+                <span class="badge flex-shrink-0 badge-sm {badgeConfig.class}">
+                  {badgeConfig.label}
+                </span>
+                <h3
+                  class="min-w-0 truncate text-base font-medium text-[var(--color-text-primary)]"
+                >
+                  {selectedItem.title}
+                </h3>
+              </div>
+              <!-- Action buttons -->
+              <div class="flex flex-shrink-0 gap-2">
+                <button
+                  class="flex h-9 w-9 items-center justify-center rounded-lg bg-success/10 text-success transition-all duration-200 hover:bg-success hover:text-success-content active:scale-95"
+                  onclick={handleAccept}
+                  title="承認"
+                  aria-label="承認"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M5 13l4 4L19 7"
+                    />
+                  </svg>
+                </button>
+                <button
+                  class="flex h-9 w-9 items-center justify-center rounded-lg bg-error/10 text-error transition-all duration-200 hover:bg-error hover:text-error-content active:scale-95"
+                  onclick={handleReject}
+                  title="却下"
+                  aria-label="却下"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div class="flex flex-wrap items-center gap-3">
+            <div class="flex h-8 flex-wrap items-center gap-3">
               <p
                 class="font-mono text-sm tracking-tight text-[var(--color-text-secondary)]"
               >
@@ -313,51 +360,6 @@
                 </button>
               </div>
             </div>
-          </div>
-          <!-- Action buttons -->
-          <div class="flex flex-shrink-0 gap-2">
-            <button
-              class="flex h-9 w-9 items-center justify-center rounded-lg bg-success/10 text-success transition-all duration-200 hover:bg-success hover:text-success-content active:scale-95"
-              onclick={handleAccept}
-              title="承認"
-              aria-label="承認"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="2.5"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </button>
-            <button
-              class="flex h-9 w-9 items-center justify-center rounded-lg bg-error/10 text-error transition-all duration-200 hover:bg-error hover:text-error-content active:scale-95"
-              onclick={handleReject}
-              title="却下"
-              aria-label="却下"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="2.5"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
           </div>
         </div>
       {:else if selectedItem.type === "event"}
@@ -538,7 +540,7 @@
       {:else if selectedItem.type === "drag-preview"}
         <!-- Drag Preview -->
         <div class="flex flex-col gap-2">
-          <div class="flex items-center gap-2">
+          <div class="flex h-9 items-center gap-2">
             <span class="badge flex-shrink-0 badge-sm {badgeConfig.class}">
               {badgeConfig.label}
             </span>
@@ -548,19 +550,21 @@
               {selectedItem.title}
             </h3>
           </div>
-          <p
-            class="font-mono text-sm tracking-tight text-[var(--color-text-secondary)]"
-          >
-            {selectedItem.startTime} - {selectedItem.endTime}
-            <span class="ml-2 text-[var(--color-text-muted)]">
-              ({formatDuration(selectedItem.duration)})
-            </span>
-          </p>
+          <div class="flex h-8 items-center gap-3">
+            <p
+              class="font-mono text-sm tracking-tight text-[var(--color-text-secondary)]"
+            >
+              {selectedItem.startTime} - {selectedItem.endTime}
+              <span class="ml-2 text-[var(--color-text-muted)]">
+                ({formatDuration(selectedItem.duration)})
+              </span>
+            </p>
+          </div>
         </div>
       {/if}
     {:else}
       <!-- Empty state -->
-      <div class="flex flex-col items-center gap-2 py-2 text-center">
+      <div class="flex flex-col items-center gap-2 text-center">
         <div
           class="flex h-10 w-10 items-center justify-center rounded-full bg-base-200"
         >

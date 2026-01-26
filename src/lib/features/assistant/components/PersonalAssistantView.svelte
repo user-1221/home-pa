@@ -524,17 +524,15 @@
         class="flex min-h-0 w-full flex-1 flex-col items-center gap-6 overflow-y-visible"
       >
         <!-- Info Panel above timeline - always visible -->
-        <div class="w-full max-w-2xl px-4">
-          <TimelineInfoPanel
-            selectedItem={displayedItem}
-            on:accept={handleInfoPanelAccept}
-            on:reject={handleInfoPanelReject}
-            on:complete={handleInfoPanelComplete}
-            on:missed={handleInfoPanelMissed}
-            on:delete={handleInfoPanelDelete}
-            on:durationChange={handleInfoPanelDurationChange}
-          />
-        </div>
+        <TimelineInfoPanel
+          selectedItem={displayedItem}
+          on:accept={handleInfoPanelAccept}
+          on:reject={handleInfoPanelReject}
+          on:complete={handleInfoPanelComplete}
+          on:missed={handleInfoPanelMissed}
+          on:delete={handleInfoPanelDelete}
+          on:durationChange={handleInfoPanelDurationChange}
+        />
 
         <!-- Timeline container with subtle glow effect -->
         <div

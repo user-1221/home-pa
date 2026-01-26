@@ -597,11 +597,15 @@ class TaskState {
           original.routineState?.acceptedToday !==
             reset.routineState?.acceptedToday ||
           original.routineState?.completedToday !==
-            reset.routineState?.completedToday;
+            reset.routineState?.completedToday ||
+          original.routineState?.rejectedToday !==
+            reset.routineState?.rejectedToday;
 
         const backlogStateReset =
           original.backlogState?.acceptedToday !==
-          reset.backlogState?.acceptedToday;
+            reset.backlogState?.acceptedToday ||
+          original.backlogState?.rejectedToday !==
+            reset.backlogState?.rejectedToday;
 
         // Check if deadline state was reset (acceptedSlots cleared or rejectedToday changed)
         const deadlineStateReset =

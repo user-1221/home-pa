@@ -908,6 +908,7 @@ export const markMemoAccepted = command(
 
         updateData.routineAcceptedToday = true;
         updateData.routineAcceptedSlot = input.slot ?? null;
+        updateData.routineRejectedToday = false; // Clear rejected state when accepting
         // Save original lastCompletedDay before overwriting (for undo on delete)
         updateData.routinePreviousLastCompletedDay =
           existing.routineLastCompletedDay;
@@ -923,6 +924,7 @@ export const markMemoAccepted = command(
       } else if (existing.type === "バックログ") {
         updateData.backlogAcceptedToday = true;
         updateData.backlogAcceptedSlot = input.slot ?? null;
+        updateData.backlogRejectedToday = false; // Clear rejected state when accepting
         // Save original lastCompletedDay before overwriting (for undo on delete)
         updateData.backlogPreviousLastCompletedDay =
           existing.backlogLastCompletedDay;
@@ -1199,6 +1201,7 @@ export const addDeadlineAcceptedSlot = command(
           deadlineAcceptedSlots: newSlots,
           deadlineActualDurations: actualDurations,
           deadlineLastCompletedDay: now,
+          deadlineRejectedToday: false, // Clear rejected state when accepting
           ...(isFirstSlot && {
             deadlinePreviousLastCompletedDay: existing.deadlineLastCompletedDay,
           }),
