@@ -61,6 +61,9 @@ export interface FocusSession {
 interface StoredSession {
   session: FocusSession;
   savedAt: string;
+  isPaused?: boolean;
+  pausedAt?: string | null;
+  pausedDuration?: number;
 }
 
 /** Info about timer running on another device */
@@ -129,7 +132,9 @@ class FocusState {
 
       if (pomo.phase === "work") {
         const phaseStarted = new Date(pomo.phaseStartedAt);
-        total += calculateElapsedMinutes(phaseStarted, now);
+        const elapsedMs =
+          now.getTime() - phaseStarted.getTime() - this.pausedDuration;
+        total += Math.max(0, Math.floor(elapsedMs / 60000));
       }
 
       return total;
@@ -163,9 +168,9 @@ class FocusState {
 
     const phaseDuration =
       pomo.phase === "work" ? pomo.workDuration : pomo.breakDuration;
-    const elapsedSeconds = Math.floor(
-      (now.getTime() - phaseStarted.getTime()) / 1000,
-    );
+    const elapsedMs =
+      now.getTime() - phaseStarted.getTime() - this.pausedDuration;
+    const elapsedSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
     const targetSeconds = phaseDuration * 60;
 
     return Math.max(0, targetSeconds - elapsedSeconds);
@@ -487,9 +492,11 @@ class FocusState {
     let newPomodoroState: PomodoroState;
 
     if (pomo.phase === "work") {
-      // Calculate work time from this phase
+      // Calculate work time from this phase (excluding paused time)
       const phaseStarted = new Date(pomo.phaseStartedAt);
-      const phaseMinutes = calculateElapsedMinutes(phaseStarted, now);
+      const elapsedMs =
+        now.getTime() - phaseStarted.getTime() - this.pausedDuration;
+      const phaseMinutes = Math.max(0, Math.floor(elapsedMs / 60000));
 
       // Move to break
       newPomodoroState = {
@@ -507,6 +514,9 @@ class FocusState {
         phaseStartedAt: now.toISOString(),
       };
     }
+
+    // Reset pausedDuration for the new phase
+    this.pausedDuration = 0;
 
     this.activeSession = {
       ...this.activeSession,
@@ -633,6 +643,9 @@ class FocusState {
     const stored: StoredSession = {
       session: this.activeSession,
       savedAt: new Date().toISOString(),
+      isPaused: this.isPaused,
+      pausedAt: this.pausedAt?.toISOString() ?? null,
+      pausedDuration: this.pausedDuration,
     };
 
     try {
@@ -715,11 +728,11 @@ class FocusState {
         return;
       }
 
-      // Restore active session
+      // Restore active session and pause state
       this.activeSession = session;
-      this.isPaused = false;
-      this.pausedAt = null;
-      this.pausedDuration = 0;
+      this.isPaused = stored.isPaused ?? false;
+      this.pausedAt = stored.pausedAt ? new Date(stored.pausedAt) : null;
+      this.pausedDuration = stored.pausedDuration ?? 0;
       this.otherDeviceSession = null;
 
       this.startTicking();

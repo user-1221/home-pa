@@ -9,11 +9,15 @@
 
   import { TransitView } from "$lib/features/transit/components/index.ts";
   import { ProgressMemoView } from "$lib/features/progress-memo/components/index.ts";
-  import { PomodoroView } from "$lib/features/focus/components/index.ts";
+  import {
+    PomodoroView,
+    PixelTimerView,
+  } from "$lib/features/focus/components/index.ts";
   import SettingsPopup from "./SettingsPopup.svelte";
   import PomodoroIcon from "./PomodoroIcon.svelte";
   import TransitIcon from "./TransitIcon.svelte";
   import ProgressMemoIcon from "./ProgressMemoIcon.svelte";
+  import PixelTimerIcon from "./PixelTimerIcon.svelte";
   import SettingsIcon from "./SettingsIcon.svelte";
 
   // Mini app definitions
@@ -30,6 +34,12 @@
       name: "Pomodoro",
       description: "Focus timer",
       color: "var(--color-error)",
+    },
+    {
+      id: "pixel-timer",
+      name: "Pixel Timer",
+      description: "ドット絵タイマー",
+      color: "var(--color-warning)",
     },
     {
       id: "transit",
@@ -120,6 +130,11 @@
                 class="h-10 w-10 drop-shadow-sm"
                 style="color: {app.color};"
               />
+            {:else if app.id === "pixel-timer"}
+              <PixelTimerIcon
+                class="h-10 w-10 drop-shadow-sm"
+                style="color: {app.color};"
+              />
             {:else if app.id === "transit"}
               <TransitIcon
                 class="h-10 w-10 drop-shadow-sm"
@@ -160,6 +175,8 @@
     >
       {#if activeMiniApp === "pomodoro"}
         <PomodoroView onClose={closeMiniApp} />
+      {:else if activeMiniApp === "pixel-timer"}
+        <PixelTimerView onClose={closeMiniApp} />
       {:else if activeMiniApp === "transit"}
         <TransitView onClose={closeMiniApp} />
       {:else if activeMiniApp === "progress-memo"}
