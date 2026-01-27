@@ -200,7 +200,15 @@ class FocusState {
 
     if (!this.activeSession) return 0;
 
+    const startedAt = new Date(this.activeSession.startedAt);
     const endTime = parseTimeToday(this.activeSession.plannedEndTime);
+
+    // Handle midnight crossing: if end time appears before start time,
+    // the session was meant to end the next day
+    if (endTime.getTime() < startedAt.getTime()) {
+      endTime.setDate(endTime.getDate() + 1);
+    }
+
     const now = new Date();
     const diffMs = endTime.getTime() - now.getTime();
 
