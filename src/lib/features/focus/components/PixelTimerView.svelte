@@ -2047,8 +2047,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 12px 16px;
-    background: oklch(var(--b1));
-    border-bottom: 1px solid oklch(var(--bc) / 0.15);
+    background: #ebe5d8;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.1);
   }
 
   .game-title {
@@ -2099,6 +2099,7 @@
     justify-content: flex-start;
     padding: 16px;
     overflow-y: auto;
+    background: #f5f0e8;
   }
 
   .game-screen {
