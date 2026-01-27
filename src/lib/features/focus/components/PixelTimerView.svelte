@@ -3110,7 +3110,6 @@
     border: none;
     cursor: pointer;
     text-align: left;
-    transition: transform 0.12s ease;
   }
 
   .quest-item-bg {
@@ -3120,22 +3119,6 @@
     height: 100%;
     image-rendering: pixelated;
     pointer-events: none;
-    transition:
-      filter 0.15s ease,
-      transform 0.12s ease;
-  }
-
-  .quest-item:hover {
-    transform: translateX(6px) translateY(-3px);
-  }
-
-  .quest-item:hover .quest-item-bg {
-    filter: brightness(1.06) saturate(1.15);
-    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.2);
-  }
-
-  .quest-item:active {
-    transform: translateX(3px) translateY(-1px);
   }
 
   .quest-item:active .quest-item-bg {

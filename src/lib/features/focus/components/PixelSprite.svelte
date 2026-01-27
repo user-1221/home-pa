@@ -29,6 +29,14 @@
 
   let frameIndex = $state(0);
 
+  // Preload all frames to ensure smooth animation
+  $effect(() => {
+    frames.forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
+  });
+
   // Animation loop
   $effect(() => {
     if (!playing || frames.length === 0) {
