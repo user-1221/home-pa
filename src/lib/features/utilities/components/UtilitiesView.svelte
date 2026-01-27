@@ -11,12 +11,15 @@
   import { ProgressMemoView } from "$lib/features/progress-memo/components/index.ts";
   import { PomodoroView } from "$lib/features/focus/components/index.ts";
   import SettingsPopup from "./SettingsPopup.svelte";
+  import PomodoroIcon from "./PomodoroIcon.svelte";
+  import TransitIcon from "./TransitIcon.svelte";
+  import ProgressMemoIcon from "./ProgressMemoIcon.svelte";
+  import SettingsIcon from "./SettingsIcon.svelte";
 
   // Mini app definitions
   interface MiniApp {
     id: string;
     name: string;
-    icon: string;
     description: string;
     color: string;
   }
@@ -25,21 +28,18 @@
     {
       id: "pomodoro",
       name: "Pomodoro",
-      icon: "🍅",
       description: "Focus timer",
       color: "var(--color-error)",
     },
     {
       id: "transit",
       name: "Transit",
-      icon: "🚃",
       description: "Train & bus schedules",
       color: "var(--color-primary)",
     },
     {
       id: "progress-memo",
       name: "Progress Memo",
-      icon: "📊",
       description: "Track goals & habits",
       color: "var(--color-success)",
     },
@@ -93,57 +93,52 @@
         onclick={() => (showSettings = true)}
         aria-label="Settings"
       >
-        ⚙️
+        <SettingsIcon />
       </button>
     </div>
   </div>
 
   <!-- Mini Apps Grid -->
-  <div class="grid grid-cols-2 gap-5 sm:grid-cols-3 md:grid-cols-4">
+  <div class="grid grid-cols-3 gap-5">
     {#each miniApps as app (app.id)}
-      <button
-        class="group relative overflow-hidden rounded-xl border border-base-300/60 bg-base-100 p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-base-300 hover:shadow-md active:scale-[0.98]"
-        onclick={() => openMiniApp(app.id)}
-      >
-        <!-- Subtle gradient overlay on hover -->
-        <div
-          class="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-          style="background: linear-gradient(135deg, color-mix(in srgb, {app.color} 6%, transparent), transparent)"
-        ></div>
-
-        <div class="relative flex flex-col items-center gap-4 text-center">
-          <!-- Icon container with refined styling -->
+      <div class="flex flex-col items-center gap-2">
+        <button
+          class="group relative aspect-square w-20 overflow-hidden rounded-xl border border-base-300/60 bg-base-100 p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-base-300 hover:shadow-md active:scale-[0.98]"
+          onclick={() => openMiniApp(app.id)}
+        >
+          <!-- Subtle gradient overlay on hover -->
           <div
-            class="relative flex h-14 w-14 items-center justify-center rounded-xl text-2xl transition-all duration-200 group-hover:scale-105"
-            style="background: linear-gradient(145deg, color-mix(in srgb, {app.color} 12%, white), color-mix(in srgb, {app.color} 18%, white)); box-shadow: 0 2px 8px color-mix(in srgb, {app.color} 15%, transparent), inset 0 1px 0 rgba(255,255,255,0.5);"
+            class="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+            style="background: linear-gradient(135deg, color-mix(in srgb, {app.color} 6%, transparent), transparent)"
+          ></div>
+
+          <div
+            class="relative flex h-full flex-col items-center justify-center"
           >
-            <span class="drop-shadow-sm">{app.icon}</span>
+            {#if app.id === "pomodoro"}
+              <PomodoroIcon
+                class="h-10 w-10 drop-shadow-sm"
+                style="color: {app.color};"
+              />
+            {:else if app.id === "transit"}
+              <TransitIcon
+                class="h-10 w-10 drop-shadow-sm"
+                style="color: {app.color};"
+              />
+            {:else if app.id === "progress-memo"}
+              <ProgressMemoIcon
+                class="h-10 w-10 drop-shadow-sm"
+                style="color: {app.color};"
+              />
+            {/if}
           </div>
-
-          <!-- Text content -->
-          <div class="flex flex-col gap-0.5">
-            <span class="text-sm font-medium tracking-tight text-base-content"
-              >{app.name}</span
-            >
-            <span class="text-xs text-[var(--color-text-secondary)]"
-              >{app.description}</span
-            >
-          </div>
-        </div>
-      </button>
-    {/each}
-
-    <!-- Placeholder for future apps -->
-    <div
-      class="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-base-300/50 bg-transparent p-5 opacity-40"
-    >
-      <div
-        class="flex h-14 w-14 items-center justify-center rounded-xl bg-base-200/50"
-      >
-        <span class="text-xl text-[var(--color-text-muted)]">+</span>
+        </button>
+        <!-- App name -->
+        <span class="text-sm font-medium tracking-tight text-base-content"
+          >{app.name}</span
+        >
       </div>
-      <span class="text-xs text-[var(--color-text-muted)]">More coming</span>
-    </div>
+    {/each}
   </div>
 </div>
 

@@ -23,8 +23,18 @@
     // Initialize SSE handler for real-time cross-device sync
     const cleanupSSE = initTimerSSEHandler(focusState);
 
+    // Re-check server state when page becomes visible
+    // This catches any SSE events missed while the page was in the background
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        void focusState.loadFromStorage();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       cleanupSSE();
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   });
 

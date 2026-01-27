@@ -18,9 +18,11 @@
   import {
     snapToGap,
     minutesToTime,
+    timeToMinutes,
     svgCoordsToAngle,
     angleToMinutes,
   } from "../services/suggestion-drag.ts";
+  import { snapToIncrement } from "../services/suggestions/suggestion-scheduler.ts";
   import {
     clientToSvgCoords,
     getPointerCoords,
@@ -552,7 +554,7 @@
 
     e.preventDefault();
     const coords = getPointerCoords(e);
-    const delta = Math.round((dragStartY - coords.y) / 5) * 5;
+    const delta = Math.round((dragStartY - coords.y) / 10) * 10;
     // Enforce 45-minute minimum (MIN_DRAG_DURATION from suggestion-scheduler)
     const MIN_DRAG_DURATION = 45;
     dispatch("suggestionResize", {
@@ -727,9 +729,15 @@
     draggingSuggestionId = suggestion.suggestionId;
     draggingSuggestionDuration = suggestion.duration;
     draggingSuggestionGapId = gapId;
+
+    // Snap to 10-minute boundary at drag start
+    const startMinutes = timeToMinutes(suggestion.startTime);
+    const endMinutes = timeToMinutes(suggestion.endTime);
+    const snappedStart = snapToIncrement(startMinutes);
+    const snappedEnd = snapToIncrement(endMinutes);
     dragPreviewAngles = {
-      start: timeToAngle(suggestion.startTime),
-      end: timeToAngle(suggestion.endTime),
+      start: timeToAngle(minutesToTime(snappedStart)),
+      end: timeToAngle(minutesToTime(snappedEnd)),
     };
     dragPreviewGapId = gapId;
 

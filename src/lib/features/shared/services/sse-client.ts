@@ -33,6 +33,7 @@ class SSEClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private isConnecting = false;
   private visibilityHandler: (() => void) | null = null;
+  private visibilityReconnectHandler: (() => void) | null = null;
 
   /**
    * Connect to the SSE endpoint
@@ -54,6 +55,8 @@ class SSEClient {
         // Reset reconnect state on successful connection
         this.reconnect.attempts = 0;
         this.reconnect.delay = this.reconnect.baseDelay;
+        // Set up visibility-based reconnection for reliability
+        this.setupVisibilityReconnect();
       };
 
       this.eventSource.onmessage = (event) => {
@@ -87,6 +90,7 @@ class SSEClient {
       this.reconnectTimer = null;
     }
     this.clearVisibilityHandler();
+    this.clearVisibilityReconnectHandler();
     this.cleanup();
     this.handlers.clear();
     this.deviceId = null;
@@ -113,6 +117,20 @@ class SSEClient {
    */
   isConnected(): boolean {
     return this.eventSource?.readyState === EventSource.OPEN;
+  }
+
+  /**
+   * Force reconnect - closes existing connection and creates a new one.
+   * Used when page becomes visible to ensure connection is fresh.
+   */
+  forceReconnect(): void {
+    if (!this.deviceId) return;
+
+    console.log("[SSE] Force reconnecting...");
+    const deviceId = this.deviceId;
+    this.cleanup();
+    this.isConnecting = false;
+    this.connect(deviceId);
   }
 
   /**
@@ -143,12 +161,47 @@ class SSEClient {
   }
 
   /**
-   * Clean up the visibility change handler
+   * Clean up the visibility change handler (used for deferred reconnect)
    */
   private clearVisibilityHandler(): void {
     if (this.visibilityHandler) {
       document.removeEventListener("visibilitychange", this.visibilityHandler);
       this.visibilityHandler = null;
+    }
+  }
+
+  /**
+   * Set up visibility-based reconnection.
+   * When page becomes visible, force reconnect to ensure connection is fresh.
+   * This handles silent connection failures on mobile/background tabs.
+   */
+  private setupVisibilityReconnect(): void {
+    this.clearVisibilityReconnectHandler();
+
+    if (typeof document === "undefined") return;
+
+    this.visibilityReconnectHandler = () => {
+      if (!document.hidden && this.deviceId && !this.isConnecting) {
+        console.log("[SSE] Page visible - reconnecting for reliability");
+        this.forceReconnect();
+      }
+    };
+    document.addEventListener(
+      "visibilitychange",
+      this.visibilityReconnectHandler,
+    );
+  }
+
+  /**
+   * Clean up the visibility reconnect handler
+   */
+  private clearVisibilityReconnectHandler(): void {
+    if (this.visibilityReconnectHandler) {
+      document.removeEventListener(
+        "visibilitychange",
+        this.visibilityReconnectHandler,
+      );
+      this.visibilityReconnectHandler = null;
     }
   }
 

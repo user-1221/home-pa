@@ -110,16 +110,16 @@ export const GAP_CONFIG = {
   dotEdgeMinutes: 5,
 
   /** Snap increment for drag operations */
-  dragSnapMinutes: 5,
+  dragSnapMinutes: 10,
 
   /** Minimum dots required to contain a suggestion during drag */
   minDotsForDrag: 5,
 
   /** Buffer time before fixed events (in minutes) */
-  bufferBeforeEvent: 5,
+  bufferBeforeEvent: 10,
 
   /** Time snapping increment (in minutes) */
-  snapIncrement: 5,
+  snapIncrement: 10,
 } as const;
 
 // ============================================================================
