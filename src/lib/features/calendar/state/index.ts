@@ -1,13 +1,13 @@
 /**
  * Calendar state barrel export
  */
-export {
-  calendarState,
-  type ExpandedOccurrence,
-  type CalendarState,
-  type ImportResult,
-  type DateWindow,
-} from "./calendar.state.svelte.ts";
+export { calendarState } from "./calendar.svelte.ts";
+export type {
+  ExpandedOccurrence,
+  CalendarState,
+  ImportResult,
+  DateWindow,
+} from "./calendar.types.ts";
 
 // Re-export Remote Functions
 export { importIcs } from "./calendar.functions.remote.ts";
