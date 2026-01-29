@@ -115,6 +115,15 @@ export const GAP_CONFIG = {
   /** Minimum dots required to contain a suggestion during drag */
   minDotsForDrag: 5,
 
+  /**
+   * Minimum duration for dragging, aligned to dragSnapMinutes.
+   *
+   * The dot-based calculation (5 dots × 10 - 5 = 45) creates 5-minute offset times
+   * that don't align with the 10-minute drag snap grid. This explicit value ensures
+   * durations stay on 10-minute boundaries to prevent "stuck" suggestions.
+   */
+  minDragDuration: 50,
+
   /** Buffer time before fixed events (in minutes) */
   bufferBeforeEvent: 10,
 

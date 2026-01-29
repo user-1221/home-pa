@@ -418,7 +418,8 @@ function generateExpectedDurations(
  * Calculate need score for 期限付き (Deadline) tasks
  *
  * Linear growth from creation to deadline:
- * - At creation: 0.1
+ * - Same-day deadline (created & due today): 1.0 (immediately mandatory)
+ * - Multi-day deadline at creation: 0.1
  * - Day before deadline: 1.0 (mandatory)
  * - At/after deadline: 1.0 (stays mandatory)
  *
@@ -455,15 +456,14 @@ export function calculateDeadlineNeed(memo: Memo, currentTime: Date): number {
   // Linear interpolation: 0.1 → 1.0
   let score: number;
 
-  if (totalDays <= 0) {
-    // Deadline is at or before creation - immediately mandatory
+  if (totalDays < 1) {
+    // Deadline is same day as creation - immediately mandatory
     score = 1.0;
   } else if (progress >= 1) {
     // At or past deadline - mandatory
     score = 1.0;
   } else if (totalDays <= 1) {
-    // Short deadline (within 1 day): use proportional growth within the day
-    // Score goes from 0.1 to 1.0 based on progress through this short window
+    // Exactly 1-day deadline: use proportional growth within the day
     score = 0.1 + 0.9 * progress;
   } else {
     // Normal case: Linear growth reaching 1.0 at (totalDays - 1) / totalDays

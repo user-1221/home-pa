@@ -64,6 +64,8 @@ const EndTimerSchema = v.object({
 const UpdateTimerSchema = v.object({
   pomodoroState: v.optional(PomodoroStateSchema),
   isPaused: v.optional(v.boolean()),
+  pausedAt: v.optional(v.nullable(v.string())), // ISO string or null
+  pausedDuration: v.optional(v.number()),
   deviceId: v.string(),
 });
 
@@ -226,6 +228,9 @@ export const getActiveTimerSession = query(
         } | null,
         deviceId: session.deviceId,
         deviceName: session.deviceName ?? "Unknown Device",
+        isPaused: session.isPaused,
+        pausedAt: session.pausedAt?.toISOString() ?? null,
+        pausedDuration: session.pausedDuration,
       };
     } catch (err) {
       console.error("[getActiveTimerSession] Error:", err);
@@ -282,6 +287,18 @@ export const updateTimerSession = command(UpdateTimerSchema, async (input) => {
       updateData.pomodoroState = input.pomodoroState;
     }
 
+    if (input.isPaused !== undefined) {
+      updateData.isPaused = input.isPaused;
+    }
+
+    if (input.pausedAt !== undefined) {
+      updateData.pausedAt = input.pausedAt ? new Date(input.pausedAt) : null;
+    }
+
+    if (input.pausedDuration !== undefined) {
+      updateData.pausedDuration = input.pausedDuration;
+    }
+
     await prisma.activeTimerSession.update({
       where: { userId },
       data: updateData,
@@ -295,6 +312,9 @@ export const updateTimerSession = command(UpdateTimerSchema, async (input) => {
         "updated",
         {
           pomodoroState: input.pomodoroState,
+          isPaused: input.isPaused,
+          pausedAt: input.pausedAt,
+          pausedDuration: input.pausedDuration,
         },
         input.deviceId,
       ),
@@ -373,6 +393,9 @@ export const moveTimerToDevice = command(MoveTimerSchema, async (input) => {
             breakDuration: number;
             totalWorkTime: number;
           } | null,
+          isPaused: existing.isPaused,
+          pausedAt: existing.pausedAt?.toISOString() ?? null,
+          pausedDuration: existing.pausedDuration,
           deviceName: input.deviceName,
           targetDeviceId: input.deviceId,
         },
@@ -397,6 +420,9 @@ export const moveTimerToDevice = command(MoveTimerSchema, async (input) => {
           breakDuration: number;
           totalWorkTime: number;
         } | null,
+        isPaused: existing.isPaused,
+        pausedAt: existing.pausedAt?.toISOString() ?? null,
+        pausedDuration: existing.pausedDuration,
       },
     };
   } catch (err) {

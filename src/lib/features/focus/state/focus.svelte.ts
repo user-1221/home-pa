@@ -102,6 +102,9 @@ class FocusState {
   // Reactive tick counter for derived updates
   private tick = $state(0);
 
+  // Debounce timer for pause sync
+  private syncPauseDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   // ============================================================================
   // Derived Properties
   // ============================================================================
@@ -399,6 +402,7 @@ class FocusState {
     this.isPaused = true;
     this.pausedAt = new Date();
     this.saveToStorage();
+    this.syncPauseState();
 
     console.log("[Focus] Session paused");
   }
@@ -414,8 +418,31 @@ class FocusState {
     this.isPaused = false;
     this.pausedAt = null;
     this.saveToStorage();
+    this.syncPauseState();
 
     console.log("[Focus] Session resumed");
+  }
+
+  /**
+   * Sync pause state to server with debouncing
+   * Prevents rapid fire on quick pause/resume toggles
+   */
+  private syncPauseState(): void {
+    if (this.syncPauseDebounceTimer) {
+      clearTimeout(this.syncPauseDebounceTimer);
+    }
+
+    this.syncPauseDebounceTimer = setTimeout(() => {
+      this.syncPauseDebounceTimer = null;
+      void updateTimerSession({
+        isPaused: this.isPaused,
+        pausedAt: this.pausedAt?.toISOString() ?? null,
+        pausedDuration: this.pausedDuration,
+        deviceId: getDeviceId(),
+      }).catch((err) => {
+        console.error("[Focus] Failed to sync pause state:", err);
+      });
+    }, 300);
   }
 
   /**
@@ -701,6 +728,32 @@ class FocusState {
           this.clearStorage();
           return;
         }
+
+        // This device owns the session - restore from server
+        // Server pause state is authoritative (may have been updated from another tab)
+        if ("memoId" in serverSession) {
+          this.activeSession = {
+            memoId: serverSession.memoId,
+            taskTitle: serverSession.taskTitle,
+            startedAt: serverSession.startedAt,
+            plannedEndTime: serverSession.plannedEndTime,
+            mode: serverSession.mode,
+            pomodoroState: serverSession.pomodoroState ?? undefined,
+          };
+          this.isPaused = serverSession.isPaused;
+          this.pausedAt = serverSession.pausedAt
+            ? new Date(serverSession.pausedAt)
+            : null;
+          this.pausedDuration = serverSession.pausedDuration;
+          this.otherDeviceSession = null;
+          this.startTicking();
+          this.saveToStorage(); // Sync local storage with server state
+          console.log(
+            "[Focus] Restored session from server:",
+            serverSession.taskTitle,
+          );
+          return;
+        }
       }
     } catch (err) {
       console.error("[Focus] Failed to check server state:", err);
@@ -890,9 +943,10 @@ class FocusState {
       };
 
       this.otherDeviceSession = null;
-      this.isPaused = false;
-      this.pausedAt = null;
-      this.pausedDuration = 0;
+      // Restore pause state from server (preserves paused timer state)
+      this.isPaused = session.isPaused;
+      this.pausedAt = session.pausedAt ? new Date(session.pausedAt) : null;
+      this.pausedDuration = session.pausedDuration;
 
       this.startTicking();
       this.saveToStorage();
@@ -993,13 +1047,25 @@ class FocusState {
   }
 
   /**
-   * Handle timer updated on another device (e.g., pomodoro phase change)
+   * Handle timer updated on another device (e.g., pomodoro phase change, pause state)
    */
-  handleRemoteTimerUpdated(payload: { pomodoroState?: PomodoroState }): void {
-    // Currently no-op since we don't show detailed phase info for other device's timer
-    // Could be used to update display if we want to show phase on other device
-    console.log("[Focus] Remote timer updated");
-    void payload;
+  handleRemoteTimerUpdated(payload: {
+    pomodoroState?: PomodoroState;
+    isPaused?: boolean;
+    pausedAt?: string | null;
+    pausedDuration?: number;
+  }): void {
+    console.log("[Focus] Remote timer updated", payload);
+
+    if (payload.isPaused !== undefined) {
+      this.isPaused = payload.isPaused;
+    }
+    if (payload.pausedAt !== undefined) {
+      this.pausedAt = payload.pausedAt ? new Date(payload.pausedAt) : null;
+    }
+    if (payload.pausedDuration !== undefined) {
+      this.pausedDuration = payload.pausedDuration;
+    }
   }
 
   // ============================================================================

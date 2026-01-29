@@ -28,6 +28,7 @@
   }: Props = $props();
 
   let frameIndex = $state(0);
+  let visibilityTick = $state(0);
 
   // Preload all frames to ensure smooth animation
   $effect(() => {
@@ -37,8 +38,26 @@
     });
   });
 
-  // Animation loop
+  // Force animation restart when tab becomes visible
+  // Browser throttles setInterval when tab is backgrounded
   $effect(() => {
+    if (typeof document === "undefined") return;
+
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        visibilityTick++;
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibility);
+  });
+
+  // Animation loop - include visibilityTick to restart after visibility change
+  $effect(() => {
+    void visibilityTick; // Track visibility changes to restart interval
+
     if (!playing || frames.length === 0) {
       return;
     }

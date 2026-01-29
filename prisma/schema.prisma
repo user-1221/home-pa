@@ -319,6 +319,11 @@ model ActiveTimerSession {
   mode            String   // "normal" | "pomodoro"
   pomodoroState   Json?    // PomodoroState object
 
+  // Pause state
+  isPaused        Boolean  @default(false)
+  pausedAt        DateTime?
+  pausedDuration  Int      @default(0) // Total paused time in ms
+
   // Device identification
   deviceId        String   // UUID generated per browser
   deviceName      String?  // Optional: "Chrome on MacOS"

@@ -85,6 +85,12 @@ export const DRAG_SNAP_MINUTES = GAP_CONFIG.dragSnapMinutes;
 export const MIN_DOTS_FOR_DRAG = GAP_CONFIG.minDotsForDrag;
 
 /**
+ * Minimum duration for dragging, aligned to DRAG_SNAP_MINUTES.
+ * Use this for UI constraints instead of calculateMinDurationForDots().
+ */
+export const MIN_DRAG_DURATION = GAP_CONFIG.minDragDuration;
+
+/**
  * Configuration for duration extension when extra gap time is available.
  * Re-exported type for backward compatibility.
  */

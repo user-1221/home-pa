@@ -23,6 +23,9 @@ export interface TimerEventPayload {
   plannedEndTime?: string;
   mode?: "normal" | "pomodoro";
   pomodoroState?: PomodoroState;
+  isPaused?: boolean;
+  pausedAt?: string | null;
+  pausedDuration?: number;
   deviceName?: string;
   targetDeviceId?: string;
 }

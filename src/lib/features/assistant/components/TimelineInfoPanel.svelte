@@ -10,10 +10,7 @@
     adjustDuration,
     calculateNewEndTime,
   } from "../services/suggestion-drag.ts";
-  import {
-    calculateMinDurationForDots,
-    MIN_DOTS_FOR_DRAG,
-  } from "../services/suggestions/suggestion-scheduler.ts";
+  import { MIN_DRAG_DURATION } from "../services/suggestions/suggestion-scheduler.ts";
   import { focusState } from "$lib/features/focus/state/index.ts";
   import {
     StartNowButton,
@@ -67,8 +64,8 @@
     };
   }>();
 
-  // Minimum duration for suggestions (5 dots = 45 min)
-  const MIN_DURATION = calculateMinDurationForDots(MIN_DOTS_FOR_DRAG);
+  // Minimum duration for suggestions (aligned to 10-min snap grid)
+  const MIN_DURATION = MIN_DRAG_DURATION;
 
   // Calculate max and current duration for pending suggestions
   let maxDuration = $derived.by(() => {

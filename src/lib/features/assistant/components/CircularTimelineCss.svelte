@@ -22,7 +22,10 @@
     svgCoordsToAngle,
     angleToMinutes,
   } from "../services/suggestion-drag.ts";
-  import { snapToIncrement } from "../services/suggestions/suggestion-scheduler.ts";
+  import {
+    snapToIncrement,
+    MIN_DRAG_DURATION,
+  } from "../services/suggestions/suggestion-scheduler.ts";
   import {
     clientToSvgCoords,
     getPointerCoords,
@@ -555,8 +558,7 @@
     e.preventDefault();
     const coords = getPointerCoords(e);
     const delta = Math.round((dragStartY - coords.y) / 10) * 10;
-    // Enforce 45-minute minimum (MIN_DRAG_DURATION from suggestion-scheduler)
-    const MIN_DRAG_DURATION = 45;
+    // Enforce minimum duration (aligned to 10-min snap grid)
     dispatch("suggestionResize", {
       suggestionId: dragId,
       newDuration: Math.max(MIN_DRAG_DURATION, dragOrigDuration + delta),

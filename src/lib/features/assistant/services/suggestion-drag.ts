@@ -16,8 +16,7 @@
 
 import type { Gap } from "$lib/types.ts";
 import {
-  MIN_DOTS_FOR_DRAG,
-  calculateMinDurationForDots,
+  MIN_DRAG_DURATION,
   snapToIncrement,
 } from "./suggestions/suggestion-scheduler.ts";
 
@@ -157,18 +156,13 @@ export function canFitInGap(gap: Gap, duration: number): boolean {
 // ============================================================================
 
 /**
- * Minimum duration for dragging (5 dots = 45 min)
- */
-const MIN_DRAG_DURATION = calculateMinDurationForDots(MIN_DOTS_FOR_DRAG);
-
-/**
  * Position arc in a gap with SHRINKING at edges.
  *
  * Behavior:
  * 1. Center arc on cursor
  * 2. If arc extends past gap edge, SHRINK from that side
- * 3. Minimum shrink is 45 min
- * 4. Return null if can't fit 45 min at this cursor position
+ * 3. Minimum shrink is MIN_DRAG_DURATION (50 min, aligned to 10-min snap)
+ * 4. Return null if can't fit minimum at this cursor position
  */
 function positionArcWithShrink(
   cursor: number,
