@@ -1128,20 +1128,26 @@
       fill="var(--color-base-100)"
       stroke="var(--color-border-strong)"
       stroke-width="0.6"
+      style="pointer-events: none;"
     />
   </svg>
 
   <!-- Center display -->
   <button
-    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer touch-manipulation border-none bg-transparent p-2 text-center"
+    class="pointer-events-auto absolute top-1/2 left-1/2 z-10 flex min-h-[44px] min-w-[60px] -translate-x-1/2 -translate-y-1/2 cursor-pointer touch-manipulation items-center justify-center border-none bg-transparent p-4 text-center"
     onclick={handleCenterClick}
-    ontouchstart={(e: TouchEvent) => {
-      e.preventDefault();
+    onpointerdown={(e: PointerEvent) => {
+      e.stopPropagation();
+      if (e.pointerType === "touch") {
+        e.preventDefault();
+      }
       handleCenterClick();
     }}
+    type="button"
+    aria-label="Select date"
   >
     <div
-      class="text-[clamp(16px,4vw,24px)] font-normal tracking-wide text-[var(--color-text-primary)]"
+      class="pointer-events-none text-[clamp(16px,4vw,24px)] font-normal tracking-wide text-[var(--color-text-primary)]"
     >
       {formatDate(selectedDateCurrent)}
     </div>

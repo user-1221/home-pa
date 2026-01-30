@@ -92,6 +92,7 @@ export function dbEventToAppEvent(dbEvent: CalendarEvent): Event {
     end: appEndDate,
     description: dbEvent.description || undefined,
     address: dbEvent.location || undefined,
+    importance: (dbEvent.importance as "low" | "medium" | "high") || undefined,
     timeLabel,
     tzid: dbEvent.dtstartTzid || undefined,
     recurrence,
@@ -144,6 +145,7 @@ export function appEventToDbCreate(
   description: string | null;
   location: string | null;
   color: string | null;
+  importance: string | null;
   icalData: string;
 } {
   const uid = crypto.randomUUID();
@@ -227,6 +229,7 @@ export function appEventToDbCreate(
     description: event.description || null,
     location: event.address || null,
     color: event.color || null,
+    importance: event.importance || null,
     icalData,
   };
 }
@@ -253,6 +256,7 @@ export function appEventToDbUpdate(
   description: string | null;
   location: string | null;
   color: string | null;
+  importance: string | null;
   icalData: string;
 }> {
   const result: ReturnType<typeof appEventToDbUpdate> = {};
@@ -396,6 +400,11 @@ export function appEventToDbUpdate(
   if (updates.color !== undefined) {
     result.color = updates.color || null;
     // color doesn't affect icalData
+  }
+
+  if (updates.importance !== undefined) {
+    result.importance = updates.importance || null;
+    // importance doesn't affect icalData
   }
 
   // Regenerate icalData if needed

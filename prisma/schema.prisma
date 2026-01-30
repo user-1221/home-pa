@@ -104,7 +104,8 @@ model CalendarEvent {
   description   String?
   location      String?
   color         String?           // User-selected color (CSS color value)
-  
+  importance    String?           // "low" | "medium" | "high" - arrival target buffer
+
   // Sync metadata (for future CalDAV integration)
   calendarId    String?           // External calendar ID
   etag          String?           // For sync conflict detection

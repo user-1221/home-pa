@@ -1330,14 +1330,14 @@
       />
     </div>
 
-    <!-- Importance -->
+    <!-- 到着目標 (Arrival Target) -->
     <div class="form-control">
       <span class="label">
         <span class="label-text text-sm text-[var(--color-text-secondary)]"
-          >重要度</span
+          >到着目標</span
         >
       </span>
-      <div class="flex gap-2" role="group" aria-label="重要度">
+      <div class="flex gap-2" role="group" aria-label="到着目標">
         <button
           type="button"
           class="btn flex-1 btn-sm {eventImportance === 'low'
@@ -1345,7 +1345,7 @@
             : 'border-base-300 btn-ghost'} border transition-all duration-200"
           onclick={() => (eventImportance = "low")}
         >
-          ⭐
+          5分前
         </button>
         <button
           type="button"
@@ -1354,7 +1354,7 @@
             : 'border-base-300 btn-ghost'} border transition-all duration-200"
           onclick={() => (eventImportance = "medium")}
         >
-          ⭐⭐
+          10分前
         </button>
         <button
           type="button"
@@ -1363,7 +1363,7 @@
             : 'border-base-300 btn-ghost'} border transition-all duration-200"
           onclick={() => (eventImportance = "high")}
         >
-          ⭐⭐⭐
+          余裕を持って
         </button>
       </div>
     </div>
