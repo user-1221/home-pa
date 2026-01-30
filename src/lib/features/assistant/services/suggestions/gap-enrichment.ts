@@ -1,11 +1,15 @@
 /**
  * @fileoverview Gap Enrichment Module
  *
- * Derives location labels for gaps based on surrounding calendar events.
- * This module is separate from gap-finder for maintainability and testability.
+ * Derives location labels for gaps using a layer-based system:
+ * - Home is the base layer (always present, lowest priority)
+ * - Timetable events create "work" location layers
+ * - Calendar events create "other" location layers
+ * - Same-location events merge into continuous spans
+ * - Shorter duration spans have higher priority (come on top)
  *
  * @author Personal Assistant Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 import type { Gap, LocationLabel } from "$lib/types.ts";
@@ -15,36 +19,30 @@ import type { Gap, LocationLabel } from "$lib/types.ts";
 // ============================================================================
 
 /**
- * Event with optional location for enrichment purposes
- * Extends gap-finder Event with location data
+ * Event source type for location classification
+ */
+export type EventSource = "timetable" | "calendar";
+
+/**
+ * Event with source info for location enrichment
  */
 export interface EnrichableEvent {
   id: string;
   title: string;
   start: string; // HH:mm format
   end: string; // HH:mm format
-  locationLabel?: LocationLabel;
+  source: EventSource;
 }
 
 /**
- * Configuration for gap enrichment behavior
- * Easy to modify defaults without changing core logic
+ * A location span representing a continuous period at a location
  */
-export interface EnrichmentConfig {
-  /** Default location when no context is available */
-  defaultLocation: LocationLabel;
-  /** Time before which to assume "home" (HH:mm format) */
-  morningHomeThreshold: string;
-  /** Time after which to assume "home" (HH:mm format) */
-  eveningHomeThreshold: string;
+interface LocationSpan {
+  location: LocationLabel;
+  start: number; // minutes from midnight
+  end: number; // minutes from midnight
+  duration: number; // end - start (Infinity for home)
 }
-
-/** Default configuration - easy to modify */
-const DEFAULT_CONFIG: EnrichmentConfig = {
-  defaultLocation: "unknown",
-  morningHomeThreshold: "10:00",
-  eveningHomeThreshold: "18:00",
-};
 
 // ============================================================================
 // HELPER FUNCTIONS
@@ -59,124 +57,74 @@ function timeToMinutes(time: string): number {
 }
 
 /**
- * Find the event that ends closest to (but before) the gap start
+ * Build location spans from events
  *
- * If multiple events end at the same time (ambiguous), returns null
- * to avoid guessing - the gap will use fallback logic instead.
- *
- * @returns The preceding event, or null if none found or ambiguous
+ * Same-location events are merged into one continuous span
+ * from the earliest start to the latest end.
  */
-export function findPrecedingEvent(
-  gapStartMinutes: number,
-  events: EnrichableEvent[],
-): EnrichableEvent | null {
-  let closest: EnrichableEvent | null = null;
-  let closestEndMinutes = -Infinity;
-  let isAmbiguous = false;
+export function buildLocationSpans(events: EnrichableEvent[]): LocationSpan[] {
+  const spans: LocationSpan[] = [];
 
-  for (const event of events) {
-    const eventEndMinutes = timeToMinutes(event.end);
+  // Group events by location type
+  const workEvents = events.filter((e) => e.source === "timetable");
+  const otherEvents = events.filter((e) => e.source === "calendar");
 
-    // Event must end at or before gap starts
-    if (eventEndMinutes <= gapStartMinutes) {
-      if (eventEndMinutes > closestEndMinutes) {
-        // This event ends later (closer to gap) - pick it
-        closest = event;
-        closestEndMinutes = eventEndMinutes;
-        isAmbiguous = false;
-      } else if (eventEndMinutes === closestEndMinutes) {
-        // Multiple events end at same time - ambiguous
-        isAmbiguous = true;
-      }
-    }
+  // Create work span (merge all timetable events)
+  if (workEvents.length > 0) {
+    const start = Math.min(...workEvents.map((e) => timeToMinutes(e.start)));
+    const end = Math.max(...workEvents.map((e) => timeToMinutes(e.end)));
+    spans.push({
+      location: "workplace",
+      start,
+      end,
+      duration: end - start,
+    });
   }
 
-  // If ambiguous, return null to use fallback logic
-  return isAmbiguous ? null : closest;
+  // Create other span (merge all calendar events)
+  if (otherEvents.length > 0) {
+    const start = Math.min(...otherEvents.map((e) => timeToMinutes(e.start)));
+    const end = Math.max(...otherEvents.map((e) => timeToMinutes(e.end)));
+    spans.push({
+      location: "other",
+      start,
+      end,
+      duration: end - start,
+    });
+  }
+
+  // Home is implicit base layer (infinite duration, always loses to others)
+  spans.push({
+    location: "home",
+    start: 0,
+    end: 1440,
+    duration: Infinity,
+  });
+
+  return spans;
 }
 
 /**
- * Find the event that starts closest to (but after) the gap end
+ * Get the location for a gap based on overlapping spans
  *
- * If multiple events start at the same time (ambiguous), returns null
- * to avoid guessing - the gap will use fallback logic instead.
- *
- * @returns The following event, or null if none found or ambiguous
+ * The span with the shortest duration wins (higher priority).
  */
-export function findFollowingEvent(
-  gapEndMinutes: number,
-  events: EnrichableEvent[],
-): EnrichableEvent | null {
-  let closest: EnrichableEvent | null = null;
-  let closestStartMinutes = Infinity;
-  let isAmbiguous = false;
-
-  for (const event of events) {
-    const eventStartMinutes = timeToMinutes(event.start);
-
-    // Event must start at or after gap ends
-    if (eventStartMinutes >= gapEndMinutes) {
-      if (eventStartMinutes < closestStartMinutes) {
-        // This event starts earlier (closer to gap) - pick it
-        closest = event;
-        closestStartMinutes = eventStartMinutes;
-        isAmbiguous = false;
-      } else if (eventStartMinutes === closestStartMinutes) {
-        // Multiple events start at same time - ambiguous
-        isAmbiguous = true;
-      }
-    }
-  }
-
-  // If ambiguous, return null to use fallback logic
-  return isAmbiguous ? null : closest;
-}
-
-/**
- * Derive location label for a single gap based on surrounding events
- *
- * Priority:
- * 1. Preceding event's location (user is likely still there)
- * 2. Following event's location (if preceding unknown)
- * 3. Time-based default (morning/evening = home)
- * 4. Config default (unknown)
- */
-export function deriveLocationLabel(
+export function getLocationForGap(
   gap: Gap,
-  events: EnrichableEvent[],
-  config: EnrichmentConfig = DEFAULT_CONFIG,
+  spans: LocationSpan[],
 ): LocationLabel {
-  const gapStartMinutes = timeToMinutes(gap.start);
-  const gapEndMinutes = timeToMinutes(gap.end);
+  const gapStart = timeToMinutes(gap.start);
+  const gapEnd = timeToMinutes(gap.end);
 
-  // 1. Check preceding event
-  const preceding = findPrecedingEvent(gapStartMinutes, events);
-  if (preceding?.locationLabel) {
-    return preceding.locationLabel;
-  }
+  // Find spans that overlap with this gap
+  const overlapping = spans.filter(
+    (span) => span.start < gapEnd && span.end > gapStart,
+  );
 
-  // 2. Check following event
-  const following = findFollowingEvent(gapEndMinutes, events);
-  if (following?.locationLabel) {
-    return following.locationLabel;
-  }
+  // Sort by duration (shortest wins)
+  overlapping.sort((a, b) => a.duration - b.duration);
 
-  // 3. Time-based defaults
-  const morningThreshold = timeToMinutes(config.morningHomeThreshold);
-  const eveningThreshold = timeToMinutes(config.eveningHomeThreshold);
-
-  if (gapStartMinutes < morningThreshold) {
-    // Early morning gap → assume home
-    return "home";
-  }
-
-  if (gapStartMinutes >= eveningThreshold) {
-    // Evening gap → assume home
-    return "home";
-  }
-
-  // 4. Default
-  return config.defaultLocation;
+  return overlapping[0]?.location ?? "home";
 }
 
 // ============================================================================
@@ -184,23 +132,21 @@ export function deriveLocationLabel(
 // ============================================================================
 
 /**
- * Enrich gaps with location labels based on surrounding events
+ * Enrich gaps with location labels using the layer-based system
  *
  * @param gaps - Gaps to enrich (from GapFinder)
- * @param events - Events with optional location labels
- * @param config - Optional configuration overrides
+ * @param events - Events with source info for location classification
  * @returns New array of gaps with locationLabel set
  */
 export function enrichGapsWithLocation(
   gaps: Gap[],
   events: EnrichableEvent[],
-  config: EnrichmentConfig = DEFAULT_CONFIG,
 ): Gap[] {
+  // Build location spans once for all gaps
+  const spans = buildLocationSpans(events);
+
   return gaps.map((gap) => ({
     ...gap,
-    locationLabel: deriveLocationLabel(gap, events, config),
+    locationLabel: getLocationForGap(gap, spans),
   }));
 }
-
-// Re-export DEFAULT_CONFIG for convenience
-export { DEFAULT_CONFIG };

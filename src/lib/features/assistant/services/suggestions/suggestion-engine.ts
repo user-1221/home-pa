@@ -105,9 +105,7 @@ import {
 } from "./suggestion-scheduler.ts";
 import {
   enrichGapsWithLocation,
-  DEFAULT_CONFIG as DEFAULT_GAP_CONFIG,
   type EnrichableEvent,
-  type EnrichmentConfig as GapEnrichmentConfig,
 } from "./gap-enrichment.ts";
 
 // ============================================================================
@@ -120,9 +118,6 @@ import {
 export interface EngineConfig {
   /** LLM enrichment config (optional - falls back to defaults) */
   llm?: Partial<LLMEnrichmentConfig>;
-
-  /** Gap enrichment config (optional) */
-  gapEnrichment?: Partial<GapEnrichmentConfig>;
 
   /** Scheduler config (optional) */
   scheduler?: {
@@ -226,7 +221,6 @@ export interface PipelineSummary {
 
 const DEFAULT_ENGINE_CONFIG: Required<EngineConfig> = {
   llm: {},
-  gapEnrichment: {},
   scheduler: {},
   durationExtension: DEFAULT_EXTENSION_CONFIG,
   enableLLMEnrichment: true,
@@ -464,12 +458,7 @@ export class SuggestionEngine {
     // Step 7: Enrich gaps with location (if events provided)
     let enrichedGaps: Gap[];
     if (options.events && options.events.length > 0) {
-      // Merge partial config with defaults
-      const gapConfig: GapEnrichmentConfig = {
-        ...DEFAULT_GAP_CONFIG,
-        ...this.config.gapEnrichment,
-      };
-      enrichedGaps = enrichGapsWithLocation(gaps, options.events, gapConfig);
+      enrichedGaps = enrichGapsWithLocation(gaps, options.events);
     } else {
       enrichedGaps = gaps;
     }

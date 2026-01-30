@@ -34,6 +34,7 @@ import { GapFinder, type Event } from "../services/gap-finder.ts";
 import {
   enrichGapsWithLocation,
   type EnrichableEvent,
+  type EventSource,
 } from "../services/suggestions/gap-enrichment.ts";
 import type { Event as CalendarEvent, Gap } from "$lib/types.ts";
 import { startOfDay, endOfDay } from "$lib/utils/date-utils.ts";
@@ -162,11 +163,12 @@ async function loadTimetableForDate(
 // ============================================================================
 
 /**
- * Gap event with additional metadata for filtering
+ * Gap event with additional metadata for filtering and location
  */
 interface GapEventWithMeta extends Event {
   isAllDay?: boolean;
   isMidnightCrossing?: boolean;
+  source: EventSource;
 }
 
 /**
@@ -197,6 +199,7 @@ function calendarEventToGapEvent(
       end: "23:59",
       crossesMidnight: false,
       isAllDay: true,
+      source: "calendar" as EventSource,
     };
   }
 
@@ -236,6 +239,7 @@ function calendarEventToGapEvent(
     end: endTime,
     crossesMidnight: startTime > endTime,
     isMidnightCrossing,
+    source: "calendar" as EventSource,
   };
 }
 
@@ -259,18 +263,20 @@ function timetableEventToGapEvent(ttEvent: TimetableEvent): GapEventWithMeta {
     crossesMidnight: false,
     isAllDay: false,
     isMidnightCrossing: false,
+    source: "timetable",
   };
 }
 
 /**
- * Convert gap-finder events to enrichable events
+ * Convert gap-finder events to enrichable events with source info
  */
-function toEnrichableEvents(events: Event[]): EnrichableEvent[] {
+function toEnrichableEvents(events: GapEventWithMeta[]): EnrichableEvent[] {
   return events.map((e) => ({
     id: e.id,
     title: e.title,
     start: e.start,
     end: e.end,
+    source: e.source,
   }));
 }
 
@@ -444,7 +450,7 @@ export class UnifiedGapState {
    * All gap-finder events for the selected date
    * Combines calendar events, occurrences, and timetable blocking events
    */
-  get allEvents(): Event[] {
+  get allEvents(): GapEventWithMeta[] {
     const selectedDate = dataState.selectedDate;
     const events = calendarState.events;
     const occurrences = calendarState.occurrences;
@@ -464,7 +470,7 @@ export class UnifiedGapState {
     // Convert to gap-finder format
     const calendarGapEvents = allCalendarEvents
       .map((e) => calendarEventToGapEvent(e, selectedDate))
-      .filter((e): e is Event => e !== null);
+      .filter((e): e is GapEventWithMeta => e !== null);
 
     // Convert timetable events
     const timetableGapEvents = timetableBlockingEvents.map(

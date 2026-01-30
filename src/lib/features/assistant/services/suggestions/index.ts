@@ -8,13 +8,11 @@
 // Gap Enrichment
 export {
   enrichGapsWithLocation,
-  findPrecedingEvent,
-  findFollowingEvent,
-  deriveLocationLabel,
-  DEFAULT_CONFIG,
+  buildLocationSpans,
+  getLocationForGap,
 } from "./gap-enrichment.ts";
 
-export type { EnrichableEvent, EnrichmentConfig } from "./gap-enrichment.ts";
+export type { EnrichableEvent, EventSource } from "./gap-enrichment.ts";
 
 // Period Tracking
 export {

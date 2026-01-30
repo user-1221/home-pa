@@ -951,15 +951,55 @@ class TaskState {
           const advanceResult = await advanceEventLinkedDeadline({
             memoId: taskId,
           });
-          if (advanceResult.advanced) {
-            // Refetch the updated memo to get new deadline
-            await this.load();
-            const refreshed = this.items.find((t) => t.id === taskId);
+          if (
+            advanceResult.advanced &&
+            advanceResult.newDeadline &&
+            advanceResult.newTrackedOccurrence
+          ) {
+            // Update only the specific task instead of reloading all tasks
+            const index = this.items.findIndex((t) => t.id === taskId);
+            if (index !== -1) {
+              const task = this.items[index];
+              const newDeadline = new Date(advanceResult.newDeadline);
+              const newItems = [...this.items];
+              newItems[index] = {
+                ...task,
+                deadline: newDeadline,
+                eventLink: task.eventLink
+                  ? {
+                      ...task.eventLink,
+                      trackedOccurrenceDate: new Date(
+                        advanceResult.newTrackedOccurrence,
+                      ),
+                    }
+                  : undefined,
+                suggestionAvailableFrom:
+                  advanceResult.newSuggestionAvailableFrom
+                    ? new Date(advanceResult.newSuggestionAvailableFrom)
+                    : undefined,
+                status: {
+                  ...task.status,
+                  completionState: "not_started",
+                },
+                deadlineState: task.deadlineState
+                  ? {
+                      ...task.deadlineState,
+                      deadlineDay: newDeadline,
+                      acceptedSlots: [],
+                      rejectedToday: false,
+                      lastCompletedDay: null,
+                      previousLastCompletedDay: null,
+                      actualDurations: [],
+                    }
+                  : undefined,
+              };
+              this.items = newItems;
+            }
             toastState.show(
               "タスクを完了し、次の締切に更新しました",
               "success",
             );
-            return refreshed ?? null;
+            return this.items.find((t) => t.id === taskId) ?? null;
           }
           // If no next occurrence, delete
           await deleteMemo({ id: taskId });

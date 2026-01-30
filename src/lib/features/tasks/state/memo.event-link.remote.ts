@@ -185,6 +185,7 @@ export const advanceEventLinkedDeadline = command(
           advanced: true,
           newDeadline: newDeadline.toISOString(),
           newTrackedOccurrence: newTrackedOccurrence.toISOString(),
+          newSuggestionAvailableFrom: newSuggestionAvailableFrom?.toISOString(),
         };
       }
 
