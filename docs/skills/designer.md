@@ -425,6 +425,40 @@ import Skeleton from "$lib/features/shared/components/Skeleton.svelte";
 <Skeleton variant="circle" width="40px" height="40px" />
 ```
 
+#### SlidingTabs (`SlidingTabs.svelte`)
+
+Segmented control with a sliding indicator that animates between tabs.
+
+```svelte
+<script lang="ts">
+  import SlidingTabs from "$lib/features/shared/components/SlidingTabs.svelte";
+
+  let filter = $state<"active" | "report">("active");
+
+  const tabs = [
+    { id: "active", label: "Active", badge: 5 },
+    { id: "report", label: "Report" },
+  ];
+</script>
+
+<SlidingTabs {tabs} selected={filter} onSelect={(id) => (filter = id)} />
+```
+
+| Prop       | Type                   | Description                         |
+| ---------- | ---------------------- | ----------------------------------- |
+| `tabs`     | `Tab[]`                | Array of tab objects                |
+| `selected` | `string`               | Currently selected tab ID           |
+| `onSelect` | `(id: string) => void` | Callback when tab selection changes |
+
+**Tab object:**
+
+| Property | Type               | Description                   |
+| -------- | ------------------ | ----------------------------- |
+| `id`     | `string`           | Unique identifier             |
+| `label`  | `string`           | Display text                  |
+| `badge`  | `string \| number` | Optional badge (count/label)  |
+| `icon`   | `Snippet`          | Optional icon snippet to show |
+
 ### Border Utility Classes
 
 Semantic border opacity classes defined in `app.css`:

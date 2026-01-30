@@ -2,6 +2,7 @@
   import TaskCard from "./TaskCard.svelte";
   import Skeleton from "$lib/features/shared/components/Skeleton.svelte";
   import LazyLoad from "$lib/features/shared/components/LazyLoad.svelte";
+  import SlidingTabs from "$lib/features/shared/components/SlidingTabs.svelte";
   import ModalContainer from "$lib/features/shared/components/ModalContainer.svelte";
   import ModalSkeletonContent from "$lib/features/shared/components/skeletons/ModalSkeletonContent.svelte";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
@@ -99,52 +100,31 @@
   </div>
 
   <!-- Filter Tabs -->
-  <div
-    role="tablist"
-    class="flex flex-shrink-0 gap-1 border-b border-base-300/30 bg-base-100/60 p-2 backdrop-blur-sm"
-  >
-    <button
-      role="tab"
-      class="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-200
-        {filter === 'active'
-        ? 'bg-[var(--color-primary)] text-white shadow-md'
-        : 'text-base-content/60 hover:bg-base-200/80 hover:text-base-content'}"
-      onclick={() => (filter = "active")}
-      aria-selected={filter === "active"}
+  {#snippet reportIcon()}
+    <svg
+      class="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      stroke-width="2"
+      aria-hidden="true"
     >
-      Active
-      <span
-        class="rounded-full px-2 py-0.5 text-xs font-medium
-        {filter === 'active'
-          ? 'bg-white/20 text-white'
-          : 'bg-base-200 text-base-content'}">{stats().active}</span
-      >
-    </button>
-    <button
-      role="tab"
-      class="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-200
-        {filter === 'report'
-        ? 'bg-[var(--color-primary)] text-white shadow-md'
-        : 'text-base-content/60 hover:bg-base-200/80 hover:text-base-content'}"
-      onclick={() => (filter = "report")}
-      aria-selected={filter === "report"}
-    >
-      Report
-      <svg
-        class="h-4 w-4"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        stroke-width="2"
-        aria-hidden="true"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-        />
-      </svg>
-    </button>
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+      />
+    </svg>
+  {/snippet}
+  <div class="mx-2 mt-2">
+    <SlidingTabs
+      tabs={[
+        { id: "active", label: "Active", badge: stats().active },
+        { id: "report", label: "Report", icon: reportIcon },
+      ]}
+      selected={filter}
+      onSelect={(id) => (filter = id as FilterType)}
+    />
   </div>
 
   <!-- Task List or Report View -->

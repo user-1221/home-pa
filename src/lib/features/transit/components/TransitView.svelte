@@ -17,10 +17,15 @@
 
   const { onClose }: Props = $props();
 
+  import type { Event } from "$lib/types.ts";
+  import type { ExpandedOccurrence } from "$lib/features/calendar/state/calendar.types.ts";
+
   // Local state
   let isInitialized = $state(false);
   let showLeaveNowRoute = $state(false);
   let selectedRoute = $state<Route | null>(null);
+  let selectedEventIndex = $state(0);
+  let showEventDropdown = $state(false);
 
   // Derived state from transitState
   const transitInfo = $derived(transitState.transitInfo);
@@ -29,6 +34,7 @@
   const routeError = $derived(transitState.routeError);
   const locationError = $derived(transitState.locationError);
   const userLocation = $derived(transitState.userLocation);
+  const upcomingEvents = $derived(transitState.getUpcomingEventsWithLocation());
 
   // Initialize on mount
   onMount(async () => {
@@ -74,6 +80,27 @@
       selectedRoute = transitInfo.recommendedDeparture.route;
       showLeaveNowRoute = false;
     }
+  }
+
+  async function handleEventSelect(
+    event: Event | ExpandedOccurrence,
+    index: number,
+  ) {
+    selectedEventIndex = index;
+    showEventDropdown = false;
+    showLeaveNowRoute = false;
+    await transitState.loadSelectedEventTransit(event);
+    if (transitState.transitInfo?.recommendedDeparture?.route) {
+      selectedRoute = transitState.transitInfo.recommendedDeparture.route;
+    }
+  }
+
+  function getEventTitle(event: Event | ExpandedOccurrence): string {
+    return event.title;
+  }
+
+  function getEventStart(event: Event | ExpandedOccurrence): Date {
+    return new Date(event.start);
   }
 
   // ============================================================================
@@ -133,21 +160,22 @@
     }
   }
 
-  function getMoveIcon(move: string | undefined): string {
+  function getMoveType(
+    move: string | undefined,
+  ): "walk" | "train" | "bus" | "shinkansen" {
     switch (move) {
       case "walk":
-        return "🚶";
+        return "walk";
+      case "bus":
+        return "bus";
+      case "shinkansen":
+        return "shinkansen";
       case "local_train":
       case "rapid_train":
       case "express_train":
       case "limited_express":
-        return "🚃";
-      case "bus":
-        return "🚌";
-      case "shinkansen":
-        return "🚄";
       default:
-        return "🚃";
+        return "train";
     }
   }
 
@@ -370,35 +398,108 @@
         </p>
       </div>
     {:else}
-      <!-- Next Event Info -->
+      <!-- Event Selector -->
       <section class="border-b border-base-200 px-5 py-4">
-        <div class="flex items-start justify-between gap-4">
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <h3 class="truncate text-base font-medium text-base-content">
-                {transitInfo.event.title}
-              </h3>
-              <span
-                class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium {getImportanceClass(
-                  transitInfo.importance,
-                )}"
-              >
-                {getImportanceLabel(transitInfo.importance)}
-              </span>
+        <!-- Event Dropdown -->
+        <div class="relative">
+          <button
+            class="flex w-full items-start justify-between gap-3 rounded-lg bg-base-200/50 px-3 py-2.5 text-left transition-colors hover:bg-base-200"
+            onclick={() => (showEventDropdown = !showEventDropdown)}
+            disabled={upcomingEvents.length <= 1}
+          >
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <h3 class="truncate text-base font-medium text-base-content">
+                  {transitInfo.event.title}
+                </h3>
+                {#if selectedEventIndex === 0}
+                  <span
+                    class="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+                  >
+                    次の予定
+                  </span>
+                {/if}
+                <span
+                  class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium {getImportanceClass(
+                    transitInfo.importance,
+                  )}"
+                >
+                  {getImportanceLabel(transitInfo.importance)}
+                </span>
+              </div>
+              <p class="mt-1 truncate text-sm text-base-content/60">
+                {transitInfo.eventLocation}
+              </p>
             </div>
-            <p class="mt-1 truncate text-sm text-base-content/60">
-              {transitInfo.eventLocation}
-            </p>
-          </div>
-          <div class="shrink-0 text-right">
-            <div class="text-sm font-medium text-base-content">
-              {formatEventTime(transitInfo.eventStart)}
+            <div class="flex shrink-0 items-center gap-2">
+              <div class="text-right">
+                <div class="text-sm font-medium text-base-content">
+                  {formatEventTime(transitInfo.eventStart)}
+                </div>
+                <div class="text-xs text-base-content/40">
+                  {getTimeUntilEvent(transitInfo.eventStart)}
+                </div>
+              </div>
+              {#if upcomingEvents.length > 1}
+                <svg
+                  class="h-4 w-4 text-base-content/40 transition-transform {showEventDropdown
+                    ? 'rotate-180'
+                    : ''}"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              {/if}
             </div>
-            <div class="text-xs text-base-content/40">
-              {getTimeUntilEvent(transitInfo.eventStart)}
+          </button>
+
+          <!-- Dropdown Menu -->
+          {#if showEventDropdown && upcomingEvents.length > 1}
+            <div
+              class="absolute top-full right-0 left-0 z-10 mt-1 max-h-60 overflow-y-auto rounded-lg border border-base-300 bg-base-100 shadow-lg"
+            >
+              {#each upcomingEvents as event, index (index)}
+                <button
+                  class="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors first:rounded-t-lg last:rounded-b-lg hover:bg-base-200 {index ===
+                  selectedEventIndex
+                    ? 'bg-primary/5'
+                    : ''}"
+                  onclick={() => handleEventSelect(event, index)}
+                >
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-center gap-2">
+                      <span
+                        class="truncate text-sm font-medium text-base-content"
+                      >
+                        {getEventTitle(event)}
+                      </span>
+                      {#if index === 0}
+                        <span
+                          class="shrink-0 rounded bg-primary/10 px-1 py-0.5 text-[9px] font-medium text-primary"
+                        >
+                          次
+                        </span>
+                      {/if}
+                    </div>
+                  </div>
+                  <div class="shrink-0 text-right">
+                    <div class="text-xs font-medium text-base-content/70">
+                      {formatEventTime(getEventStart(event))}
+                    </div>
+                  </div>
+                </button>
+              {/each}
             </div>
-          </div>
+          {/if}
         </div>
+
         <div
           class="mt-3 rounded-lg bg-base-200/60 px-3 py-2 text-xs text-base-content/60"
         >
@@ -719,7 +820,58 @@
                       {/if}
                     {/if}
                     <div class="flex items-center gap-2">
-                      <span class="text-base">{getMoveIcon(section.move)}</span>
+                      <!-- Transport Icon -->
+                      {#if getMoveType(section.move) === "walk"}
+                        <svg
+                          class="h-5 w-5 shrink-0 text-base-content/70"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                          stroke-width="1.5"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M15.75 9a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM9 16.5l2.25 4.5m0 0l1.5-3m-1.5 3l-1.5-3m4.5-1.5l2.25 4.5m-2.25-4.5l1.5 3m-1.5-3l-1.5 3M12 12v4.5"
+                          />
+                        </svg>
+                      {:else if getMoveType(section.move) === "bus"}
+                        <svg
+                          class="h-5 w-5 shrink-0"
+                          style="color: {section.transport?.color ??
+                            'currentColor'}"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M4 16c0 .88.39 1.67 1 2.22V20c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h8v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1.78c.61-.55 1-1.34 1-2.22V6c0-3.5-3.58-4-8-4s-8 .5-8 4v10zm3.5 1c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"
+                          />
+                        </svg>
+                      {:else if getMoveType(section.move) === "shinkansen"}
+                        <svg
+                          class="h-5 w-5 shrink-0"
+                          style="color: {section.transport?.color ??
+                            'currentColor'}"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2.23l2-2H14l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-3.58-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm3.5-7H6V6h5v4zm2 0V6h5v4h-5zm3.5 7c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"
+                          />
+                        </svg>
+                      {:else}
+                        <svg
+                          class="h-5 w-5 shrink-0"
+                          style="color: {section.transport?.color ??
+                            'currentColor'}"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            d="M12 2c-4 0-8 .5-8 4v9.5C4 17.43 5.57 19 7.5 19L6 20.5v.5h2l2-2h4l2 2h2v-.5L16.5 19c1.93 0 3.5-1.57 3.5-3.5V6c0-3.5-4-4-8-4zM7.5 17c-.83 0-1.5-.67-1.5-1.5S6.67 14 7.5 14s1.5.67 1.5 1.5S8.33 17 7.5 17zm9 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm1.5-6H6V6h12v5z"
+                          />
+                        </svg>
+                      {/if}
                       <span
                         class="text-sm font-medium"
                         style="color: {section.transport?.color ?? 'inherit'}"

@@ -169,6 +169,10 @@ export const advanceEventLinkedDeadline = command(
             completionState: "not_started",
             deadlineAcceptedSlots: [], // Clear accepted slots
             deadlineRejectedToday: false,
+            // Reset deadline tracking state for new cycle
+            deadlineLastCompletedDay: null,
+            deadlinePreviousLastCompletedDay: null,
+            deadlineActualDurations: [], // Reset duration tracking array
           },
         });
 

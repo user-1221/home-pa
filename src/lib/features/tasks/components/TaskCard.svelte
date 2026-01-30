@@ -18,7 +18,7 @@
   let translateX = $state(0);
   let isSwiping = $state(false);
   const SWIPE_THRESHOLD = 80; // px to reveal actions
-  const MAX_SWIPE = 120; // Max px to swipe
+  const MAX_SWIPE = 140; // Max px to swipe
 
   // Check if we're on mobile (screen width < 768px, which is Tailwind's md breakpoint)
   let isMobile = $state(false);
@@ -226,7 +226,7 @@
 >
   <!-- Action buttons behind (revealed on swipe, mobile only) -->
   <div
-    class="absolute top-0 right-0 bottom-0 flex items-center gap-2 px-1 md:hidden"
+    class="absolute top-0 right-0 bottom-0 flex items-center justify-evenly px-1 md:hidden"
     style="width: {MAX_SWIPE}px;"
   >
     {#if task.status.completionState !== "completed"}
@@ -476,8 +476,8 @@
           {@const radius = 24}
           {@const circumference = 2 * Math.PI * radius}
           {@const offset = circumference - (percent / 100) * circumference}
-          {@const showDaysFormat =
-            !task.eventLink || task.eventLink.offset === "1_day_before"}
+          {@const days = daysUntilDeadline()}
+          {@const isOverdue = days !== null && days < 0}
           <div class="relative h-16 w-16 shrink-0">
             <svg class="h-16 w-16 -rotate-90 transform" viewBox="0 0 64 64">
               <!-- Background ring -->
@@ -504,36 +504,27 @@
                 class="transition-all duration-300 ease-out"
               />
             </svg>
-            <!-- Center text: days format for non-event-linked or 1_day_before, min format for same_day_after/1_day_after -->
-            {#if showDaysFormat}
-              <div
-                class="absolute inset-0 flex flex-col items-center justify-center text-center"
-              >
+            <!-- Center text: always show days until deadline -->
+            <div
+              class="absolute inset-0 flex flex-col items-center justify-center text-center"
+            >
+              {#if isOverdue}
+                <span
+                  class="text-base leading-tight font-medium text-error tabular-nums"
+                >
+                  {Math.abs(days ?? 0)}日前
+                </span>
+              {:else}
                 <span class="text-xs font-normal text-base-content/60"
                   >あと</span
                 >
                 <span
                   class="text-base leading-tight font-medium text-base-content tabular-nums"
                 >
-                  {daysUntilDeadline() !== null
-                    ? Math.abs(daysUntilDeadline() ?? 0)
-                    : "?"}日
+                  {days !== null ? days : "?"}日
                 </span>
-              </div>
-            {:else}
-              {@const prog = timeProgress()}
-              <div
-                class="absolute inset-0 flex flex-col items-center justify-center text-center"
-              >
-                <span
-                  class="text-sm font-medium text-base-content tabular-nums"
-                >
-                  {prog.spent}/{prog.total}
-                </span>
-                <span class="text-xs font-normal text-base-content/60">min</span
-                >
-              </div>
-            {/if}
+              {/if}
+            </div>
           </div>
         {:else}
           {@const prog = timeProgress()}

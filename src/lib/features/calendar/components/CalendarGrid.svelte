@@ -57,7 +57,7 @@
       {@const dayOfWeek = day.getDay()}
       <!-- Cell wrapper: no padding, handles borders and background -->
       <div
-        class="group relative flex min-h-0 cursor-pointer flex-col border-r border-b bg-base-100/60 transition-colors duration-200 ease-out hover:bg-base-200/80
+        class="group relative flex min-h-0 cursor-pointer flex-col border-r border-b bg-base-100/60
           {isToday(day) ? 'bg-[var(--color-primary)]/5' : ''}
           {isSelected(day, selectedDate)
           ? 'z-10 border-base-300/30 bg-base-300'

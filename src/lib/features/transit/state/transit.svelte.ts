@@ -721,6 +721,51 @@ class TransitState {
     return getNextEventWithLocation();
   }
 
+  /**
+   * Get all upcoming events with locations
+   * Sorted by start time (soonest first)
+   */
+  getUpcomingEventsWithLocation(): (Event | ExpandedOccurrence)[] {
+    const now = new Date();
+
+    // Combine events and occurrences
+    const allEvents: (Event | ExpandedOccurrence)[] = [
+      ...calendarState.events,
+      ...calendarState.occurrences,
+    ];
+
+    // Filter to future events with location
+    const futureEventsWithLocation = allEvents.filter((event) => {
+      const hasLocation =
+        ("address" in event && event.address) ||
+        ("location" in event && event.location);
+      const isFuture = new Date(event.start) > now;
+      return hasLocation && isFuture;
+    });
+
+    // Sort by start time
+    futureEventsWithLocation.sort(
+      (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
+    );
+
+    return futureEventsWithLocation;
+  }
+
+  /**
+   * Load transit info for a specific selected event
+   */
+  async loadSelectedEventTransit(
+    event: Event | ExpandedOccurrence,
+  ): Promise<void> {
+    const location = await this.getCurrentLocation();
+    if (!location) {
+      this.routeError = "Could not get current location";
+      return;
+    }
+
+    await this.loadEventTransit(event, location);
+  }
+
   // ============================================================================
   // Sync Methods
   // ============================================================================

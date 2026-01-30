@@ -418,6 +418,10 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
         .lastCompletedDay
         ? new Date(input.updates.deadlineState.lastCompletedDay)
         : null;
+      updateData.deadlinePreviousLastCompletedDay = input.updates.deadlineState
+        .previousLastCompletedDay
+        ? new Date(input.updates.deadlineState.previousLastCompletedDay)
+        : null;
     }
 
     const updated = await prisma.memo.update({
@@ -491,6 +495,42 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
                 } | null) ?? null,
             }
           : undefined,
+      // Deadline state
+      deadlineState:
+        updated.type === "期限付き"
+          ? {
+              rejectedToday: updated.deadlineRejectedToday ?? false,
+              acceptedSlots:
+                (updated.deadlineAcceptedSlots as Array<{
+                  startTime: string;
+                  endTime: string;
+                  duration: number;
+                  logged?: boolean;
+                }>) ?? [],
+              lastCompletedDay:
+                updated.deadlineLastCompletedDay?.toISOString() ?? null,
+              previousLastCompletedDay:
+                updated.deadlinePreviousLastCompletedDay?.toISOString() ?? null,
+              actualDurations:
+                (updated.deadlineActualDurations as number[]) ?? [],
+            }
+          : undefined,
+      // Event link (for event-tagged deadline tasks)
+      eventLink: updated.eventLinkType
+        ? {
+            type: updated.eventLinkType as "calendar" | "timetable",
+            calendarEventId: updated.linkedCalendarEventId ?? undefined,
+            timetableCellId: updated.linkedTimetableCellId ?? undefined,
+            offset: updated.eventDeadlineOffset as
+              | "same_day_after"
+              | "1_day_before"
+              | "1_day_after",
+            trackedOccurrenceDate:
+              updated.trackedOccurrenceDate?.toISOString() ?? undefined,
+          }
+        : undefined,
+      suggestionAvailableFrom:
+        updated.suggestionAvailableFrom?.toISOString() ?? undefined,
     };
   } catch (err) {
     console.error("[updateMemo] Error:", err);

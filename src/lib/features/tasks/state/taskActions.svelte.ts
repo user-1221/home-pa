@@ -421,16 +421,30 @@ async function createMemoFromFormAsync(formData: TaskFormData): Promise<{
     }
 
     // Update memo with calculated values
+    const eventLinkWithOccurrence = baseMemo.eventLink
+      ? {
+          ...baseMemo.eventLink,
+          trackedOccurrenceDate,
+        }
+      : undefined;
+
     return {
       memo: {
         ...baseMemo,
         deadline,
-        eventLink: baseMemo.eventLink
-          ? {
-              ...baseMemo.eventLink,
-              trackedOccurrenceDate,
-            }
-          : undefined,
+        eventLink: eventLinkWithOccurrence,
+        // Initialize deadlineState for event-linked tasks
+        deadlineState: {
+          createdDay: new Date(),
+          deadlineDay: deadline ?? new Date(),
+          actualDurations: [],
+          expectedDurations: [],
+          totalDays: 0,
+          acceptedSlots: [],
+          lastCompletedDay: null,
+          previousLastCompletedDay: null,
+          rejectedToday: false,
+        },
       },
       suggestionAvailableFrom,
     };
