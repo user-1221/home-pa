@@ -107,6 +107,7 @@ export interface AcceptedMemoInfo {
   endTime: string;
   duration: number;
   isProgressLogged: boolean; // true if progress was logged today
+  actualEndTime?: string; // wall-clock completion time (HH:mm) - set when logged
 }
 
 /**
@@ -1165,14 +1166,26 @@ class ScheduleState {
    * @param duration - Duration in minutes to log
    * @returns Promise resolving when complete
    */
-  async completeSuggestion(memoId: string, duration: number): Promise<void> {
+  async completeSuggestion(
+    memoId: string,
+    duration: number,
+    actualEndTime?: string,
+  ): Promise<void> {
     // Mark as logged instead of removing - arc stays visible but faded
     const existing = this.acceptedMemos.get(memoId);
     if (existing) {
+      // Use provided actualEndTime, or current time, capped at scheduled endTime
+      let endTimeToUse = actualEndTime ?? new Date().toTimeString().slice(0, 5);
+      // Cap at scheduled endTime to not extend past original slot
+      if (endTimeToUse > existing.endTime) {
+        endTimeToUse = existing.endTime;
+      }
+
       const newMap = new Map(this.acceptedMemos);
       newMap.set(memoId, {
         ...existing,
         isProgressLogged: true,
+        actualEndTime: endTimeToUse,
       });
       this.acceptedMemos = newMap;
     }
@@ -1180,6 +1193,7 @@ class ScheduleState {
     console.log("[Schedule] Completed suggestion:", {
       memoId,
       duration,
+      actualEndTime,
     });
 
     // Note: The actual memo update is done via the remote function

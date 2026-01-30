@@ -32,8 +32,6 @@ const RecurrenceGoalSchema = v.object({
 const MemoStatusSchema = v.object({
   timeSpentMinutes: v.number(),
   completionState: v.picklist(["not_started", "in_progress", "completed"]),
-  completionsThisPeriod: v.optional(v.number()),
-  periodStartDate: v.optional(v.string()),
 });
 
 // Accepted slot schema (shared by all task types)
@@ -184,8 +182,6 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
           | "not_started"
           | "in_progress"
           | "completed",
-        completionsThisPeriod: memo.completionsThisPeriod ?? undefined,
-        periodStartDate: memo.periodStartDate?.toISOString(),
       },
       sessionDuration: memo.sessionDuration ?? undefined,
       totalDurationExpected: memo.totalDurationExpected ?? undefined,
@@ -313,10 +309,6 @@ export const createMemo = command(MemoInputSchema, async (input) => {
         locationPreference: input.locationPreference,
         timeSpentMinutes: input.status.timeSpentMinutes,
         completionState: input.status.completionState,
-        completionsThisPeriod: input.status.completionsThisPeriod,
-        periodStartDate: input.status.periodStartDate
-          ? new Date(input.status.periodStartDate)
-          : undefined,
         sessionDuration: input.sessionDuration,
         totalDurationExpected: input.totalDurationExpected,
         lastActivity: input.lastActivity
@@ -376,8 +368,6 @@ export const createMemo = command(MemoInputSchema, async (input) => {
           | "not_started"
           | "in_progress"
           | "completed",
-        completionsThisPeriod: created.completionsThisPeriod ?? undefined,
-        periodStartDate: created.periodStartDate?.toISOString(),
       },
       sessionDuration: created.sessionDuration ?? undefined,
       totalDurationExpected: created.totalDurationExpected ?? undefined,
@@ -500,11 +490,6 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
     if (input.updates.status !== undefined) {
       updateData.timeSpentMinutes = input.updates.status.timeSpentMinutes;
       updateData.completionState = input.updates.status.completionState;
-      updateData.completionsThisPeriod =
-        input.updates.status.completionsThisPeriod;
-      updateData.periodStartDate = input.updates.status.periodStartDate
-        ? new Date(input.updates.status.periodStartDate)
-        : null;
     }
     if (input.updates.sessionDuration !== undefined)
       updateData.sessionDuration = input.updates.sessionDuration;
@@ -587,8 +572,6 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
           | "not_started"
           | "in_progress"
           | "completed",
-        completionsThisPeriod: updated.completionsThisPeriod ?? undefined,
-        periodStartDate: updated.periodStartDate?.toISOString(),
       },
       sessionDuration: updated.sessionDuration ?? undefined,
       totalDurationExpected: updated.totalDurationExpected ?? undefined,
@@ -674,7 +657,7 @@ export const deleteMemo = command(
 
 /**
  * Log progress for a completed suggestion session
- * Updates timeSpentMinutes, lastActivity, completionsThisPeriod, and type-specific state
+ * Updates timeSpentMinutes, lastActivity, and type-specific state (including period counter)
  */
 export const logSuggestionComplete = command(
   v.object({
@@ -699,13 +682,11 @@ export const logSuggestionComplete = command(
 
       // Calculate updates
       const newTimeSpent = existing.timeSpentMinutes + input.durationMinutes;
-      const newCompletions = (existing.completionsThisPeriod ?? 0) + 1;
       const now = new Date();
 
       // Build update data
       const updateData: Record<string, unknown> = {
         timeSpentMinutes: newTimeSpent,
-        completionsThisPeriod: newCompletions,
         lastActivity: now,
         // Update completionState if significant progress
         completionState:
@@ -716,17 +697,28 @@ export const logSuggestionComplete = command(
 
       // Type-specific state updates
       if (existing.type === "ルーティン") {
-        // Calculate week start (Monday)
-        const weekStart = getWeekStart(now);
-        const existingWeekStart = existing.routineWeekStartDate
+        // Get period type from recurrence goal (default to "week" for backwards compatibility)
+        const period =
+          (existing.recurrenceGoalPeriod as "day" | "week" | "month") ?? "week";
+        const createdAt = new Date(existing.createdAt);
+
+        // Check if we need to reset period counter (creation-date-aligned)
+        const existingPeriodStart = existing.routineWeekStartDate
           ? new Date(existing.routineWeekStartDate)
           : null;
+        const needsPeriodReset = isNewPeriod(
+          existingPeriodStart,
+          now,
+          period,
+          createdAt,
+        );
 
-        // Check if we need to reset week counter
-        const needsWeekReset =
-          !existingWeekStart || !isSameWeek(existingWeekStart, now);
+        // Calculate new period start if reset needed
+        const newPeriodStart = needsPeriodReset
+          ? getCurrentPeriodStart(createdAt, now, period)
+          : existingPeriodStart;
 
-        const baseCount = needsWeekReset
+        const baseCount = needsPeriodReset
           ? 0
           : (existing.routineCompletedCountWeek ?? 0);
         const newCount = baseCount + 1;
@@ -739,12 +731,10 @@ export const logSuggestionComplete = command(
         updateData.routineCompletedToday = true;
         updateData.routineCompletedCountWeek = newCount;
         updateData.routineLastCompletedDay = now;
-        updateData.routineWasCappedThisWeek = needsWeekReset
+        updateData.routineWasCappedThisWeek = needsPeriodReset
           ? shouldCap
           : (existing.routineWasCappedThisWeek ?? false) || shouldCap;
-        updateData.routineWeekStartDate = needsWeekReset
-          ? weekStart
-          : existingWeekStart;
+        updateData.routineWeekStartDate = newPeriodStart;
         // Mark acceptedSlot as logged
         if (existing.routineAcceptedSlot) {
           updateData.routineAcceptedSlot = {
@@ -825,13 +815,12 @@ export const logSuggestionComplete = command(
       });
 
       console.log(
-        `[logSuggestionComplete] Logged ${input.durationMinutes}min for memo ${input.memoId}. Total: ${newTimeSpent}min, Completions: ${newCompletions}`,
+        `[logSuggestionComplete] Logged ${input.durationMinutes}min for memo ${input.memoId}. Total: ${newTimeSpent}min`,
       );
 
       return {
         id: updated.id,
         timeSpentMinutes: updated.timeSpentMinutes,
-        completionsThisPeriod: updated.completionsThisPeriod ?? 0,
         lastActivity: updated.lastActivity?.toISOString(),
         // Return routine state if applicable (DB uses week-based naming, app uses period-based)
         routineState:
@@ -897,15 +886,9 @@ export const markMemoAccepted = command(
         lastActivity: now,
       };
 
-      // Only update acceptedToday for routine and backlog tasks
+      // Only update daily flags for routine and backlog tasks
+      // Note: Period counter reset is handled in logSuggestionComplete() when task is actually completed
       if (existing.type === "ルーティン") {
-        const weekStart = getWeekStart(now);
-        const existingWeekStart = existing.routineWeekStartDate
-          ? new Date(existing.routineWeekStartDate)
-          : null;
-        const needsWeekReset =
-          !existingWeekStart || !isSameWeek(existingWeekStart, now);
-
         updateData.routineAcceptedToday = true;
         updateData.routineAcceptedSlot = input.slot ?? null;
         updateData.routineRejectedToday = false; // Clear rejected state when accepting
@@ -913,14 +896,6 @@ export const markMemoAccepted = command(
         updateData.routinePreviousLastCompletedDay =
           existing.routineLastCompletedDay;
         updateData.routineLastCompletedDay = now; // Treat as completed for scoring
-        updateData.routineWeekStartDate = needsWeekReset
-          ? weekStart
-          : existingWeekStart;
-        // Reset week counter if needed
-        if (needsWeekReset) {
-          updateData.routineCompletedCountWeek = 0;
-          updateData.routineWasCappedThisWeek = false;
-        }
       } else if (existing.type === "バックログ") {
         updateData.backlogAcceptedToday = true;
         updateData.backlogAcceptedSlot = input.slot ?? null;
@@ -1399,26 +1374,99 @@ export const updateAcceptedSlotDuration = command(
   },
 );
 
-// Helper functions for date calculations
-function getWeekStart(date: Date): Date {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Monday start
-  return new Date(d.setDate(diff));
-}
+// ============================================================================
+// PERIOD-AWARE DATE HELPERS
+// ============================================================================
 
-function isSameWeek(date1: Date, date2: Date): boolean {
-  const week1 = getWeekNumber(date1);
-  const week2 = getWeekNumber(date2);
-  return date1.getFullYear() === date2.getFullYear() && week1 === week2;
-}
-
-function getWeekNumber(date: Date): number {
-  const startOfYear = new Date(date.getFullYear(), 0, 1);
-  const days = Math.floor(
-    (date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000),
+/**
+ * Check if two dates are the same calendar day
+ */
+function isSameDay(date1: Date, date2: Date): boolean {
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
   );
-  return Math.ceil((days + startOfYear.getDay() + 1) / 7);
+}
+
+/**
+ * Check if two dates are the same calendar month
+ */
+function isSameMonth(date1: Date, date2: Date): boolean {
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth()
+  );
+}
+
+/**
+ * Get the start of the current period based on creation-date alignment.
+ * - For "day": returns the start of currentTime's day
+ * - For "week": returns the same weekday as createdAt in the current week
+ * - For "month": returns the same day-of-month as createdAt in the current month
+ */
+function getCurrentPeriodStart(
+  createdAt: Date,
+  currentTime: Date,
+  period: "day" | "week" | "month",
+): Date {
+  const result = new Date(currentTime);
+  result.setHours(0, 0, 0, 0);
+
+  switch (period) {
+    case "day":
+      // Day period starts at midnight of current day
+      return result;
+
+    case "week": {
+      // Week period starts on the same weekday as createdAt
+      const createdWeekday = createdAt.getDay();
+      const currentWeekday = result.getDay();
+      let diff = currentWeekday - createdWeekday;
+      if (diff < 0) diff += 7;
+      result.setDate(result.getDate() - diff);
+      return result;
+    }
+
+    case "month": {
+      // Month period starts on the same day-of-month as createdAt
+      const createdDayOfMonth = createdAt.getDate();
+      const currentDayOfMonth = result.getDate();
+
+      if (currentDayOfMonth >= createdDayOfMonth) {
+        // Same month period
+        result.setDate(createdDayOfMonth);
+      } else {
+        // Previous month period
+        result.setMonth(result.getMonth() - 1);
+        result.setDate(createdDayOfMonth);
+      }
+      return result;
+    }
+  }
+}
+
+/**
+ * Check if we need to reset the period counter (new period started).
+ * Uses creation-date-aligned boundaries.
+ */
+function isNewPeriod(
+  lastPeriodStart: Date | null,
+  currentTime: Date,
+  period: "day" | "week" | "month",
+  createdAt: Date,
+): boolean {
+  if (!lastPeriodStart) return true;
+
+  const currentPeriodStart = getCurrentPeriodStart(
+    createdAt,
+    currentTime,
+    period,
+  );
+  const lastPeriodStartNormalized = new Date(lastPeriodStart);
+  lastPeriodStartNormalized.setHours(0, 0, 0, 0);
+
+  return currentPeriodStart.getTime() > lastPeriodStartNormalized.getTime();
 }
 
 // ============================================================================

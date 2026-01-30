@@ -85,7 +85,7 @@ import {
   enrichMemos,
   type LLMEnrichmentConfig,
 } from "./llm-enrichment.ts";
-import { resetPeriodIfNeeded, incrementCompletion } from "./period-utils.ts";
+import { resetPeriodIfNeeded } from "./period-utils.ts";
 import {
   createSuggestionFromMemo,
   isHidden,
@@ -368,13 +368,13 @@ export function isMemoComplete(memo: Memo): boolean {
  * Check if routine goal is reached for current period
  *
  * @param memo - Routine memo to check
- * @returns true if completionsThisPeriod >= recurrenceGoal.count
+ * @returns true if completedCountThisPeriod >= recurrenceGoal.count
  */
 export function isRoutineGoalReached(memo: Memo): boolean {
   if (memo.type !== "ルーティン" || !memo.recurrenceGoal) {
     return false;
   }
-  const completions = memo.status.completionsThisPeriod ?? 0;
+  const completions = memo.routineState?.completedCountThisPeriod ?? 0;
   return completions >= memo.recurrenceGoal.count;
 }
 
@@ -532,8 +532,6 @@ export class SuggestionEngine {
       case "ルーティン":
         // Update routine state with completion
         updatedMemo = markRoutineCompleted(updatedMemo, currentTime);
-        // Also use legacy period tracking for backward compatibility
-        updatedMemo = incrementCompletion(updatedMemo, currentTime);
         break;
 
       case "期限付き":

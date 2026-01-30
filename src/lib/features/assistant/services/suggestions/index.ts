@@ -21,7 +21,6 @@ export {
   getPeriodProgress,
   isNewPeriod,
   resetPeriodIfNeeded,
-  incrementCompletion,
   isSameDay,
   isSameWeek,
 } from "./period-utils.ts";

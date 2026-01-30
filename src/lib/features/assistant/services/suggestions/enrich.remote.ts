@@ -61,16 +61,10 @@ export const enrichMemo = command(
         ? {
             timeSpentMinutes: input.status.timeSpentMinutes,
             completionState: input.status.completionState,
-            completionsThisPeriod: input.status.completionsThisPeriod,
-            periodStartDate: input.status.periodStartDate
-              ? new Date(input.status.periodStartDate)
-              : undefined,
           }
         : {
             timeSpentMinutes: 0,
             completionState: "not_started",
-            completionsThisPeriod: 0,
-            periodStartDate: new Date(),
           },
       genre: input.genre,
       importance: input.importance,

@@ -105,23 +105,26 @@
   >
     <button
       role="tab"
-      class="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200
+      class="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-200
         {filter === 'active'
-        ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+        ? 'bg-[var(--color-primary)] text-white shadow-md'
         : 'text-base-content/60 hover:bg-base-200/80 hover:text-base-content'}"
       onclick={() => (filter = "active")}
       aria-selected={filter === "active"}
     >
       Active
-      <span class="rounded-full bg-base-200 px-2 py-0.5 text-xs font-medium"
-        >{stats().active}</span
+      <span
+        class="rounded-full px-2 py-0.5 text-xs font-medium
+        {filter === 'active'
+          ? 'bg-white/20 text-white'
+          : 'bg-base-200 text-base-content'}">{stats().active}</span
       >
     </button>
     <button
       role="tab"
-      class="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200
+      class="flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-200
         {filter === 'report'
-        ? 'bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+        ? 'bg-[var(--color-primary)] text-white shadow-md'
         : 'text-base-content/60 hover:bg-base-200/80 hover:text-base-content'}"
       onclick={() => (filter = "report")}
       aria-selected={filter === "report"}
@@ -181,7 +184,7 @@
     {:else}
       <!-- Active Tasks List -->
       <div class="mx-auto max-w-4xl">
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+        <div class="grid grid-cols-1 gap-0 md:grid-cols-2">
           {#if taskState.isLoading}
             <!-- Loading state: show skeleton cards -->
             {#each Array(4) as _, i (i)}

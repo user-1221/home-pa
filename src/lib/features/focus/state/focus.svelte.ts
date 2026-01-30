@@ -467,8 +467,9 @@ class FocusState {
     // Log progress to task
     await taskState.logProgress(memoId, duration);
 
-    // Remove from accepted memos
-    await scheduleState.completeSuggestion(memoId, duration);
+    // Mark as complete with actual wall-clock end time
+    const actualEndTime = new Date().toTimeString().slice(0, 5);
+    await scheduleState.completeSuggestion(memoId, duration, actualEndTime);
 
     // Clear server session
     try {

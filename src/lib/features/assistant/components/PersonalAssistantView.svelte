@@ -253,6 +253,7 @@
         endTime: info.endTime,
         duration: info.duration,
         isProgressLogged: info.isProgressLogged,
+        actualEndTime: info.actualEndTime,
       }),
     );
   });
@@ -452,8 +453,9 @@
     );
     await taskState.logProgress(memoId, duration);
 
-    // Remove from accepted list
-    await scheduleState.completeSuggestion(memoId, duration);
+    // Mark as complete with actual wall-clock end time
+    const actualEndTime = new Date().toTimeString().slice(0, 5);
+    await scheduleState.completeSuggestion(memoId, duration, actualEndTime);
 
     // taskList is now $derived from taskState.items, no manual update needed
 

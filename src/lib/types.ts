@@ -69,9 +69,6 @@ export interface RecurrenceGoal {
 export interface MemoStatus {
   timeSpentMinutes: number; // Total time user has spent on this memo
   completionState: "not_started" | "in_progress" | "completed";
-  // For ルーティン tracking:
-  completionsThisPeriod?: number; // Resets when period changes (new day/week/month)
-  periodStartDate?: Date; // When current tracking period started
 }
 
 // ============================================================================

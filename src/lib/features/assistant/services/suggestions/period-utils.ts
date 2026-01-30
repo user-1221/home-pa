@@ -227,11 +227,14 @@ export function getCurrentPeriodStart(
 // ============================================================================
 
 /**
- * Reset period counter and daily flags if we've entered a new period/day
+ * Reset daily flags if we've entered a new day
  * Call this before scoring to ensure fresh state
  *
+ * Note: Period counter reset (completedCountThisPeriod) is handled server-side
+ * in logSuggestionComplete/markMemoAccepted for single source of truth.
+ *
  * Handles:
- * - Routine tasks: completionsThisPeriod, acceptedToday, completedToday, rejectedToday
+ * - Routine tasks: acceptedToday, completedToday, rejectedToday
  * - Backlog tasks: acceptedToday, rejectedToday
  * - Deadline tasks: rejectedToday, acceptedSlots
  *
@@ -249,42 +252,8 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
 
   // Handle routine tasks
   if (memo.type === "ルーティン") {
-    // Reset period counter if entered new period
-    if (memo.recurrenceGoal) {
-      const periodStart = memo.status.periodStartDate;
-      if (!periodStart) {
-        // First time: use currentTime as initial period start (task-creation-aligned)
-        // If you create a weekly task on Wed, your weeks are Wed-Tue
-        updated = {
-          ...updated,
-          status: {
-            ...updated.status,
-            completionsThisPeriod: 0,
-            periodStartDate: currentTime,
-          },
-        };
-        hasChanges = true;
-      } else if (
-        isNewPeriod(periodStart, currentTime, memo.recurrenceGoal.period)
-      ) {
-        // Existing period start: advance to current period (task-creation-aligned)
-        // This preserves the original day-of-week/day-of-month alignment
-        const newPeriodStart = getCurrentPeriodStart(
-          periodStart,
-          currentTime,
-          memo.recurrenceGoal.period,
-        );
-        updated = {
-          ...updated,
-          status: {
-            ...updated.status,
-            completionsThisPeriod: 0,
-            periodStartDate: newPeriodStart,
-          },
-        };
-        hasChanges = true;
-      }
-    }
+    // Note: Period counter reset is handled server-side in logSuggestionComplete/markMemoAccepted
+    // Client only resets daily flags here
 
     // Reset daily flags if it's a new day
     if (memo.routineState) {
@@ -383,33 +352,6 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
   }
 
   return hasChanges ? updated : memo;
-}
-
-/**
- * Increment completion count when user finishes a session
- * Call this when user accepts/completes a scheduled suggestion
- *
- * @param memo - Memo to update
- * @param currentTime - Current time
- * @returns Updated memo with incremented counter
- */
-export function incrementCompletion(memo: Memo, currentTime: Date): Memo {
-  // Only applies to routine memos
-  if (memo.type !== "ルーティン") {
-    return memo;
-  }
-
-  // First ensure we're in the right period
-  const normalized = resetPeriodIfNeeded(memo, currentTime);
-
-  return {
-    ...normalized,
-    status: {
-      ...normalized.status,
-      completionsThisPeriod: (normalized.status.completionsThisPeriod ?? 0) + 1,
-    },
-    lastActivity: currentTime,
-  };
 }
 
 // ============================================================================

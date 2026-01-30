@@ -12,6 +12,7 @@
     endTime: string;
     duration: number;
     isProgressLogged: boolean;
+    actualEndTime?: string; // wall-clock completion time when logged
   }
   import SuggestionCard from "./SuggestionCard.svelte";
   import { startOfDay, endOfDay } from "$lib/utils/date-utils.ts";
@@ -376,14 +377,19 @@
       isAccepted: false,
       isProgressLogged: false,
     }));
-    const accepted = acceptedMemos.map((s) => ({
-      memoId: s.memoId,
-      data: s,
-      startAngle: timeToAngle(s.startTime),
-      endAngle: timeToAngle(s.endTime),
-      isAccepted: true,
-      isProgressLogged: s.isProgressLogged,
-    }));
+    const accepted = acceptedMemos.map((s) => {
+      // Use actualEndTime if logged, otherwise scheduled endTime
+      const renderEndTime =
+        s.isProgressLogged && s.actualEndTime ? s.actualEndTime : s.endTime;
+      return {
+        memoId: s.memoId,
+        data: s,
+        startAngle: timeToAngle(s.startTime),
+        endAngle: timeToAngle(renderEndTime),
+        isAccepted: true,
+        isProgressLogged: s.isProgressLogged,
+      };
+    });
     // Render accepted first, then pending - SVG renders last elements on top
     // This ensures pending suggestions are clickable even over logged accepted arcs
     return [...accepted, ...pending];
@@ -414,8 +420,8 @@
   const suggestionInnerRadius = outerRadius - 5; // Inner edge of suggestion trapezoids (thin for visibility)
   const eventBaseRadius = outerRadius - 8; // Events next layer (annular trapezoids)
   const eventInnerRadius = outerRadius - 20; // Inner edge of event trapezoids
-  const timetableOuterRadius = outerRadius - 23; // Timetable outer edge
-  const timetableInnerRadius = outerRadius - 30; // Timetable inner edge
+  const timetableOuterRadius = outerRadius - 24; // Timetable outer edge (18)
+  const timetableInnerRadius = outerRadius - 28; // Timetable inner edge (14)
   // Visual gap between suggestions (in radians)
   // This creates a small space between consecutive suggestions to make them visually distinct
   const suggestionGapAngle = 0.015; // ~0.86 degrees, visible but not too large
@@ -495,8 +501,8 @@
     const val = (e.target as HTMLInputElement)?.value;
     if (val) {
       const [y, m, d] = val.split("-").map(Number);
-      const baseTime = new Date(Date.UTC(y, m - 1, d)).getTime();
-      const next = startOfDay(new Date(baseTime));
+      // Use local date construction to avoid timezone issues
+      const next = startOfDay(new Date(y, m - 1, d));
       dataState.setSelectedDate(next);
     }
   }
@@ -837,7 +843,7 @@
       r={outerRadius}
       fill="none"
       stroke="var(--color-border-default)"
-      stroke-opacity="0.4"
+      stroke-opacity="0.6"
       stroke-width="0.3"
     />
     <!-- Suggestion ring guides (outermost) -->
@@ -908,23 +914,13 @@
         stroke-opacity="0.6"
         stroke-width="0.5"
       />
-      <circle
-        cx={lx}
-        cy={ly}
-        r="2.5"
-        fill="var(--color-bg-app)"
-        fill-opacity="0.95"
-        stroke="var(--color-border-strong)"
-        stroke-opacity="0.6"
-        stroke-width="0.3"
-      />
       <text
         x={lx}
         y={ly}
-        font-size="3"
+        font-size="5"
         font-weight="600"
         fill="var(--color-text-primary)"
-        fill-opacity="0.8"
+        fill-opacity="0.9"
         text-anchor="middle"
         dominant-baseline="middle"
       >
@@ -944,12 +940,12 @@
           0.01,
         )}
         fill={isBlocking
-          ? "var(--color-error-400)"
-          : "var(--color-success-400)"}
-        fill-opacity="0.7"
+          ? "var(--color-text-secondary)"
+          : "var(--color-text-muted)"}
+        fill-opacity="0.6"
         stroke={isBlocking
-          ? "var(--color-error-600)"
-          : "var(--color-success-600)"}
+          ? "var(--color-text-primary)"
+          : "var(--color-border-strong)"}
         stroke-width="0.3"
         class="timetable-trapezoid"
         filter="url(#softGlow)"
@@ -1117,16 +1113,9 @@
         y1={center}
         x2={timeX}
         y2={timeY}
-        stroke="var(--color-primary)"
+        stroke="var(--color-error)"
         stroke-width="0.5"
         stroke-linecap="round"
-        filter="url(#glow)"
-      />
-      <circle
-        cx={timeX}
-        cy={timeY}
-        r="1.2"
-        fill="var(--color-primary)"
         filter="url(#glow)"
       />
     {/if}
@@ -1135,29 +1124,26 @@
     <circle
       cx={center}
       cy={center}
-      r="15"
-      fill="var(--color-bg-app)"
-      fill-opacity="0.95"
-      stroke="var(--color-border-default)"
-      stroke-opacity="0.6"
-      stroke-width="0.3"
+      r="12"
+      fill="var(--color-base-100)"
+      stroke="var(--color-border-strong)"
+      stroke-width="0.6"
     />
   </svg>
 
   <!-- Center display -->
   <button
-    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer border-none bg-transparent p-2 text-center"
+    class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 cursor-pointer touch-manipulation border-none bg-transparent p-2 text-center"
     onclick={handleCenterClick}
+    ontouchstart={(e: TouchEvent) => {
+      e.preventDefault();
+      handleCenterClick();
+    }}
   >
     <div
-      class="text-[clamp(10px,3vw,16px)] font-light tracking-wide text-base-content/80"
+      class="text-[clamp(16px,4vw,24px)] font-normal tracking-wide text-[var(--color-text-primary)]"
     >
       {formatDate(selectedDateCurrent)}
-    </div>
-    <div
-      class="mt-0.5 text-[clamp(6px,1.5vw,8px)] tracking-widest text-[var(--color-text-muted)] uppercase"
-    >
-      tap to change
     </div>
   </button>
 
@@ -1165,7 +1151,13 @@
     bind:this={centerDateInput}
     type="date"
     class="pointer-events-none absolute opacity-0"
-    value={selectedDateCurrent.toISOString().slice(0, 10)}
+    value={(() => {
+      const d = selectedDateCurrent;
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    })()}
     onchange={handleDateChange}
   />
 

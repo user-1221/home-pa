@@ -565,10 +565,6 @@ export async function enrichMemoViaAPI(memo: Memo): Promise<EnrichmentResult> {
         ? {
             timeSpentMinutes: memo.status.timeSpentMinutes ?? 0,
             completionState: memo.status.completionState ?? "not_started",
-            completionsThisPeriod: nullToUndefined(
-              memo.status.completionsThisPeriod,
-            ),
-            periodStartDate: toISOString(memo.status.periodStartDate),
           }
         : undefined,
       genre: nullToUndefined(memo.genre),

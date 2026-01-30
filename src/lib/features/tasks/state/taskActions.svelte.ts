@@ -88,8 +88,6 @@ function jsonToMemo(json: {
   status: {
     timeSpentMinutes: number;
     completionState: string;
-    completionsThisPeriod?: number;
-    periodStartDate?: string;
   };
   sessionDuration?: number;
   totalDurationExpected?: number;
@@ -159,10 +157,6 @@ function jsonToMemo(json: {
       timeSpentMinutes: json.status.timeSpentMinutes,
       completionState: json.status
         .completionState as MemoStatus["completionState"],
-      completionsThisPeriod: json.status.completionsThisPeriod,
-      periodStartDate: json.status.periodStartDate
-        ? new Date(json.status.periodStartDate)
-        : undefined,
     },
     sessionDuration: json.sessionDuration,
     totalDurationExpected: json.totalDurationExpected,
@@ -249,8 +243,6 @@ function memoToJson(memo: Memo) {
     status: {
       timeSpentMinutes: memo.status.timeSpentMinutes,
       completionState: memo.status.completionState,
-      completionsThisPeriod: memo.status.completionsThisPeriod,
-      periodStartDate: memo.status.periodStartDate?.toISOString(),
     },
     sessionDuration: memo.sessionDuration,
     totalDurationExpected: memo.totalDurationExpected,
@@ -308,8 +300,6 @@ function createMemoFromForm(formData: TaskFormData): Memo {
   const status: MemoStatus = {
     timeSpentMinutes: 0,
     completionState: "not_started",
-    completionsThisPeriod: 0,
-    periodStartDate: now,
   };
 
   // Build event link if present (deadline will be calculated in createMemoFromFormAsync)
@@ -585,12 +575,8 @@ class TaskState {
         const original = memos[i];
         const reset = memosWithResets[i];
 
-        // Check if period was reset (completionsThisPeriod or periodStartDate changed)
-        const periodReset =
-          original.status.completionsThisPeriod !==
-            reset.status.completionsThisPeriod ||
-          original.status.periodStartDate?.getTime() !==
-            reset.status.periodStartDate?.getTime();
+        // Note: Period counter reset is handled server-side in logSuggestionComplete/markMemoAccepted
+        // Client only resets daily flags here
 
         // Check if daily flags were reset (routineState or backlogState changed)
         const routineStateReset =
@@ -614,20 +600,9 @@ class TaskState {
           original.deadlineState?.rejectedToday !==
             reset.deadlineState?.rejectedToday;
 
-        if (
-          periodReset ||
-          routineStateReset ||
-          backlogStateReset ||
-          deadlineStateReset
-        ) {
+        if (routineStateReset || backlogStateReset || deadlineStateReset) {
           // Build update object matching MemoUpdateSchema
           const updateData: {
-            status?: {
-              timeSpentMinutes: number;
-              completionState: "not_started" | "in_progress" | "completed";
-              completionsThisPeriod?: number;
-              periodStartDate?: string;
-            };
             routineState?: {
               acceptedToday: boolean;
               completedToday: boolean;
@@ -666,16 +641,6 @@ class TaskState {
               previousLastCompletedDay: string | null;
             };
           } = {};
-
-          if (periodReset) {
-            // Include all status fields to preserve existing values
-            updateData.status = {
-              timeSpentMinutes: reset.status.timeSpentMinutes,
-              completionState: reset.status.completionState,
-              completionsThisPeriod: reset.status.completionsThisPeriod,
-              periodStartDate: reset.status.periodStartDate?.toISOString(),
-            };
-          }
 
           if (routineStateReset && reset.routineState) {
             updateData.routineState = {
@@ -1006,7 +971,6 @@ class TaskState {
               status: {
                 ...task.status,
                 timeSpentMinutes: result.timeSpentMinutes,
-                completionsThisPeriod: result.completionsThisPeriod,
               },
               lastActivity: result.lastActivity
                 ? new Date(result.lastActivity)
@@ -1160,7 +1124,6 @@ class TaskState {
     durationMinutes: number,
   ): Promise<{
     timeSpentMinutes: number;
-    completionsThisPeriod: number;
     lastActivity: string | undefined;
   } | null> {
     try {
@@ -1177,7 +1140,6 @@ class TaskState {
           status: {
             ...task.status,
             timeSpentMinutes: result.timeSpentMinutes,
-            completionsThisPeriod: result.completionsThisPeriod,
           },
           lastActivity: result.lastActivity
             ? new Date(result.lastActivity)
@@ -1226,7 +1188,7 @@ class TaskState {
       }
 
       console.log(
-        `[TaskState.logProgress] Updated task ${memoId}: ${result.timeSpentMinutes}min total, ${result.completionsThisPeriod} completions`,
+        `[TaskState.logProgress] Updated task ${memoId}: ${result.timeSpentMinutes}min total`,
       );
 
       return result;

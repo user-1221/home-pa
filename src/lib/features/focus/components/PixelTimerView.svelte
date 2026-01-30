@@ -57,6 +57,7 @@
   let currentFrames = $derived(isAnimating ? WALK_FRAMES : REST_FRAMES);
 
   // Get current accepted suggestion that's in the current time window
+  // Skip suggestions where progress is already logged
   let currentAcceptedSuggestion = $derived.by(() => {
     const now = new Date();
     const nowHours = now.getHours().toString().padStart(2, "0");
@@ -64,7 +65,13 @@
     const nowTime = `${nowHours}:${nowMins}`;
 
     for (const [memoId, info] of scheduleState.acceptedMemos) {
-      if (nowTime >= info.startTime && nowTime < info.endTime) {
+      // Use actualEndTime if logged, otherwise scheduled endTime
+      const effectiveEndTime = info.actualEndTime ?? info.endTime;
+      if (
+        !info.isProgressLogged &&
+        nowTime >= info.startTime &&
+        nowTime < effectiveEndTime
+      ) {
         const task = taskState.items.find((t) => t.id === memoId);
         if (task) {
           return {

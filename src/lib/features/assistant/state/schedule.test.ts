@@ -713,7 +713,17 @@ describe("Edge Cases - Scheduling Scenarios", () => {
       status: {
         timeSpentMinutes: 90,
         completionState: "in_progress",
-        completionsThisPeriod: 3, // Goal already met
+      },
+      routineState: {
+        acceptedToday: false,
+        completedToday: false,
+        completedCountThisPeriod: 3, // Goal already met
+        lastCompletedDay: null,
+        previousLastCompletedDay: null,
+        wasCappedThisPeriod: true,
+        periodStartDate: new Date(),
+        rejectedToday: false,
+        acceptedSlot: null,
       },
     });
     const gaps: Gap[] = [createTestGap("09:00", "10:00")];
@@ -765,14 +775,23 @@ describe("Edge Cases - markSessionComplete", () => {
       status: {
         timeSpentMinutes: 30,
         completionState: "in_progress",
-        completionsThisPeriod: 1,
+      },
+      routineState: {
+        acceptedToday: false,
+        completedToday: false,
+        completedCountThisPeriod: 1,
+        lastCompletedDay: null,
+        previousLastCompletedDay: null,
+        wasCappedThisPeriod: false,
+        periodStartDate: new Date(),
+        rejectedToday: false,
+        acceptedSlot: null,
       },
     });
 
     const updated = scheduleState.markSessionComplete(memo, 30);
 
-    // markRoutineCompleted sets completedCountThisPeriod (in routineState), not status.completionsThisPeriod
-    // The incrementCompletion function handles the legacy status.completionsThisPeriod field
+    // markRoutineCompleted sets completedCountThisPeriod in routineState
     expect(updated.status.timeSpentMinutes).toBe(60);
   });
 

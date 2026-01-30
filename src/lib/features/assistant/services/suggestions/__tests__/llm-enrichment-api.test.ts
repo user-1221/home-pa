@@ -27,8 +27,6 @@ describe("enrichMemoViaAPI", () => {
     status: {
       timeSpentMinutes: 0,
       completionState: "not_started",
-      completionsThisPeriod: 0,
-      periodStartDate: new Date(),
     },
     ...overrides,
   });

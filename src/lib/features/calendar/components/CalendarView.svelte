@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { slide } from "svelte/transition";
   import { SvelteMap } from "svelte/reactivity";
   import type { Event } from "$lib/types.ts";
   import {
@@ -28,6 +29,7 @@
   let currentMonth = $state(new Date());
   let showTimelinePopup = $state(false);
   let showTimetablePopup = $state(false);
+  let showDropdownBar = $state(false);
 
   // Timetable events for the selected date (pre-loaded for TimelinePopup)
   let timetableEventsForDate = $state<TimetableEvent[]>([]);
@@ -276,6 +278,8 @@
     onToggleDebug={() => (showDebugInfo = !showDebugInfo)}
     onCreateEvent={createEvent}
     onOpenTimetable={() => (showTimetablePopup = true)}
+    onToggleDropdown={() => (showDropdownBar = !showDropdownBar)}
+    showDropdown={showDropdownBar}
   />
 
   <!-- Debug Information -->
@@ -288,6 +292,16 @@
       isLoading={calendarState.loading}
       error={calendarState.error}
     />
+  {/if}
+
+  <!-- Dropdown Bar Section -->
+  {#if showDropdownBar}
+    <div
+      class="border-subtle sticky top-14 z-[9] flex min-h-10 flex-shrink-0 items-center border-b bg-base-100/90 px-3 backdrop-blur-sm md:top-20 md:min-h-12 md:px-5"
+      transition:slide={{ duration: 300, axis: "y" }}
+    >
+      <!-- Dropdown content can be added here -->
+    </div>
   {/if}
 
   <!-- Calendar Grid -->

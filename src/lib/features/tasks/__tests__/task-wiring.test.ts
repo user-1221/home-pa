@@ -350,7 +350,8 @@ describe("Session Completion Wiring", () => {
 
     const updated = scheduleState.markSessionComplete(task!, 30);
 
-    expect(updated.status.completionsThisPeriod).toBe(1);
+    // Counter is now in routineState, not status
+    expect(updated.routineState?.completedCountThisPeriod).toBe(1);
   });
 });
 

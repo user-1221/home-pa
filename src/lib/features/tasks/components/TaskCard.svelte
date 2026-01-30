@@ -113,7 +113,7 @@
   // Routine progress
   let routineProgress = $derived(() => {
     if (task.type !== "ルーティン" || !task.recurrenceGoal) return null;
-    const done = task.status.completionsThisPeriod ?? 0;
+    const done = task.routineState?.completedCountThisPeriod ?? 0;
     const goal = task.recurrenceGoal.count;
     return { done, goal, percent: Math.min(100, (done / goal) * 100) };
   });
@@ -221,12 +221,12 @@
 </script>
 
 <div
-  class="relative overflow-hidden rounded-r-xl"
+  class="relative overflow-hidden"
   style="touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;"
 >
   <!-- Action buttons behind (revealed on swipe, mobile only) -->
   <div
-    class="absolute top-0 right-0 bottom-0 flex items-center gap-2 pr-3 md:hidden"
+    class="absolute top-0 right-0 bottom-0 flex items-center gap-2 px-1 md:hidden"
     style="width: {MAX_SWIPE}px;"
   >
     {#if task.status.completionState !== "completed"}
@@ -333,15 +333,12 @@
 
   <!-- Main card content (swipeable on mobile only) -->
   <div
-    class="relative rounded-r-xl border border-base-300/50 shadow-sm transition-colors duration-200 ease-out
+    class="relative bg-base-200 shadow-sm transition-colors duration-200 ease-out
       {task.type === '期限付き'
-      ? 'border-l-[3px] border-l-[var(--color-warning-500)]'
+      ? 'border-l-[4px] border-l-[var(--color-warning-500)]'
       : task.type === 'ルーティン'
-        ? 'border-l-[3px] border-l-[var(--color-primary)]'
-        : 'border-l-[3px] border-l-base-content/20'}
-      {task.status.completionState === 'completed'
-      ? 'bg-base-200/60 opacity-50'
-      : 'bg-base-100'}"
+        ? 'border-l-[4px] border-l-[var(--color-primary)]'
+        : 'border-l-[4px] border-l-base-content/20'}"
     style="transform: translateX({translateX}px); transition: {isSwiping
       ? 'none'
       : 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'};"
@@ -383,24 +380,24 @@
               {@const periodLabel = routinePeriodLabel()}
               {#if periodLabel}
                 <span
-                  class="inline-flex items-center rounded-md bg-[var(--color-primary)]/10 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-[var(--color-primary)]"
+                  class="inline-flex items-center rounded-md border border-base-300 bg-base-300 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/60"
                   >{periodLabel}</span
                 >
               {/if}
             {/if}
             {#if genreLabel()}
               <span
-                class="inline-flex items-center rounded-md bg-base-200/80 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/70"
+                class="inline-flex items-center rounded-md border border-base-300 bg-base-300 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/60"
                 >{genreLabel()}</span
               >
             {/if}
             <span
-              class="inline-flex items-center rounded-md bg-base-200/60 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/60"
+              class="inline-flex items-center rounded-md border border-base-300 bg-base-300 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/60"
               >{locationLabel()}</span
             >
             {#if sessionDurationLabel()}
               <span
-                class="inline-flex items-center rounded-md bg-base-200/60 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/60"
+                class="inline-flex items-center rounded-md border border-base-300 bg-base-300 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/60"
                 >{sessionDurationLabel()}</span
               >
             {/if}
@@ -446,9 +443,9 @@
                 cy="32"
                 r={radius}
                 fill="none"
-                stroke="currentColor"
+                stroke="var(--color-border-default)"
                 stroke-width="6"
-                class="text-base-200"
+                stroke-opacity="0.6"
               />
               <!-- Progress ring -->
               <circle
@@ -489,9 +486,9 @@
                 cy="32"
                 r={radius}
                 fill="none"
-                stroke="currentColor"
+                stroke="var(--color-border-default)"
                 stroke-width="6"
-                class="text-base-200"
+                stroke-opacity="0.6"
               />
               <!-- Progress ring (time elapsed toward deadline) -->
               <circle
@@ -552,9 +549,9 @@
                 cy="32"
                 r={radius}
                 fill="none"
-                stroke="currentColor"
+                stroke="var(--color-border-default)"
                 stroke-width="6"
-                class="text-base-200"
+                stroke-opacity="0.6"
               />
               <!-- Progress ring -->
               <circle
