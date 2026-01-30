@@ -4,20 +4,44 @@
  * Handles period calculations for routine tasks (daily/weekly/monthly cycles).
  * Used by scoring module to determine need based on routine goal completion.
  *
- * @author Personal Assistant Team
- * @version 1.0.0
+ * Core date comparison and period calculation functions are imported from
+ * the shared utility module at $lib/utils/period-utils.ts.
  */
 
 import type { Memo } from "$lib/types.ts";
+import {
+  type Period,
+  isSameDay,
+  isSameWeek,
+  isSameMonth,
+  getNextPeriodStart,
+  isNewCalendarPeriod,
+  getCalendarPeriodStart,
+  getCreationAlignedPeriodStart,
+  isNewCreationAlignedPeriod,
+} from "$lib/utils/period-utils.ts";
 
 // ============================================================================
-// TYPES
+// RE-EXPORTS FROM SHARED UTILITY
 // ============================================================================
 
-export type Period = "day" | "week" | "month";
+export {
+  type Period,
+  isSameDay,
+  isSameWeek,
+  isSameMonth,
+  getNextPeriodStart,
+  isNewCalendarPeriod,
+  getCalendarPeriodStart,
+  getCreationAlignedPeriodStart,
+  isNewCreationAlignedPeriod,
+};
+
+// Backward compatibility alias
+export { isNewCalendarPeriod as isNewPeriod };
 
 // ============================================================================
-// PERIOD PROGRESS
+// PERIOD PROGRESS (Feature-specific)
 // ============================================================================
 
 /**
@@ -81,149 +105,7 @@ function getDaysInMonth(date: Date): number {
 }
 
 // ============================================================================
-// PERIOD BOUNDARY CHECKING
-// ============================================================================
-
-/**
- * Check if we've entered a new period since the last tracking date
- *
- * @param lastPeriodStart - When the tracking period started
- * @param currentTime - Current time to check against
- * @param period - Period type (day/week/month)
- * @returns true if we've crossed into a new period
- *
- * @example
- * // lastPeriodStart = Monday, currentTime = Tuesday
- * isNewPeriod(lastPeriodStart, currentTime, "day")   // true
- * isNewPeriod(lastPeriodStart, currentTime, "week")  // false (same week)
- */
-export function isNewPeriod(
-  lastPeriodStart: Date,
-  currentTime: Date,
-  period: Period,
-): boolean {
-  switch (period) {
-    case "day":
-      return !isSameDay(lastPeriodStart, currentTime);
-    case "week":
-      return !isSameWeek(lastPeriodStart, currentTime);
-    case "month":
-      return !isSameMonth(lastPeriodStart, currentTime);
-  }
-}
-
-/**
- * Check if two dates are the same calendar day
- */
-export function isSameDay(date1: Date, date2: Date): boolean {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth() &&
-    date1.getDate() === date2.getDate()
-  );
-}
-
-/**
- * Check if two dates are in the same week
- * Week is considered to start on Sunday
- */
-export function isSameWeek(date1: Date, date2: Date): boolean {
-  const week1 = getWeekNumber(date1);
-  const week2 = getWeekNumber(date2);
-  return date1.getFullYear() === date2.getFullYear() && week1 === week2;
-}
-
-/**
- * Get ISO week number for a date
- */
-function getWeekNumber(date: Date): number {
-  const startOfYear = new Date(date.getFullYear(), 0, 1);
-  const days = Math.floor(
-    (date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000),
-  );
-  return Math.ceil((days + startOfYear.getDay() + 1) / 7);
-}
-
-/**
- * Check if two dates are in the same month
- */
-export function isSameMonth(date1: Date, date2: Date): boolean {
-  return (
-    date1.getFullYear() === date2.getFullYear() &&
-    date1.getMonth() === date2.getMonth()
-  );
-}
-
-/**
- * Get the next period start date by advancing exactly one period
- *
- * Periods are task-creation-aligned, not calendar-aligned.
- * If you create a weekly task on Wednesday, your weeks are Wed-Tue.
- *
- * @param previousPeriodStart - The start of the previous period
- * @param period - Period type (day/week/month)
- * @returns Date representing the start of the next period
- *
- * @example
- * // previousPeriodStart = Wed Jan 8, 2025 (weekly task created on Wed)
- * getNextPeriodStart(previousPeriodStart, "week") // Wed Jan 15, 2025
- */
-export function getNextPeriodStart(
-  previousPeriodStart: Date,
-  period: Period,
-): Date {
-  const result = new Date(previousPeriodStart);
-  switch (period) {
-    case "day":
-      result.setDate(result.getDate() + 1);
-      break;
-    case "week":
-      result.setDate(result.getDate() + 7);
-      break;
-    case "month":
-      result.setMonth(result.getMonth() + 1);
-      break;
-  }
-  return result;
-}
-
-/**
- * Find the current period start by iterating forward from the original period start
- *
- * This handles cases where multiple periods have passed since the last update.
- * Periods are task-creation-aligned based on when the task was first created.
- *
- * @param originalPeriodStart - The original/previous period start date
- * @param currentTime - Current time to check against
- * @param period - Period type (day/week/month)
- * @returns The start date of the current period
- *
- * @example
- * // Task created on Wed Jan 1, multiple weeks passed, now Jan 20
- * getCurrentPeriodStart(Jan1, Jan20, "week") // Wed Jan 15 (current week start)
- */
-export function getCurrentPeriodStart(
-  originalPeriodStart: Date,
-  currentTime: Date,
-  period: Period,
-): Date {
-  let periodStart = new Date(originalPeriodStart);
-
-  // Advance until we find the period that contains currentTime
-  while (isNewPeriod(periodStart, currentTime, period)) {
-    const nextStart = getNextPeriodStart(periodStart, period);
-    // Safety check: if next period would be after current time, we found our period
-    if (nextStart > currentTime) {
-      break;
-    }
-    periodStart = nextStart;
-  }
-
-  return periodStart;
-}
-
-// ============================================================================
-// MEMO PERIOD MANAGEMENT
+// MEMO PERIOD MANAGEMENT (Feature-specific)
 // ============================================================================
 
 /**
@@ -353,10 +235,3 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
 
   return hasChanges ? updated : memo;
 }
-
-// ============================================================================
-// ADDITIONAL HELPERS
-// ============================================================================
-
-// Note: isSameDay and isSameWeek are exported inline above
-// isSameMonth, getWeekNumber, getDaysInMonth are internal helpers

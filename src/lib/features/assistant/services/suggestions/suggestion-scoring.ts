@@ -34,7 +34,12 @@ import type {
   DeadlineState,
   BacklogState,
 } from "$lib/types.ts";
-import { isSameDay, isSameWeek, isSameMonth } from "./period-utils.ts";
+import {
+  isSameDay,
+  isSameWeek,
+  isSameMonth,
+  getCalendarPeriodStart,
+} from "./period-utils.ts";
 import {
   SCORING_CONFIG,
   DURATION_CONFIG,
@@ -178,31 +183,13 @@ export function initializeRoutineState(
     lastCompletedDay: null,
     previousLastCompletedDay: null,
     wasCappedThisPeriod: false,
-    periodStartDate: getPeriodStart(
+    periodStartDate: getCalendarPeriodStart(
       currentTime,
       memo.recurrenceGoal?.period ?? "week",
     ),
     rejectedToday: false,
     acceptedSlot: null,
   };
-}
-
-/**
- * Get the start of a period (day/week/month) for a given date
- */
-function getPeriodStart(date: Date, period: "day" | "week" | "month"): Date {
-  const d = new Date(date);
-  switch (period) {
-    case "day":
-      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-    case "week": {
-      const day = d.getDay();
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday start
-      return new Date(d.getFullYear(), d.getMonth(), diff);
-    }
-    case "month":
-      return new Date(d.getFullYear(), d.getMonth(), 1);
-  }
 }
 
 /**
@@ -767,7 +754,7 @@ export function markRoutineAccepted(memo: Memo, currentTime: Date): Memo {
         : state.completedCountThisPeriod,
       wasCappedThisPeriod: needsPeriodReset ? false : state.wasCappedThisPeriod,
       periodStartDate: needsPeriodReset
-        ? getPeriodStart(currentTime, goalPeriod)
+        ? getCalendarPeriodStart(currentTime, goalPeriod)
         : state.periodStartDate,
     },
     lastActivity: currentTime,
@@ -808,7 +795,7 @@ export function markRoutineCompleted(memo: Memo, currentTime: Date): Memo {
       lastCompletedDay: currentTime,
       wasCappedThisPeriod: wasCapped || shouldCap,
       periodStartDate: needsPeriodReset
-        ? getPeriodStart(currentTime, goalPeriod)
+        ? getCalendarPeriodStart(currentTime, goalPeriod)
         : state.periodStartDate,
     },
     lastActivity: currentTime,
