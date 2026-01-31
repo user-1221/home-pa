@@ -145,7 +145,7 @@ vi.mock("$lib/server/prisma", () => ({
 // Store to track created memos for updateMemo to reference
 const memoStore = new Map<string, Record<string, unknown>>();
 
-vi.mock("$lib/features/tasks/state/memo.functions.remote.ts", () => ({
+vi.mock("$lib/features/tasks/state/memo.functions.ts", () => ({
   fetchMemos: vi.fn(() => Promise.resolve([])),
   createMemo: vi.fn((data: Record<string, unknown>) => {
     const id = (data.id as string) ?? crypto.randomUUID();

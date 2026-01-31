@@ -4,7 +4,25 @@
  * Provides type-safe access to Google Calendar API operations.
  * Uses the googleapis library for API calls.
  */
-import { google, type calendar_v3 } from "googleapis";
+import type { calendar_v3 } from "googleapis";
+
+// ============================================================================
+// LAZY GOOGLEAPIS LOADER
+// ============================================================================
+
+/**
+ * Lazily loaded googleapis instance.
+ * Prevents the library from being loaded during build/prerender phase.
+ */
+let _google: typeof import("googleapis").google | null = null;
+
+async function getGoogle(): Promise<typeof import("googleapis").google> {
+  if (!_google) {
+    const { google } = await import("googleapis");
+    _google = google;
+  }
+  return _google;
+}
 
 // ============================================================================
 // TYPES
@@ -29,7 +47,10 @@ export interface GoogleEventListResult {
 /**
  * Create an authenticated Google Calendar client.
  */
-export function getCalendarClient(accessToken: string): calendar_v3.Calendar {
+export async function getCalendarClient(
+  accessToken: string,
+): Promise<calendar_v3.Calendar> {
+  const google = await getGoogle();
   const auth = new google.auth.OAuth2();
   auth.setCredentials({ access_token: accessToken });
   return google.calendar({ version: "v3", auth });
@@ -45,7 +66,7 @@ export function getCalendarClient(accessToken: string): calendar_v3.Calendar {
 export async function listCalendars(
   accessToken: string,
 ): Promise<GoogleCalendarListItem[]> {
-  const calendar = getCalendarClient(accessToken);
+  const calendar = await getCalendarClient(accessToken);
 
   const response = await calendar.calendarList.list({
     minAccessRole: "reader",
@@ -81,7 +102,7 @@ export async function listEvents(
   syncToken?: string | null,
   pageToken?: string | null,
 ): Promise<GoogleEventListResult> {
-  const calendar = getCalendarClient(accessToken);
+  const calendar = await getCalendarClient(accessToken);
 
   // Build request parameters
   const params: calendar_v3.Params$Resource$Events$List = {
@@ -137,7 +158,7 @@ export async function getEvent(
   calendarId: string,
   eventId: string,
 ): Promise<calendar_v3.Schema$Event | null> {
-  const calendar = getCalendarClient(accessToken);
+  const calendar = await getCalendarClient(accessToken);
 
   try {
     const response = await calendar.events.get({

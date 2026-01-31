@@ -7,7 +7,7 @@
  * @cleanup none - State resets on tab switch
  */
 import { getContext, setContext } from "svelte";
-import { fetchCompletionLogs } from "./memo.functions.remote.ts";
+import { fetchCompletionLogs } from "./memo.functions.ts";
 import { DateTime } from "luxon";
 import type { MemoType } from "$lib/types.ts";
 

@@ -247,7 +247,7 @@ export const updateEvent = command(EventUpdateSchema, async (input) => {
     ) {
       try {
         const { recalculateEventLinkedDeadlines } = await import(
-          "$lib/features/tasks/state/memo.functions.remote"
+          "$lib/features/tasks/state/memo.functions"
         );
         await recalculateEventLinkedDeadlines({ calendarEventId: input.id });
       } catch (recalcError) {
@@ -297,7 +297,7 @@ export const deleteEvent = command(
       // Orphan any linked deadline tasks (remove event link, keep task)
       try {
         const { recalculateEventLinkedDeadlines } = await import(
-          "$lib/features/tasks/state/memo.functions.remote"
+          "$lib/features/tasks/state/memo.functions"
         );
         await recalculateEventLinkedDeadlines({ calendarEventId: input.id });
       } catch (orphanError) {

@@ -1,4 +1,12 @@
 import { getContext, setContext } from "svelte";
+import {
+  checkGoogleConnection as _checkGoogleConnection,
+  listGoogleCalendars,
+  enableCalendarSync,
+  disableCalendarSync,
+  triggerSync as _triggerSync,
+  disconnectGoogle,
+} from "./gcal-sync.ts";
 
 /**
  * Represents a synced Google Calendar
@@ -42,8 +50,7 @@ export class GoogleSyncState {
     this.error = null;
 
     try {
-      const { checkGoogleConnection } = await import("./google-sync.remote.ts");
-      const result = await checkGoogleConnection(undefined);
+      const result = await _checkGoogleConnection(undefined);
       this.isConnected = result.isConnected;
       this.calendars = result.calendars.map((cal) => ({
         ...cal,
@@ -71,7 +78,6 @@ export class GoogleSyncState {
   async fetchAvailableCalendars(): Promise<
     Array<{ id: string; name: string; color: string | null }>
   > {
-    const { listGoogleCalendars } = await import("./google-sync.remote.ts");
     return listGoogleCalendars(undefined);
   }
 
@@ -83,7 +89,6 @@ export class GoogleSyncState {
     this.error = null;
 
     try {
-      const { enableCalendarSync } = await import("./google-sync.remote.ts");
       await enableCalendarSync({ calendarIds });
       await this.checkConnection();
     } catch (err) {
@@ -102,7 +107,6 @@ export class GoogleSyncState {
     this.error = null;
 
     try {
-      const { disableCalendarSync } = await import("./google-sync.remote.ts");
       await disableCalendarSync({ googleCalendarId });
       await this.checkConnection();
     } catch (err) {
@@ -122,8 +126,7 @@ export class GoogleSyncState {
     this.error = null;
 
     try {
-      const { triggerSync } = await import("./google-sync.remote.ts");
-      await triggerSync({ googleCalendarId });
+      await _triggerSync({ googleCalendarId });
       this.lastSyncAt = new Date();
       this.syncStatus = "idle";
       await this.checkConnection();
@@ -142,7 +145,6 @@ export class GoogleSyncState {
     this.error = null;
 
     try {
-      const { disconnectGoogle } = await import("./google-sync.remote.ts");
       await disconnectGoogle(undefined);
       this.isConnected = false;
       this.calendars = [];

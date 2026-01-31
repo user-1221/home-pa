@@ -41,7 +41,7 @@ import {
   updateAcceptedSlotDuration,
   advanceEventLinkedDeadline,
   logTaskCompletion,
-} from "./memo.functions.remote.ts";
+} from "./memo.functions.ts";
 
 // ============================================================================
 // Completion Action Types

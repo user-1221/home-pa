@@ -166,6 +166,50 @@ Use dynamic imports for circular dependency prevention.
 - Naming: `{feature}.remote.ts` or `{feature}.functions.remote.ts` (both acceptable)
 - Location: In `state/` directory for data-fetching, `services/` for business logic
 
+#### Critical Rules for `.remote.ts` Files
+
+1. **Only use `.remote.ts` suffix for files that define `query()` or `command()` calls**
+   - ❌ Barrel files that only re-export → use `.ts` suffix
+   - ❌ Client wrappers with regular functions → use `.ts` or `.client.ts` suffix
+   - ✅ Files with actual `export const foo = query(...)` definitions
+
+2. **Import pattern from client state files (`.svelte.ts`)**
+   - ❌ Dynamic import directly from `.remote.ts`:
+     ```typescript
+     const { myQuery } = await import("./feature.remote.ts");
+     ```
+   - ✅ Static import through barrel file:
+     ```typescript
+     import { myQuery } from "./feature.ts"; // barrel re-exports from .remote.ts
+     ```
+
+3. **Heavy libraries that run code at import time (e.g., `googleapis`)**
+   - ❌ Top-level import: `import { google } from "googleapis"`
+   - ✅ Lazy dynamic import inside functions:
+
+     ```typescript
+     import type { calendar_v3 } from "googleapis"; // types only at top
+
+     let _google: typeof import("googleapis").google | null = null;
+     async function getGoogle() {
+       if (!_google) {
+         const { google } = await import("googleapis");
+         _google = google;
+       }
+       return _google;
+     }
+     ```
+
+#### Why This Matters
+
+SvelteKit's experimental Remote Functions:
+
+1. Scans all `*.remote.ts` files at build time
+2. Creates server chunks for each, expecting `query()`/`command()` exports
+3. During prerender, iterates over these chunks
+
+If a `.remote.ts` file doesn't define proper remote functions, the chunk is empty/malformed, causing prerender to crash with `Cannot convert undefined or null to object`.
+
 ### Test File Location
 
 - Place tests in `{feature}/__tests__/` directory

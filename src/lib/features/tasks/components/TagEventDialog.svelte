@@ -7,7 +7,7 @@
     OFFSET_OPTIONS,
   } from "../types/event-link";
   import { taskState } from "../state/taskActions.svelte";
-  import { createMemo } from "../state/memo.functions.remote";
+  import { createMemo } from "../state/memo.functions";
   import {
     getNextCalendarOccurrence,
     getNextTimetableOccurrence,
