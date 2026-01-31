@@ -11,6 +11,7 @@ export { default as TextInput } from "./TextInput.svelte";
 export { default as Skeleton } from "./Skeleton.svelte";
 export { default as LazyLoad } from "./LazyLoad.svelte";
 export { default as SlidingTabs } from "./SlidingTabs.svelte";
+export { default as SlidingSelector } from "./SlidingSelector.svelte";
 
 // Skeleton components
 export { default as ModalSkeleton } from "./skeletons/ModalSkeleton.svelte";

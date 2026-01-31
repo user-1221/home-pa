@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { slide } from "svelte/transition";
   import { taskFormState } from "$lib/features/tasks/state/taskForm.svelte.ts";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import Button from "$lib/features/shared/components/Button.svelte";
+  import SlidingSelector from "$lib/features/shared/components/SlidingSelector.svelte";
   import type {
     MemoType,
     LocationPreference,
@@ -238,261 +240,248 @@
           <span class="text-xs font-medium text-[var(--color-text-muted)]"
             >タイプ</span
           >
-          <div class="flex gap-2" role="group" aria-label="タスクタイプ">
-            {#each typeOptions as option (option)}
-              <button
-                type="button"
-                class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2.5 text-sm font-medium transition-all duration-150
-                      {taskFormState.type === option.value
-                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary)]'
-                  : 'border-base-300 bg-base-100 text-base-content/70 hover:border-base-300 hover:bg-base-200/50 hover:text-base-content'}"
-                onclick={() => handleTypeChange(option.value)}
-                aria-pressed={taskFormState.type === option.value}
-              >
-                {option.label}
-              </button>
-            {/each}
-          </div>
+          <SlidingSelector
+            options={typeOptions.map((o) => ({
+              value: o.value,
+              label: o.label,
+            }))}
+            selected={taskFormState.type}
+            onSelect={(value) => handleTypeChange(value as MemoType)}
+          />
         </div>
       </div>
 
       <!-- Scheduling Section -->
-      <div
-        class="space-y-4 border-t border-base-300/60 bg-[var(--color-surface-50)] p-4 md:p-5"
-      >
-        <div class="flex items-center gap-2">
-          <svg
-            class="h-4 w-4 text-[var(--color-text-secondary)]"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.5"
-            aria-hidden="true"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-            />
-          </svg>
-          <span class="text-xs font-medium text-[var(--color-text-secondary)]"
-            >スケジュール</span
-          >
-        </div>
-
-        <!-- Deadline -->
-        {#if taskFormState.showDeadlineField}
-          <div class="space-y-1.5">
-            <label
-              class="text-xs font-medium text-[var(--color-text-muted)]"
-              for="deadline"
+      {#if taskFormState.type === "期限付き"}
+        <div
+          class="space-y-4 border-t border-base-300/60 p-4 md:p-5"
+          transition:slide={{ duration: 300, axis: "y" }}
+        >
+          <div class="flex items-center gap-2">
+            <svg
+              class="h-4 w-4 text-[var(--color-text-secondary)]"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.5"
+              aria-hidden="true"
             >
-              期限
-            </label>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
+            <span class="text-xs font-medium text-[var(--color-text-secondary)]"
+              >スケジュール</span
+            >
+          </div>
 
-            <!-- Show event link if set -->
-            {#if taskFormState.eventLink}
-              <div
-                class="rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary-100)] p-3"
+          <!-- Deadline -->
+          {#if taskFormState.showDeadlineField}
+            <div class="space-y-1.5">
+              <label
+                class="text-xs font-medium text-[var(--color-text-muted)]"
+                for="deadline"
               >
-                <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0 flex-1">
-                    <div
-                      class="flex items-center gap-1.5 text-xs text-[var(--color-primary)]"
+                期限
+              </label>
+
+              <!-- Show event link if set -->
+              {#if taskFormState.eventLink}
+                <div
+                  class="rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary-100)] p-3"
+                >
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0 flex-1">
+                      <div
+                        class="flex items-center gap-1.5 text-xs text-[var(--color-primary)]"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          class="h-3.5 w-3.5"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
+                          />
+                          <path
+                            d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
+                          />
+                        </svg>
+                        イベント連携
+                      </div>
+                      <div
+                        class="mt-1 truncate text-sm font-medium text-base-content"
+                      >
+                        {taskFormState.eventLink.eventTitle}
+                      </div>
+                      <div
+                        class="mt-0.5 text-xs text-[var(--color-text-secondary)]"
+                      >
+                        {taskFormState.eventLink.type === "calendar"
+                          ? "カレンダー予定"
+                          : "時間割"}
+                        • {OFFSET_OPTIONS.find(
+                          (o) => o.value === taskFormState.eventLink?.offset,
+                        )?.label ?? ""}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      class="btn btn-circle text-base-content/40 btn-ghost btn-xs hover:text-base-content"
+                      onclick={() => taskFormState.clearEventLink()}
+                      aria-label="イベント連携を解除"
                     >
                       <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        class="h-3.5 w-3.5"
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
                         aria-hidden="true"
                       >
                         <path
-                          d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
-                        />
-                        <path
-                          d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M6 18L18 6M6 6l12 12"
                         />
                       </svg>
-                      イベント連携
-                    </div>
-                    <div
-                      class="mt-1 truncate text-sm font-medium text-base-content"
-                    >
-                      {taskFormState.eventLink.eventTitle}
-                    </div>
-                    <div
-                      class="mt-0.5 text-xs text-[var(--color-text-secondary)]"
-                    >
-                      {taskFormState.eventLink.type === "calendar"
-                        ? "カレンダー予定"
-                        : "時間割"}
-                      • {OFFSET_OPTIONS.find(
-                        (o) => o.value === taskFormState.eventLink?.offset,
-                      )?.label ?? ""}
-                    </div>
+                    </button>
                   </div>
+                  <!-- Offset selector -->
+                  <div
+                    class="mt-2 border-t border-[var(--color-primary)]/20 pt-2"
+                  >
+                    <select
+                      class="select w-full border-base-300 bg-base-100 select-sm focus:border-[var(--color-primary)] focus:outline-none"
+                      value={taskFormState.eventLink.offset}
+                      onchange={(
+                        e: Event & { currentTarget: HTMLSelectElement },
+                      ) => {
+                        if (taskFormState.eventLink) {
+                          taskFormState.setEventLink({
+                            ...taskFormState.eventLink,
+                            offset: e.currentTarget
+                              .value as EventDeadlineOffset,
+                          });
+                        }
+                      }}
+                    >
+                      {#each OFFSET_OPTIONS as opt (opt.value)}
+                        <option value={opt.value}>{opt.label}</option>
+                      {/each}
+                    </select>
+                  </div>
+                </div>
+              {:else}
+                <!-- Manual deadline input or event link button -->
+                <div class="flex gap-2">
+                  <input
+                    id="deadline"
+                    type="date"
+                    bind:value={taskFormState.deadline}
+                    autocomplete="off"
+                    class="input flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none {taskFormState
+                      .errors.deadline
+                      ? 'border-error'
+                      : ''}"
+                  />
                   <button
                     type="button"
-                    class="btn btn-circle text-base-content/40 btn-ghost btn-xs hover:text-base-content"
-                    onclick={() => taskFormState.clearEventLink()}
-                    aria-label="イベント連携を解除"
+                    class="btn gap-1.5 border border-base-300 bg-base-100 text-sm text-base-content/70 btn-ghost hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+                    onclick={() => (showEventPicker = true)}
+                    aria-label="イベントから選択"
                   >
                     <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
                       class="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      stroke-width="2"
                       aria-hidden="true"
                     >
                       <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M6 18L18 6M6 6l12 12"
+                        d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
+                      />
+                      <path
+                        d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
                       />
                     </svg>
+                    連携
                   </button>
                 </div>
-                <!-- Offset selector -->
-                <div
-                  class="mt-2 border-t border-[var(--color-primary)]/20 pt-2"
-                >
-                  <select
-                    class="select w-full border-base-300 bg-base-100 select-sm focus:border-[var(--color-primary)] focus:outline-none"
-                    value={taskFormState.eventLink.offset}
-                    onchange={(
-                      e: Event & { currentTarget: HTMLSelectElement },
-                    ) => {
-                      if (taskFormState.eventLink) {
-                        taskFormState.setEventLink({
-                          ...taskFormState.eventLink,
-                          offset: e.currentTarget.value as EventDeadlineOffset,
-                        });
-                      }
-                    }}
-                  >
-                    {#each OFFSET_OPTIONS as opt (opt.value)}
-                      <option value={opt.value}>{opt.label}</option>
-                    {/each}
-                  </select>
-                </div>
-              </div>
-            {:else}
-              <!-- Manual deadline input or event link button -->
-              <div class="flex gap-2">
-                <input
-                  id="deadline"
-                  type="date"
-                  bind:value={taskFormState.deadline}
-                  autocomplete="off"
-                  class="input flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none {taskFormState
-                    .errors.deadline
-                    ? 'border-error'
-                    : ''}"
-                />
-                <button
-                  type="button"
-                  class="btn gap-1.5 border border-base-300 bg-base-100 text-sm text-base-content/70 btn-ghost hover:border-base-300 hover:bg-base-200 hover:text-base-content"
-                  onclick={() => (showEventPicker = true)}
-                  aria-label="イベントから選択"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    class="h-4 w-4"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
-                    />
-                    <path
-                      d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
-                    />
-                  </svg>
-                  連携
-                </button>
-              </div>
-            {/if}
+              {/if}
 
-            {#if taskFormState.errors.deadline}
-              <p class="text-xs text-error">
-                {taskFormState.errors.deadline}
-              </p>
-            {/if}
-          </div>
-        {/if}
-
-        <!-- Recurrence Goal -->
-        {#if taskFormState.showRecurrenceFields}
-          <div class="space-y-1.5">
-            <label
-              class="text-xs font-medium text-[var(--color-text-muted)]"
-              for="recurrence-count"
-            >
-              目標
-            </label>
-            <div class="flex items-center gap-2">
-              <input
-                id="recurrence-count"
-                type="number"
-                min="1"
-                max="100"
-                step="1"
-                bind:value={taskFormState.recurrenceCount}
-                class="input w-20 border-base-300 bg-base-100 text-center focus:border-[var(--color-primary)] focus:outline-none"
-                aria-label="回数"
-              />
-              <span class="text-sm text-[var(--color-text-muted)]">回 /</span>
-              <select
-                id="recurrence-period"
-                bind:value={taskFormState.recurrencePeriod}
-                class="select flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
-                aria-label="期間"
-              >
-                {#each periodOptions as option (option.value)}
-                  <option value={option.value}>{option.label}</option>
-                {/each}
-              </select>
+              {#if taskFormState.errors.deadline}
+                <p class="text-xs text-error">
+                  {taskFormState.errors.deadline}
+                </p>
+              {/if}
             </div>
-            {#if taskFormState.errors.recurrence}
-              <p class="text-xs text-error">
-                {taskFormState.errors.recurrence}
-              </p>
-            {/if}
-          </div>
-        {/if}
+          {/if}
 
-        <!-- Location -->
+          <!-- Recurrence Goal -->
+          {#if taskFormState.showRecurrenceFields}
+            <div class="space-y-1.5">
+              <label
+                class="text-xs font-medium text-[var(--color-text-muted)]"
+                for="recurrence-count"
+              >
+                目標
+              </label>
+              <div class="flex items-center gap-2">
+                <input
+                  id="recurrence-count"
+                  type="number"
+                  min="1"
+                  max="100"
+                  step="1"
+                  bind:value={taskFormState.recurrenceCount}
+                  class="input w-20 border-base-300 bg-base-100 text-center focus:border-[var(--color-primary)] focus:outline-none"
+                  aria-label="回数"
+                />
+                <span class="text-sm text-[var(--color-text-muted)]">回 /</span>
+                <select
+                  id="recurrence-period"
+                  bind:value={taskFormState.recurrencePeriod}
+                  class="select flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                  aria-label="期間"
+                >
+                  {#each periodOptions as option (option.value)}
+                    <option value={option.value}>{option.label}</option>
+                  {/each}
+                </select>
+              </div>
+              {#if taskFormState.errors.recurrence}
+                <p class="text-xs text-error">
+                  {taskFormState.errors.recurrence}
+                </p>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      {/if}
+
+      <!-- Location (visible for all types) -->
+      <div class="space-y-4 border-t border-base-300/60 p-4 md:p-5">
         <div class="space-y-1.5">
           <span class="text-xs font-medium text-[var(--color-text-muted)]"
             >場所</span
           >
-          <div class="flex gap-2" role="group" aria-label="場所">
-            {#each locationOptions as option (option.value)}
-              <label
-                class="flex flex-1 cursor-pointer items-center justify-center rounded-lg border px-3 py-2.5 text-sm font-medium transition-all duration-150
-                      {taskFormState.locationPreference === option.value
-                  ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary)]'
-                  : 'border-base-300 bg-base-100 text-base-content/70 hover:border-base-300 hover:bg-base-200/50 hover:text-base-content'}"
-              >
-                <input
-                  type="radio"
-                  name="location"
-                  value={option.value}
-                  checked={taskFormState.locationPreference === option.value}
-                  onchange={() =>
-                    taskFormState.updateField(
-                      "locationPreference",
-                      option.value,
-                    )}
-                  class="hidden"
-                />
-                {option.label}
-              </label>
-            {/each}
-          </div>
+          <SlidingSelector
+            options={locationOptions.map((o) => ({
+              value: o.value,
+              label: o.label,
+            }))}
+            selected={taskFormState.locationPreference}
+            onSelect={(value) =>
+              taskFormState.updateField(
+                "locationPreference",
+                value as LocationPreference,
+              )}
+          />
         </div>
       </div>
 
@@ -544,6 +533,7 @@
         {#if showAdvancedSettings}
           <div
             class="mt-4 flex flex-col gap-4 rounded-lg border border-base-300/60 bg-[var(--color-bg-grid)] p-4"
+            transition:slide={{ duration: 300, axis: "y" }}
           >
             <!-- Genre -->
             <div class="space-y-1.5">

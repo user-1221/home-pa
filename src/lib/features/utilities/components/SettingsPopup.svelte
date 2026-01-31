@@ -55,7 +55,8 @@
 
   async function connectGoogle() {
     try {
-      await authClient.signIn.social({
+      // Use linkSocial to link Google to current user (not signIn.social which could create new account)
+      await authClient.linkSocial({
         provider: "google",
         callbackURL: window.location.href,
       });

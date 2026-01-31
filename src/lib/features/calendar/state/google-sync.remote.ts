@@ -21,6 +21,63 @@ function getAuthenticatedUser(): string {
 }
 
 // ============================================================================
+// HELPER - Get valid access token (with auto-refresh)
+// ============================================================================
+
+/**
+ * Get a valid access token, refreshing if expired.
+ * Google access tokens expire after 1 hour; this uses the refresh token
+ * to get a new one when needed.
+ */
+async function getValidAccessToken(userId: string): Promise<string> {
+  const googleAccount = await prisma.account.findFirst({
+    where: { userId, providerId: "google" },
+  });
+
+  if (!googleAccount?.accessToken || !googleAccount?.refreshToken) {
+    throw new Error("Google account not connected");
+  }
+
+  // Check if token expires within 5 minutes (buffer for API call duration)
+  const now = new Date();
+  const expiresAt = googleAccount.accessTokenExpiresAt;
+  const bufferMs = 5 * 60 * 1000;
+  const isExpired =
+    !expiresAt || expiresAt.getTime() - now.getTime() < bufferMs;
+
+  if (!isExpired) {
+    return googleAccount.accessToken;
+  }
+
+  // Refresh the token using googleapis
+  const { google } = await import("googleapis");
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+  );
+  oauth2Client.setCredentials({ refresh_token: googleAccount.refreshToken });
+
+  const { credentials } = await oauth2Client.refreshAccessToken();
+
+  if (!credentials.access_token) {
+    throw new Error("Failed to refresh access token");
+  }
+
+  // Update tokens in database
+  await prisma.account.update({
+    where: { id: googleAccount.id },
+    data: {
+      accessToken: credentials.access_token,
+      accessTokenExpiresAt: credentials.expiry_date
+        ? new Date(credentials.expiry_date)
+        : null,
+    },
+  });
+
+  return credentials.access_token;
+}
+
+// ============================================================================
 // SCHEMAS
 // ============================================================================
 
@@ -114,25 +171,14 @@ export const listGoogleCalendars = query(
   v.undefined(),
   async (): Promise<GoogleCalendarListItem[]> => {
     const userId = getAuthenticatedUser();
-
-    // Get Google account with access token
-    const googleAccount = await prisma.account.findFirst({
-      where: {
-        userId,
-        providerId: "google",
-      },
-    });
-
-    if (!googleAccount?.accessToken) {
-      throw new Error("Google account not connected");
-    }
+    const accessToken = await getValidAccessToken(userId);
 
     // Import and use the Google Calendar API
     const { listCalendars } = await import(
       "$lib/features/calendar/services/google-calendar/google-calendar-api.ts"
     );
 
-    return listCalendars(googleAccount.accessToken);
+    return listCalendars(accessToken);
   },
 );
 
@@ -143,24 +189,13 @@ export const enableCalendarSync = command(
   EnableSyncSchema,
   async (input): Promise<{ success: boolean }> => {
     const userId = getAuthenticatedUser();
-
-    // Verify Google account is connected
-    const googleAccount = await prisma.account.findFirst({
-      where: {
-        userId,
-        providerId: "google",
-      },
-    });
-
-    if (!googleAccount?.accessToken) {
-      throw new Error("Google account not connected");
-    }
+    const accessToken = await getValidAccessToken(userId);
 
     // Fetch calendar details from Google
     const { listCalendars } = await import(
       "$lib/features/calendar/services/google-calendar/google-calendar-api.ts"
     );
-    const allCalendars = await listCalendars(googleAccount.accessToken);
+    const allCalendars = await listCalendars(accessToken);
 
     // Create or update sync entries for selected calendars
     for (const calendarId of input.calendarIds) {
@@ -222,18 +257,7 @@ export const triggerSync = command(
   TriggerSyncSchema,
   async (input): Promise<{ synced: number; errors: string[] }> => {
     const userId = getAuthenticatedUser();
-
-    // Get Google account
-    const googleAccount = await prisma.account.findFirst({
-      where: {
-        userId,
-        providerId: "google",
-      },
-    });
-
-    if (!googleAccount?.accessToken) {
-      throw new Error("Google account not connected");
-    }
+    const accessToken = await getValidAccessToken(userId);
 
     // Get calendars to sync
     const calendarsToSync = await prisma.googleCalendarSync.findMany({
@@ -263,7 +287,7 @@ export const triggerSync = command(
         await performSync(
           userId,
           calendar.googleCalendarId,
-          googleAccount.accessToken,
+          accessToken,
           calendar.syncToken,
         );
         synced++;
