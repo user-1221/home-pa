@@ -561,9 +561,10 @@ class FocusState {
 
     this.saveToStorage();
 
-    // Sync phase change to server
+    // Sync phase change to server (include pausedDuration reset for cross-device sync)
     void updateTimerSession({
       pomodoroState: newPomodoroState,
+      pausedDuration: 0,
       deviceId: getDeviceId(),
     }).catch((err) => {
       console.error("[Focus] Failed to sync phase change:", err);
@@ -591,6 +592,9 @@ class FocusState {
       phaseStartedAt: new Date().toISOString(),
     };
 
+    // Reset pausedDuration for the new phase (same as endPhase does)
+    this.pausedDuration = 0;
+
     this.activeSession = {
       ...this.activeSession,
       pomodoroState: newPomodoroState,
@@ -598,9 +602,10 @@ class FocusState {
 
     this.saveToStorage();
 
-    // Sync phase change to server
+    // Sync phase change to server (include pausedDuration reset for cross-device sync)
     void updateTimerSession({
       pomodoroState: newPomodoroState,
+      pausedDuration: 0,
       deviceId: getDeviceId(),
     }).catch((err) => {
       console.error("[Focus] Failed to sync skip break:", err);
