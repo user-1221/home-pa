@@ -1,9 +1,12 @@
 <script lang="ts">
   import { slide } from "svelte/transition";
+  import { tick, onMount } from "svelte";
+  import { browser } from "$app/environment";
   import { taskFormState } from "$lib/features/tasks/state/taskForm.svelte.ts";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import Button from "$lib/features/shared/components/Button.svelte";
   import SlidingSelector from "$lib/features/shared/components/SlidingSelector.svelte";
+  import DatePicker from "$lib/features/shared/components/DatePicker.svelte";
   import type {
     MemoType,
     LocationPreference,
@@ -28,6 +31,67 @@
 
   // Event picker dialog state
   let showEventPicker = $state(false);
+
+  // Date picker state
+  let activeDatePicker = $state<"deadline" | null>(null);
+  let deadlineCalendarRef: HTMLDivElement | undefined = $state();
+
+  // Lazy load Cally calendar library
+  onMount(async () => {
+    if (browser) {
+      await import("cally");
+    }
+  });
+
+  // Calendar change action for Cally web component
+  function calendarChangeAction(node: HTMLElement) {
+    const handler = (e: Event) => {
+      const target = e.target as HTMLElement & { value?: string };
+      if (target.value) {
+        taskFormState.updateField("deadline", target.value);
+        activeDatePicker = null;
+      }
+    };
+    node.addEventListener("change", handler);
+    return {
+      destroy() {
+        node.removeEventListener("change", handler);
+      },
+    };
+  }
+
+  // Click outside handler to close date picker
+  function handleClickOutside(e: MouseEvent) {
+    const target = e.target as HTMLElement;
+    if (
+      activeDatePicker &&
+      !target.closest("#deadline-calendar-section") &&
+      !target.closest("#deadline-picker-btn")
+    ) {
+      activeDatePicker = null;
+    }
+  }
+
+  // Register click outside listener when date picker is active
+  $effect(() => {
+    if (browser && activeDatePicker) {
+      document.addEventListener("click", handleClickOutside);
+      return () => document.removeEventListener("click", handleClickOutside);
+    }
+  });
+
+  // Scroll calendar into view when opened
+  $effect(() => {
+    if (activeDatePicker === "deadline") {
+      tick().then(() => {
+        deadlineCalendarRef?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+          inline: "nearest",
+        });
+      });
+    }
+  });
 
   // Type options
   const typeOptions: { value: MemoType; label: string; description: string }[] =
@@ -378,39 +442,87 @@
                 </div>
               {:else}
                 <!-- Manual deadline input or event link button -->
-                <div class="flex gap-2">
-                  <input
-                    id="deadline"
-                    type="date"
-                    bind:value={taskFormState.deadline}
-                    autocomplete="off"
-                    class="input flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none {taskFormState
-                      .errors.deadline
-                      ? 'border-error'
-                      : ''}"
-                  />
-                  <button
-                    type="button"
-                    class="btn gap-1.5 border border-base-300 bg-base-100 text-sm text-base-content/70 btn-ghost hover:border-base-300 hover:bg-base-200 hover:text-base-content"
-                    onclick={() => (showEventPicker = true)}
-                    aria-label="イベントから選択"
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      class="h-4 w-4"
-                      aria-hidden="true"
+                <div class="flex flex-col">
+                  <div class="flex gap-2">
+                    <DatePicker
+                      id="deadline-picker"
+                      value={taskFormState.deadline}
+                      active={activeDatePicker === "deadline"}
+                      onclick={() => {
+                        activeDatePicker =
+                          activeDatePicker === "deadline" ? null : "deadline";
+                      }}
+                      class="flex-1 {taskFormState.errors.deadline
+                        ? 'border-error'
+                        : ''}"
+                    />
+                    <button
+                      type="button"
+                      class="btn gap-1.5 border border-base-300 bg-base-100 text-sm text-base-content/70 btn-ghost hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+                      onclick={() => (showEventPicker = true)}
+                      aria-label="イベントから選択"
                     >
-                      <path
-                        d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
-                      />
-                      <path
-                        d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
-                      />
-                    </svg>
-                    連携
-                  </button>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        class="h-4 w-4"
+                        aria-hidden="true"
+                      >
+                        <path
+                          d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
+                        />
+                        <path
+                          d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
+                        />
+                      </svg>
+                      連携
+                    </button>
+                  </div>
+
+                  <!-- Mini Calendar -->
+                  {#if activeDatePicker === "deadline"}
+                    <div
+                      id="deadline-calendar-section"
+                      bind:this={deadlineCalendarRef}
+                      class="mt-3 flex justify-center"
+                    >
+                      <div
+                        class="rounded-box border border-base-300 bg-base-200 p-3"
+                      >
+                        <div
+                          class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
+                        >
+                          期限を選択
+                        </div>
+                        <calendar-date
+                          class="cally bg-base-200"
+                          value={taskFormState.deadline}
+                          use:calendarChangeAction
+                        >
+                          <svg
+                            aria-label="Previous"
+                            class="size-4 fill-current"
+                            slot="previous"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                          >
+                            <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+                          </svg>
+                          <svg
+                            aria-label="Next"
+                            class="size-4 fill-current"
+                            slot="next"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                          >
+                            <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
+                          </svg>
+                          <calendar-month></calendar-month>
+                        </calendar-date>
+                      </div>
+                    </div>
+                  {/if}
                 </div>
               {/if}
 

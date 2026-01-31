@@ -68,6 +68,18 @@
   let timelineContainer: HTMLDivElement | undefined = $state();
   let timelineHeight = $state(400); // Default to 400px (min-h-[400px])
 
+  // Pagination state
+  const MAX_COLUMNS_PER_PAGE = 5;
+  let currentPage = $state(0);
+
+  // Unified column type for pagination
+  type ColumnData =
+    | { type: "timetable"; events: TimetableEvent[] }
+    | { type: "calendar"; events: Event[] };
+
+  // Swipe gesture state
+  let touchStartX = $state(0);
+
   // Load timetable events on mount (only if not provided via prop)
   $effect(() => {
     if (propTimetableEvents === undefined) {
@@ -239,6 +251,64 @@
   let totalColumns = $derived(
     eventColumns.length + (hasTimetableEvents ? 1 : 0),
   );
+
+  // Combine all columns into unified array for pagination
+  let allColumns = $derived.by(() => {
+    const cols: ColumnData[] = [];
+    if (hasTimetableEvents) {
+      cols.push({ type: "timetable", events: timetableEvents });
+    }
+    for (const column of eventColumns) {
+      cols.push({ type: "calendar", events: column });
+    }
+    return cols;
+  });
+
+  // Pagination derived values
+  let totalPages = $derived(Math.ceil(totalColumns / MAX_COLUMNS_PER_PAGE));
+  let needsPagination = $derived(totalColumns > MAX_COLUMNS_PER_PAGE);
+
+  function getColumnsForPage(pageIndex: number): ColumnData[] {
+    const start = pageIndex * MAX_COLUMNS_PER_PAGE;
+    const end = Math.min(start + MAX_COLUMNS_PER_PAGE, allColumns.length);
+    return allColumns.slice(start, end);
+  }
+
+  // Navigation functions
+  function goToPage(page: number) {
+    currentPage = Math.max(0, Math.min(page, totalPages - 1));
+  }
+
+  function nextPage() {
+    if (currentPage < totalPages - 1) currentPage++;
+  }
+
+  function prevPage() {
+    if (currentPage > 0) currentPage--;
+  }
+
+  // Swipe gesture handlers
+  function handleTouchStart(e: TouchEvent) {
+    touchStartX = e.touches[0].clientX;
+  }
+
+  function handleTouchEnd(e: TouchEvent) {
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+    if (Math.abs(diff) > 50) {
+      // 50px threshold
+      if (diff > 0) nextPage();
+      else prevPage();
+    }
+  }
+
+  // Reset pagination when events change
+  $effect(() => {
+    // Dependency on totalColumns
+    if (totalColumns) {
+      currentPage = 0;
+    }
+  });
 </script>
 
 <div
@@ -327,161 +397,204 @@
             <div class="h-[2px] flex-1 bg-primary/80"></div>
           </div>
 
-          <!-- Event columns (including timetable lane) -->
+          <!-- Event columns with pagination -->
           <div
-            class="absolute flex"
-            style="left: 55px; right: 0; top: 0; height: 100%;"
+            class="absolute overflow-hidden"
+            style="left: 55px; right: 0; top: 0; bottom: {needsPagination
+              ? '32px'
+              : '0'};"
+            ontouchstart={handleTouchStart}
+            ontouchend={handleTouchEnd}
           >
-            <!-- Timetable lane (first column if exists) -->
-            {#if hasTimetableEvents}
-              <div
-                class="bg-base-50/30 relative h-full border-r border-base-200"
-                style="width: {100 / totalColumns}%;"
-              >
-                <div
-                  class="absolute inset-x-0 top-[-18px] text-center font-mono text-xs font-medium tracking-wider text-base-content/60 uppercase"
-                >
-                  時間割
+            <!-- Sliding container - all pages side by side -->
+            <div
+              class="flex h-full transition-transform duration-300 ease-out"
+              style="width: {totalPages *
+                100}%; transform: translateX(-{currentPage *
+                (100 / totalPages)}%);"
+            >
+              {#each Array(totalPages) as _, pageIndex (pageIndex)}
+                {@const pageColumns = getColumnsForPage(pageIndex)}
+                {@const columnsOnPage = pageColumns.length}
+                <div class="flex h-full" style="width: {100 / totalPages}%;">
+                  {#each pageColumns as column, colIdx (`${pageIndex}-${colIdx}`)}
+                    {#if column.type === "timetable"}
+                      <!-- Timetable lane -->
+                      <div
+                        class="bg-base-50/30 relative h-full border-r border-base-200"
+                        style="width: {100 / columnsOnPage}%;"
+                      >
+                        <div
+                          class="absolute inset-x-0 top-[-18px] text-center font-mono text-xs font-medium tracking-wider text-base-content/60 uppercase"
+                        >
+                          時間割
+                        </div>
+                        {#each column.events as ttEvent (ttEvent.id)}
+                          {@const isBlocking =
+                            ttEvent.workAllowed === "作業不可"}
+                          <div
+                            class="group absolute right-1 left-1 min-h-[20px] overflow-hidden rounded-r-md border-l-[3px] px-1.5 py-1"
+                            style="
+                              top: {getTimetableEventPosition(ttEvent)}px;
+                              height: {getTimetableEventHeight(ttEvent)}px;
+                              background-color: {isBlocking
+                              ? 'var(--color-error-100)'
+                              : 'var(--color-success-100)'};
+                              border-left-color: {getTimetableEventColor(
+                              ttEvent,
+                            )};
+                            "
+                          >
+                            <!-- Tag button -->
+                            <button
+                              class="absolute top-0 right-0 flex h-8 w-8 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
+                              onclick={(e: MouseEvent) => {
+                                e.stopPropagation();
+                                openTagDialog("timetable", ttEvent);
+                              }}
+                              aria-label="タスクを作成"
+                            >
+                              <span
+                                class="flex h-5 w-5 items-center justify-center rounded bg-base-100/80 shadow-sm hover:bg-base-100"
+                              >
+                                <svg
+                                  class="h-3 w-3 text-base-content/70"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  stroke-width="2"
+                                >
+                                  <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                                  />
+                                </svg>
+                              </span>
+                            </button>
+                            <div
+                              class="overflow-hidden text-[11px] font-medium text-ellipsis whitespace-nowrap"
+                              style="color: {isBlocking
+                                ? 'var(--color-error-700)'
+                                : 'var(--color-success-700)'};"
+                            >
+                              {ttEvent.title}
+                            </div>
+                            <div
+                              class="font-mono text-[9px] tabular-nums"
+                              style="color: {isBlocking
+                                ? 'var(--color-error-500)'
+                                : 'var(--color-success-500)'};"
+                            >
+                              {formatTime(ttEvent.start)} – {formatTime(
+                                ttEvent.end,
+                              )}
+                            </div>
+                          </div>
+                        {/each}
+                      </div>
+                    {:else}
+                      <!-- Regular event column -->
+                      <div
+                        class="relative h-full px-0.5"
+                        style="width: {100 / columnsOnPage}%;"
+                      >
+                        {#each column.events as event (event.id)}
+                          <div
+                            class="event-card group absolute right-1 left-1 min-h-[24px] cursor-pointer overflow-hidden rounded-r-md border-l-[3px] px-2 py-1 shadow-sm transition-all duration-200 hover:z-10 hover:shadow-lg"
+                            onclick={() => handleEventClick(event)}
+                            onkeydown={(e: KeyboardEvent) =>
+                              e.key === "Enter" && handleEventClick(event)}
+                            role="button"
+                            tabindex="0"
+                            style="
+                              top: {getEventPositionScaled(
+                              event.start,
+                              event.timeLabel,
+                            )}px;
+                              height: {getEventHeightScaled(event)}px;
+                              background-color: color-mix(in srgb, {getEventColor(
+                              event,
+                            )} 15%, white);
+                              border-left-color: {getEventColor(event)};
+                            "
+                          >
+                            <!-- Tag button -->
+                            <button
+                              class="absolute top-0 right-0 flex h-8 w-8 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
+                              onclick={(e: MouseEvent) => {
+                                e.stopPropagation();
+                                openTagDialog("calendar", event);
+                              }}
+                              aria-label="タスクを作成"
+                            >
+                              <span
+                                class="flex h-5 w-5 items-center justify-center rounded bg-base-100/80 shadow-sm hover:bg-base-100"
+                              >
+                                <svg
+                                  class="h-3 w-3 text-base-content/70"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  stroke-width="2"
+                                >
+                                  <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+                                  />
+                                </svg>
+                              </span>
+                            </button>
+                            <div
+                              class="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap"
+                              style="color: color-mix(in srgb, {getEventColor(
+                                event,
+                              )} 85%, black);"
+                            >
+                              {event.title}
+                            </div>
+                            <div
+                              class="font-mono text-[10px] tabular-nums"
+                              style="color: color-mix(in srgb, {getEventColor(
+                                event,
+                              )} 60%, black);"
+                            >
+                              {#if event.timeLabel === "all-day"}
+                                終日
+                              {:else}
+                                {formatTime(event.start)} – {formatTime(
+                                  event.end,
+                                )}
+                              {/if}
+                            </div>
+                          </div>
+                        {/each}
+                      </div>
+                    {/if}
+                  {/each}
                 </div>
-                {#each timetableEvents as ttEvent (ttEvent.id)}
-                  {@const isBlocking = ttEvent.workAllowed === "作業不可"}
-                  <div
-                    class="group absolute right-1 left-1 min-h-[20px] overflow-hidden rounded-r-md border-l-[3px] px-1.5 py-1"
-                    style="
-                      top: {getTimetableEventPosition(ttEvent)}px;
-                      height: {getTimetableEventHeight(ttEvent)}px;
-                      background-color: {isBlocking
-                      ? 'var(--color-error-100)'
-                      : 'var(--color-success-100)'};
-                      border-left-color: {getTimetableEventColor(ttEvent)};
-                    "
-                  >
-                    <!-- Tag button (touch target: 32px with invisible padding) -->
-                    <button
-                      class="absolute top-0 right-0 flex h-8 w-8 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
-                      onclick={(e: MouseEvent) => {
-                        e.stopPropagation();
-                        openTagDialog("timetable", ttEvent);
-                      }}
-                      aria-label="タスクを作成"
-                    >
-                      <span
-                        class="flex h-5 w-5 items-center justify-center rounded bg-base-100/80 shadow-sm hover:bg-base-100"
-                      >
-                        <svg
-                          class="h-3 w-3 text-base-content/70"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                          />
-                        </svg>
-                      </span>
-                    </button>
-                    <div
-                      class="overflow-hidden text-[11px] font-medium text-ellipsis whitespace-nowrap"
-                      style="color: {isBlocking
-                        ? 'var(--color-error-700)'
-                        : 'var(--color-success-700)'};"
-                    >
-                      {ttEvent.title}
-                    </div>
-                    <div
-                      class="font-mono text-[9px] tabular-nums"
-                      style="color: {isBlocking
-                        ? 'var(--color-error-500)'
-                        : 'var(--color-success-500)'};"
-                    >
-                      {formatTime(ttEvent.start)} – {formatTime(ttEvent.end)}
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {/if}
-
-            <!-- Regular event columns -->
-            {#each eventColumns as column, columnIndex (columnIndex)}
-              <div
-                class="relative h-full px-0.5"
-                style="width: {100 / totalColumns}%;"
-              >
-                {#each column as event (event.id)}
-                  <div
-                    class="event-card group absolute right-1 left-1 min-h-[24px] cursor-pointer overflow-hidden rounded-r-md border-l-[3px] px-2 py-1 shadow-sm transition-all duration-200 hover:z-10 hover:shadow-lg"
-                    onclick={() => handleEventClick(event)}
-                    onkeydown={(e: KeyboardEvent) =>
-                      e.key === "Enter" && handleEventClick(event)}
-                    role="button"
-                    tabindex="0"
-                    style="
-                      top: {getEventPositionScaled(
-                      event.start,
-                      event.timeLabel,
-                    )}px;
-                      height: {getEventHeightScaled(event)}px;
-                      background-color: color-mix(in srgb, {getEventColor(
-                      event,
-                    )} 15%, white);
-                      border-left-color: {getEventColor(event)};
-                    "
-                  >
-                    <!-- Tag button (touch target: 32px with invisible padding) -->
-                    <button
-                      class="absolute top-0 right-0 flex h-8 w-8 items-center justify-center rounded opacity-0 transition-opacity group-hover:opacity-100"
-                      onclick={(e: MouseEvent) => {
-                        e.stopPropagation();
-                        openTagDialog("calendar", event);
-                      }}
-                      aria-label="タスクを作成"
-                    >
-                      <span
-                        class="flex h-5 w-5 items-center justify-center rounded bg-base-100/80 shadow-sm hover:bg-base-100"
-                      >
-                        <svg
-                          class="h-3 w-3 text-base-content/70"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                          />
-                        </svg>
-                      </span>
-                    </button>
-                    <div
-                      class="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap"
-                      style="color: color-mix(in srgb, {getEventColor(
-                        event,
-                      )} 85%, black);"
-                    >
-                      {event.title}
-                    </div>
-                    <div
-                      class="font-mono text-[10px] tabular-nums"
-                      style="color: color-mix(in srgb, {getEventColor(
-                        event,
-                      )} 60%, black);"
-                    >
-                      {#if event.timeLabel === "all-day"}
-                        終日
-                      {:else}
-                        {formatTime(event.start)} – {formatTime(event.end)}
-                      {/if}
-                    </div>
-                  </div>
-                {/each}
-              </div>
-            {/each}
+              {/each}
+            </div>
           </div>
+
+          <!-- Pagination indicators -->
+          {#if needsPagination}
+            <div
+              class="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-2"
+            >
+              {#each Array(totalPages) as _, pageIdx (pageIdx)}
+                <button
+                  class="rounded-full transition-all duration-200 {currentPage ===
+                  pageIdx
+                    ? 'h-2 w-4 bg-primary'
+                    : 'hover:bg-base-400 h-2 w-2 bg-base-300'}"
+                  onclick={() => goToPage(pageIdx)}
+                  aria-label="Page {pageIdx + 1}"
+                ></button>
+              {/each}
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
