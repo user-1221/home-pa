@@ -279,14 +279,20 @@
   }
 
   function getCellBgClass(cell: CellData | undefined): string {
-    if (!cell || cell.attendance === "出席しない") {
-      return "bg-base-200 text-base-content/50";
+    if (!cell) {
+      // Empty cell
+      return "bg-base-50 border-dashed border-base-200 text-base-content/30";
+    }
+    if (cell.attendance === "出席しない") {
+      // Absent
+      return "bg-base-100 border-dashed border-base-300 text-base-content/50";
     }
     if (cell.workAllowed === "作業可") {
-      return "bg-success/20 text-success-content";
+      // Work allowed
+      return "bg-success/10 border-l-2 border-l-success text-base-content";
     }
     // 作業不可 - this will block time on timeline
-    return "bg-warning/20 text-warning-content";
+    return "bg-warning/10 border-l-2 border-l-warning text-base-content";
   }
 </script>
 
@@ -373,7 +379,7 @@
                 >基本設定</span
               >
             </div>
-            <div class="grid grid-cols-5 gap-3">
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-5">
               <label class="form-control w-full">
                 <div class="label py-1">
                   <span
@@ -383,7 +389,7 @@
                 </div>
                 <input
                   type="time"
-                  class="input input-sm w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
                   bind:value={config.dayStartTime}
                   onchange={handleConfigChange}
                 />
@@ -397,7 +403,7 @@
                 </div>
                 <input
                   type="time"
-                  class="input input-sm w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
                   bind:value={config.lunchStartTime}
                   onchange={handleConfigChange}
                 />
@@ -411,7 +417,7 @@
                 </div>
                 <input
                   type="time"
-                  class="input input-sm w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
                   bind:value={config.lunchEndTime}
                   onchange={handleConfigChange}
                 />
@@ -425,7 +431,7 @@
                 </div>
                 <input
                   type="number"
-                  class="input input-sm w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
                   bind:value={config.cellDuration}
                   onchange={handleConfigChange}
                   min="10"
@@ -441,7 +447,7 @@
                 </div>
                 <input
                   type="number"
-                  class="input input-sm w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
                   bind:value={config.breakDuration}
                   onchange={handleConfigChange}
                   min="0"
@@ -451,8 +457,51 @@
             </div>
           </div>
 
-          <!-- Timetable Grid -->
-          <div class="overflow-x-auto px-5 py-4">
+          <!-- Timetable Grid - Mobile Card View -->
+          <div class="flex flex-col gap-3 px-4 py-4 md:hidden">
+            {#each weekdays as day, dayIndex (day)}
+              <div class="rounded-xl border border-base-200 bg-base-100">
+                <div class="border-b border-base-200 px-3 py-2">
+                  <span class="text-sm font-medium text-base-content"
+                    >{day}曜日</span
+                  >
+                </div>
+                <div class="flex gap-2 overflow-x-auto p-3">
+                  {#each Array(SLOTS_PER_DAY) as _, slotIndex (slotIndex)}
+                    {@const cell = getCell(dayIndex, slotIndex)}
+                    <button
+                      class="flex h-20 w-20 flex-shrink-0 flex-col items-center justify-center rounded-lg border p-2 transition-all duration-150 hover:shadow-md {getCellBgClass(
+                        cell,
+                      )}"
+                      onclick={() => openCellEditor(dayIndex, slotIndex)}
+                    >
+                      <span
+                        class="mb-1 text-[10px] text-base-content/50 tabular-nums"
+                        >{getSlotStartTime(slotIndex)}</span
+                      >
+                      {#if cell && cell.attendance === "出席する"}
+                        <span
+                          class="line-clamp-2 text-center text-xs leading-tight font-medium"
+                          >{cell.title || "無題"}</span
+                        >
+                        <span
+                          class="mt-0.5 text-[10px] leading-tight opacity-60"
+                          >{cell.workAllowed}</span
+                        >
+                      {:else if cell?.attendance === "出席しない"}
+                        <span class="text-[10px] opacity-50">欠席</span>
+                      {:else}
+                        <span class="text-lg opacity-20">+</span>
+                      {/if}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/each}
+          </div>
+
+          <!-- Timetable Grid - Desktop Table View -->
+          <div class="hidden overflow-x-auto px-5 py-4 md:block">
             <table class="table w-full table-fixed">
               <thead>
                 <tr class="border-b border-base-300">
@@ -480,13 +529,13 @@
                       {@const cell = getCell(dayIndex, slotIndex)}
                       <td class="p-1.5">
                         <button
-                          class="flex h-14 w-full flex-col items-center justify-center rounded-lg border border-transparent p-1.5 text-xs transition-all duration-150 hover:border-base-300 hover:shadow-sm {getCellBgClass(
+                          class="flex h-16 w-full flex-col items-center justify-center rounded-lg border p-2 transition-all duration-150 hover:shadow-sm {getCellBgClass(
                             cell,
                           )}"
                           onclick={() => openCellEditor(dayIndex, slotIndex)}
                         >
                           {#if cell && cell.attendance === "出席する"}
-                            <span class="leading-tight font-medium"
+                            <span class="text-sm leading-tight font-medium"
                               >{cell.title || "無題"}</span
                             >
                             <span
@@ -494,7 +543,7 @@
                               >{cell.workAllowed}</span
                             >
                           {:else if cell?.attendance === "出席しない"}
-                            <span class="text-[10px] opacity-50">欠席</span>
+                            <span class="text-xs opacity-50">欠席</span>
                           {:else}
                             <span class="text-base opacity-20">+</span>
                           {/if}
@@ -566,11 +615,11 @@
               <div class="flex flex-col gap-2">
                 {#each exceptionRanges as range, index (index)}
                   <div
-                    class="flex items-center gap-2 rounded-lg bg-[var(--color-surface-50)] p-2"
+                    class="flex flex-col gap-2 rounded-lg bg-[var(--color-surface-50)] p-3 md:flex-row md:items-center md:gap-2 md:p-2"
                   >
                     <input
                       type="date"
-                      class="input input-sm flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                      class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm md:flex-1"
                       value={range.start}
                       onchange={(
                         e: Event & { currentTarget: HTMLInputElement },
@@ -581,43 +630,46 @@
                           e.currentTarget.value,
                         )}
                     />
-                    <span class="text-xs text-[var(--color-text-muted)]"
+                    <span
+                      class="hidden text-xs text-[var(--color-text-muted)] md:block"
                       >〜</span
                     >
-                    <input
-                      type="date"
-                      class="input input-sm flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
-                      value={range.end}
-                      onchange={(
-                        e: Event & { currentTarget: HTMLInputElement },
-                      ) =>
-                        updateExceptionRange(
-                          index,
-                          "end",
-                          e.currentTarget.value,
-                        )}
-                    />
-                    <button
-                      type="button"
-                      class="btn btn-circle text-[var(--color-text-muted)] btn-ghost btn-xs hover:bg-[var(--color-error-100)] hover:text-[var(--color-error-500)]"
-                      onclick={() => removeExceptionRange(index)}
-                      aria-label="削除"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-3.5 w-3.5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="2"
+                    <div class="flex items-center gap-2">
+                      <input
+                        type="date"
+                        class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm md:flex-1"
+                        value={range.end}
+                        onchange={(
+                          e: Event & { currentTarget: HTMLInputElement },
+                        ) =>
+                          updateExceptionRange(
+                            index,
+                            "end",
+                            e.currentTarget.value,
+                          )}
+                      />
+                      <button
+                        type="button"
+                        class="btn btn-circle text-[var(--color-text-muted)] btn-ghost btn-sm hover:bg-[var(--color-error-100)] hover:text-[var(--color-error-500)] md:btn-xs"
+                        onclick={() => removeExceptionRange(index)}
+                        aria-label="削除"
                       >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          d="M6 18L18 6M6 6l12 12"
-                        />
-                      </svg>
-                    </button>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          class="h-4 w-4 md:h-3.5 md:w-3.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          stroke-width="2"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 {/each}
               </div>
@@ -626,11 +678,11 @@
 
           <!-- Legend -->
           <div
-            class="flex flex-shrink-0 flex-wrap items-center justify-center gap-5 border-t border-base-300 bg-[var(--color-bg-grid)] px-5 py-3"
+            class="sticky bottom-0 flex flex-shrink-0 flex-wrap items-center justify-center gap-4 border-t border-base-300 bg-base-100/95 px-5 py-3 backdrop-blur-sm md:static md:gap-5 md:bg-[var(--color-bg-grid)]"
           >
             <div class="flex items-center gap-2">
               <div
-                class="h-3 w-3 rounded-sm border border-warning/40 bg-warning/25"
+                class="h-4 w-4 rounded border-l-2 border-l-warning bg-warning/15 md:h-3 md:w-3"
               ></div>
               <span class="text-xs text-[var(--color-text-secondary)]"
                 >作業不可</span
@@ -638,7 +690,7 @@
             </div>
             <div class="flex items-center gap-2">
               <div
-                class="h-3 w-3 rounded-sm border border-success/40 bg-success/25"
+                class="h-4 w-4 rounded border-l-2 border-l-success bg-success/15 md:h-3 md:w-3"
               ></div>
               <span class="text-xs text-[var(--color-text-secondary)]"
                 >作業可</span
@@ -646,7 +698,7 @@
             </div>
             <div class="flex items-center gap-2">
               <div
-                class="h-3 w-3 rounded-sm border border-base-300 bg-base-200"
+                class="h-4 w-4 rounded border border-dashed border-base-300 bg-base-100 md:h-3 md:w-3"
               ></div>
               <span class="text-xs text-[var(--color-text-secondary)]"
                 >欠席</span
@@ -772,7 +824,7 @@
             <div>
               {#if editingCell.id}
                 <button
-                  class="btn text-[var(--color-error-500)] btn-ghost btn-sm hover:bg-[var(--color-error-100)]"
+                  class="btn text-[var(--color-error-500)] btn-ghost btn-md hover:bg-[var(--color-error-100)] md:btn-sm"
                   onclick={handleDeleteCell}
                   disabled={isSaving}
                 >
@@ -782,7 +834,7 @@
             </div>
             <div class="flex gap-2">
               <button
-                class="btn btn-ghost btn-sm"
+                class="btn btn-ghost btn-md md:btn-sm"
                 onclick={() => {
                   showCellEditor = false;
                   editingCell = null;
@@ -791,7 +843,7 @@
                 キャンセル
               </button>
               <button
-                class="btn btn-sm btn-primary"
+                class="btn btn-md btn-primary md:btn-sm"
                 onclick={handleSaveCell}
                 disabled={isSaving}
               >
