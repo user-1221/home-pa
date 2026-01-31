@@ -37,6 +37,7 @@ export interface Event {
   originalEventId?: string; // Reference to original event for duplicates
   isForever?: boolean; // True for events with no end date
   icalData?: string; // Raw iCalendar VEVENT component string for recurrence expansion
+  calendarId?: string; // External calendar ID (e.g., Google Calendar ID for synced events)
 }
 
 /** JSON-serialized Event (dates as ISO strings) */

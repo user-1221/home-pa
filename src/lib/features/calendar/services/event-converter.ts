@@ -99,6 +99,8 @@ export function dbEventToAppEvent(dbEvent: CalendarEvent): Event {
     color: dbEvent.color || undefined,
     // Store the icalData for recurrence expansion
     icalData: dbEvent.icalData || undefined,
+    // External calendar ID (for synced events)
+    calendarId: dbEvent.calendarId || undefined,
     // Recurrence group ID for linking occurrences
     recurrenceGroupId: dbEvent.hasRecurrence
       ? `group-${dbEvent.id}`

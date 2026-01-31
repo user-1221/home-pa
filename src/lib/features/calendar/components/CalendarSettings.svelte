@@ -43,8 +43,12 @@
     try {
       await googleSyncState.triggerSync();
       // Refresh calendar events after sync by re-fetching current window
-      // Force refresh by clearing cache and re-fetching
+      // Store window before clearing, then re-fetch
+      const window = calendarState.currentWindow;
       calendarState.clear();
+      if (window) {
+        await calendarState.fetchEvents(window.start, window.end);
+      }
     } catch (err) {
       syncError = err instanceof Error ? err.message : "Sync failed";
     } finally {

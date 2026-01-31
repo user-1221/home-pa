@@ -24,12 +24,18 @@
     getCachedTimetableData,
     type TimetableEvent,
   } from "../services/timetable-events.ts";
+  import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
 
   // Local reactive variables for calendar state
   let currentMonth = $state(new Date());
   let showTimelinePopup = $state(false);
   let showTimetablePopup = $state(false);
   let showDropdownBar = $state(false);
+
+  // Calendar visibility state (for filtering events by source)
+  // hiddenCalendars tracks which calendars are hidden (empty = all visible)
+  let hiddenCalendars = $state<Set<string>>(new Set());
+  let showLocalEvents = $state(true);
 
   // Timetable events for the selected date (pre-loaded for TimelinePopup)
   let timetableEventsForDate = $state<TimetableEvent[]>([]);
@@ -102,6 +108,8 @@
     const monthKey = getMonthKey(currentMonth);
     previousMonthKey = monthKey;
     fetchEventsForCurrentMonth();
+    // Load Google Calendar sync state for toggle buttons
+    googleSyncState.checkConnection();
   });
 
   // Reload events when month actually changes (not on every render)
@@ -117,13 +125,24 @@
 
   // Combine regular events with recurring occurrences for display
   let allDisplayEvents = $derived.by(() => {
-    const regularEvents = calendarState.events.filter(
+    // First, filter events by calendar visibility
+    const visibleEvents = calendarState.events.filter((e) => {
+      if (e.calendarId) {
+        // Google synced event - show if NOT in hidden set
+        return !hiddenCalendars.has(e.calendarId);
+      } else {
+        // Local event - use local events toggle
+        return showLocalEvents;
+      }
+    });
+
+    const regularEvents = visibleEvents.filter(
       (e) => !e.recurrence || e.recurrence.type === "NONE",
     );
 
-    // Filter occurrences to only include those for events that are still recurring
+    // Filter occurrences to only include those for visible recurring events
     const recurringEventIds = new Set(
-      calendarState.events
+      visibleEvents
         .filter((e) => e.recurrence && e.recurrence.type !== "NONE")
         .map((e) => e.id),
     );
@@ -263,6 +282,16 @@
   function parseRecurrenceForEdit(_event: Event) {
     // Passed to TimelinePopup - implementation can be added if needed
   }
+
+  function toggleCalendarVisibility(calendarId: string) {
+    const newSet = new Set(hiddenCalendars);
+    if (newSet.has(calendarId)) {
+      newSet.delete(calendarId); // Remove from hidden = show
+    } else {
+      newSet.add(calendarId); // Add to hidden = hide
+    }
+    hiddenCalendars = newSet;
+  }
 </script>
 
 <div
@@ -297,10 +326,40 @@
   <!-- Dropdown Bar Section -->
   {#if showDropdownBar}
     <div
-      class="border-subtle sticky top-14 z-[9] flex min-h-10 flex-shrink-0 items-center border-b bg-base-100/90 px-3 backdrop-blur-sm md:top-20 md:min-h-12 md:px-5"
+      class="border-subtle sticky top-14 z-[9] flex min-h-10 flex-shrink-0 items-center gap-2 overflow-x-auto border-b bg-base-100/90 px-3 backdrop-blur-sm md:top-20 md:min-h-12 md:px-5"
       transition:slide={{ duration: 300, axis: "y" }}
     >
-      <!-- Dropdown content can be added here -->
+      <!-- Local events toggle -->
+      <button
+        class="btn shrink-0 btn-xs {showLocalEvents
+          ? 'btn-primary'
+          : 'opacity-50 btn-ghost'}"
+        onclick={() => (showLocalEvents = !showLocalEvents)}
+      >
+        Local
+      </button>
+
+      <!-- Google Calendar toggles -->
+      {#each googleSyncState.calendars as calendar (calendar.id)}
+        <button
+          class="btn shrink-0 btn-xs {hiddenCalendars.has(
+            calendar.googleCalendarId,
+          )
+            ? 'opacity-50 btn-ghost'
+            : ''}"
+          style={calendar.calendarColor &&
+          !hiddenCalendars.has(calendar.googleCalendarId)
+            ? `background-color: ${calendar.calendarColor}; border-color: ${calendar.calendarColor}; color: white`
+            : ""}
+          onclick={() => toggleCalendarVisibility(calendar.googleCalendarId)}
+        >
+          {calendar.calendarName}
+        </button>
+      {/each}
+
+      {#if googleSyncState.calendars.length === 0 && googleSyncState.isConnected}
+        <span class="text-xs text-base-content/50">No calendars synced</span>
+      {/if}
     </div>
   {/if}
 

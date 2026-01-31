@@ -41,6 +41,11 @@ export function googleEventToLocal(
 ): MappedEvent | null {
   // Skip events without required fields
   if (!googleEvent.id || !googleEvent.summary) {
+    console.log(`[eventMapper] Skipping event: missing id or summary`, {
+      id: googleEvent.id,
+      summary: googleEvent.summary,
+      status: googleEvent.status,
+    });
     return null;
   }
 
@@ -65,6 +70,13 @@ export function googleEventToLocal(
   // Parse start/end times
   const { start, end, isAllDay, tzid } = parseEventTimes(googleEvent);
   if (!start) {
+    console.log(
+      `[eventMapper] Skipping event "${googleEvent.summary}": missing start time`,
+      {
+        id: googleEvent.id,
+        start: googleEvent.start,
+      },
+    );
     return null;
   }
 

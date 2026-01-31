@@ -103,10 +103,18 @@ export async function performFullSync(
     result.newSyncToken = response.nextSyncToken;
   } while (pageToken);
 
+  console.log(
+    `[performFullSync] Fetched ${allEvents.length} events from Google Calendar`,
+  );
+
   // Map Google events to local format
   const mappedEvents = allEvents
     .map((event) => googleEventToLocal(event, googleCalendarId))
     .filter((e): e is MappedEvent => e !== null);
+
+  console.log(
+    `[performFullSync] Mapped ${mappedEvents.length}/${allEvents.length} events (${allEvents.length - mappedEvents.length} filtered out)`,
+  );
 
   // Apply changes to database
   const applyResult = await applyChanges(
@@ -175,10 +183,18 @@ export async function performIncrementalSync(
     result.newSyncToken = response.nextSyncToken;
   } while (pageToken);
 
+  console.log(
+    `[performIncrementalSync] Fetched ${allEvents.length} changed events from Google Calendar`,
+  );
+
   // Map Google events to local format
   const mappedEvents = allEvents
     .map((event) => googleEventToLocal(event, googleCalendarId))
     .filter((e): e is MappedEvent => e !== null);
+
+  console.log(
+    `[performIncrementalSync] Mapped ${mappedEvents.length}/${allEvents.length} events`,
+  );
 
   // Apply changes to database
   const applyResult = await applyChanges(
@@ -235,6 +251,8 @@ async function applyChanges(
     errors: [],
   };
 
+  console.log(`[applyChanges] Processing ${events.length} events`);
+
   for (const mappedEvent of events) {
     try {
       if (mappedEvent.isCancelled) {
@@ -246,6 +264,7 @@ async function applyChanges(
         );
         if (deleted) {
           result.deleted++;
+          console.log(`[applyChanges] Deleted: "${mappedEvent.event.title}"`);
         }
       } else {
         // Create or update the event
@@ -253,16 +272,28 @@ async function applyChanges(
           userId,
           mappedEvent,
         );
-        if (created) result.created++;
-        if (updated) result.updated++;
+        if (created) {
+          result.created++;
+          console.log(`[applyChanges] Created: "${mappedEvent.event.title}"`);
+        }
+        if (updated) {
+          result.updated++;
+          console.log(`[applyChanges] Updated: "${mappedEvent.event.title}"`);
+        }
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      console.error(
+        `[applyChanges] Error processing "${mappedEvent.event.title}":`,
+        error,
+      );
       result.errors.push(
         `Failed to process event ${mappedEvent.googleEventId}: ${errorMsg}`,
       );
     }
   }
+
+  console.log(`[applyChanges] Complete:`, result);
 
   return result;
 }

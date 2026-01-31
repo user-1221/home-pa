@@ -284,26 +284,54 @@ export const triggerSync = command(
 
     for (const calendar of calendarsToSync) {
       try {
-        await performSync(
+        const syncResult = await performSync(
           userId,
           calendar.googleCalendarId,
           accessToken,
           calendar.syncToken,
         );
-        synced++;
 
-        // Update last sync time
+        // Log sync details for debugging
+        console.log(`[triggerSync] Calendar "${calendar.calendarName}":`, {
+          created: syncResult.created,
+          updated: syncResult.updated,
+          deleted: syncResult.deleted,
+          errors: syncResult.errors,
+          newSyncToken: syncResult.newSyncToken ? "received" : "none",
+        });
+
+        // Count as synced if any events were processed
+        if (syncResult.created > 0 || syncResult.updated > 0) {
+          synced++;
+        }
+
+        // Accumulate any errors from the sync
+        if (syncResult.errors.length > 0) {
+          errors.push(
+            ...syncResult.errors.map((e) => `${calendar.calendarName}: ${e}`),
+          );
+        }
+
+        // Update last sync time and sync token
         await prisma.googleCalendarSync.update({
           where: { id: calendar.id },
           data: {
             lastSyncAt: new Date(),
-            lastError: null,
-            errorCount: 0,
+            lastError:
+              syncResult.errors.length > 0
+                ? syncResult.errors.join("; ")
+                : null,
+            errorCount: syncResult.errors.length > 0 ? { increment: 1 } : 0,
+            syncToken: syncResult.newSyncToken ?? undefined,
           },
         });
       } catch (err) {
         const errorMsg =
           err instanceof Error ? err.message : "Unknown sync error";
+        console.error(
+          `[triggerSync] Calendar "${calendar.calendarName}" failed:`,
+          err,
+        );
         errors.push(`${calendar.calendarName}: ${errorMsg}`);
 
         // Update error state
