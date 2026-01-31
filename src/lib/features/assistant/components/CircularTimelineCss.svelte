@@ -834,6 +834,13 @@
           <feMergeNode in="SourceGraphic" />
         </feMerge>
       </filter>
+
+      <!-- Center circle gradient -->
+      <radialGradient id="centerCircleGradient" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="var(--color-base-100)" />
+        <stop offset="70%" stop-color="var(--color-base-100)" />
+        <stop offset="100%" stop-color="var(--color-base-300)" />
+      </radialGradient>
     </defs>
 
     <!-- Background rings (new layout: suggestion outer, events middle, timetable inner) -->
@@ -921,6 +928,25 @@
         font-weight="600"
         fill="var(--color-text-primary)"
         fill-opacity="0.9"
+        text-anchor="middle"
+        dominant-baseline="middle"
+      >
+        {String(hour).padStart(2, "0")}
+      </text>
+    {/each}
+
+    <!-- Secondary hour markers (smaller, lighter) -->
+    {#each [3, 9, 15, 21] as hour (hour)}
+      {@const angle = (hour / 24) * TWO_PI - Math.PI / 2}
+      {@const lx = center + (outerRadius + 5) * Math.cos(angle)}
+      {@const ly = center + (outerRadius + 5) * Math.sin(angle)}
+      <text
+        x={lx}
+        y={ly}
+        font-size="3.5"
+        font-weight="400"
+        fill="var(--color-text-muted)"
+        fill-opacity="0.5"
         text-anchor="middle"
         dominant-baseline="middle"
       >
@@ -1125,7 +1151,7 @@
       cx={center}
       cy={center}
       r="12"
-      fill="var(--color-base-100)"
+      fill="url(#centerCircleGradient)"
       stroke="var(--color-border-strong)"
       stroke-width="0.6"
       style="pointer-events: none;"
@@ -1134,7 +1160,7 @@
 
   <!-- Center display -->
   <button
-    class="pointer-events-auto absolute top-1/2 left-1/2 z-10 flex min-h-[44px] min-w-[60px] -translate-x-1/2 -translate-y-1/2 cursor-pointer touch-manipulation items-center justify-center border-none bg-transparent p-4 text-center"
+    class="pointer-events-auto absolute top-1/2 left-1/2 z-10 flex min-h-[44px] min-w-[44px] -translate-x-1/2 -translate-y-1/2 cursor-pointer touch-manipulation items-center justify-center border-none bg-transparent px-2 py-1 text-center"
     onclick={handleCenterClick}
     onpointerdown={(e: PointerEvent) => {
       e.stopPropagation();

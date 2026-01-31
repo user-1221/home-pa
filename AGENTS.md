@@ -220,6 +220,8 @@ If a `.remote.ts` file doesn't define proper remote functions, the chunk is empt
 - Read `docs/` for application design and documentation.
 - **UI work**: Always refer to `docs/skills/designer.md` for design guidelines.
 - **After substantial UI changes**: Run `/web-design-guidelines` to review against best practices.
+- **Cron/background jobs**: Refer to `docs/cron-system.md`
+- **Google auth/calendar sync**: Refer to `docs/google-calendar-sync.md`
 
 ## TypeScript Debugger
 
