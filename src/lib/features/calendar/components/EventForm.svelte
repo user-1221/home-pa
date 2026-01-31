@@ -54,6 +54,12 @@
   let isEventEditing = $state(false);
   let isManualDateOrTimeEdit = $state(false);
 
+  // Detect Google Calendar events (read-only)
+  let isGoogleEvent = $derived(
+    eventFormState.formData.calendarId !== undefined,
+  );
+  let isReadOnly = $derived(isGoogleEvent && isEventEditing);
+
   // Track previous start time for duration preservation
   let previousStartTime = $state<string>("");
 
@@ -793,28 +799,39 @@
       ✕
     </Button>
     <h3 class="flex-1 text-left text-lg font-medium md:flex-none">
-      {isEventEditing ? "予定を編集" : "新しい予定"}
+      {isReadOnly ? "予定の詳細" : isEventEditing ? "予定を編集" : "新しい予定"}
     </h3>
     {#if isEventEditing}
       <div class="flex gap-2 md:hidden">
-        <Button
-          variant="danger"
-          size="sm"
-          rounded="sharp"
-          onclick={handleDelete}
-          disabled={isDeleting}
-          loading={isDeleting}
-        >
-          削除
-        </Button>
-        <Button
-          variant="primary"
-          size="sm"
-          rounded="sharp"
-          onclick={() => eventActions.submitEventForm()}
-        >
-          更新
-        </Button>
+        {#if isReadOnly}
+          <Button
+            variant="ghost"
+            size="sm"
+            rounded="sharp"
+            onclick={() => eventFormState.close()}
+          >
+            閉じる
+          </Button>
+        {:else}
+          <Button
+            variant="danger"
+            size="sm"
+            rounded="sharp"
+            onclick={handleDelete}
+            disabled={isDeleting}
+            loading={isDeleting}
+          >
+            削除
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            rounded="sharp"
+            onclick={() => eventActions.submitEventForm()}
+          >
+            更新
+          </Button>
+        {/if}
       </div>
     {:else}
       <Button
@@ -838,9 +855,10 @@
         class="w-full border-0 border-b border-base-300 bg-transparent px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none {eventFormState
           .errors.title
           ? 'border-[var(--color-error-500)]'
-          : ''}"
+          : ''} {isReadOnly ? 'cursor-not-allowed opacity-70' : ''}"
         bind:value={eventTitle}
         placeholder="タイトル"
+        disabled={isReadOnly}
         onfocus={() => (titleInputFocused = true)}
         onblur={() => {
           // Delay hiding to allow clicking on suggestions
@@ -919,7 +937,9 @@
               {timeMode === 'all-day'
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
             : 'border-base-300 btn-ghost'}
-              {isGreyState ? 'opacity-60' : ''}"
+              {isGreyState ? 'opacity-60' : ''}
+              {isReadOnly ? 'cursor-not-allowed' : ''}"
+          disabled={isReadOnly}
           onclick={() => {
             isLocalEdit = true;
             if (timeMode === "all-day") {
@@ -953,7 +973,9 @@
           class="btn flex-1 transition-all duration-200 btn-sm
               {timeMode === 'some-timing'
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
-            : 'border-base-300 btn-ghost'}"
+            : 'border-base-300 btn-ghost'}
+              {isReadOnly ? 'cursor-not-allowed' : ''}"
+          disabled={isReadOnly}
           onclick={() => {
             isLocalEdit = true;
             if (timeMode === "some-timing") {
@@ -996,8 +1018,9 @@
             id="event-start-date"
             bind:value={eventStartDate}
             active={activeDatePicker === "start"}
-            disabled={eventTimeLabel === "some-timing"}
+            disabled={eventTimeLabel === "some-timing" || isReadOnly}
             onclick={() => {
+              if (isReadOnly) return;
               activeTimePicker = null; // Close time picker if open
               activeDatePicker = activeDatePicker === "start" ? null : "start";
             }}
@@ -1007,8 +1030,9 @@
             id="event-start-time"
             bind:value={eventStartTime}
             active={activeTimePicker === "start"}
-            disabled={eventTimeLabel === "some-timing"}
+            disabled={eventTimeLabel === "some-timing" || isReadOnly}
             onclick={() => {
+              if (isReadOnly) return;
               activeDatePicker = null; // Close date picker if open
               if (eventTimeLabel === "all-day") {
                 switchToTimedMode();
@@ -1094,8 +1118,9 @@
             id="event-end-date"
             bind:value={eventEndDate}
             active={activeDatePicker === "end"}
-            disabled={eventTimeLabel === "some-timing"}
+            disabled={eventTimeLabel === "some-timing" || isReadOnly}
             onclick={() => {
+              if (isReadOnly) return;
               activeTimePicker = null; // Close time picker if open
               activeDatePicker = activeDatePicker === "end" ? null : "end";
             }}
@@ -1105,8 +1130,9 @@
             id="event-end-time"
             bind:value={eventEndTime}
             active={activeTimePicker === "end"}
-            disabled={eventTimeLabel === "some-timing"}
+            disabled={eventTimeLabel === "some-timing" || isReadOnly}
             onclick={() => {
+              if (isReadOnly) return;
               activeDatePicker = null; // Close date picker if open
               if (eventTimeLabel === "all-day") {
                 switchToTimedMode();
@@ -1188,11 +1214,16 @@
 
     <!-- Recurrence Toggle -->
     <div class="form-control py-2">
-      <label class="label cursor-pointer justify-start gap-2">
+      <label
+        class="label cursor-pointer justify-start gap-2 {isReadOnly
+          ? 'cursor-not-allowed opacity-70'
+          : ''}"
+      >
         <input
           type="checkbox"
           class="toggle toggle-primary"
           bind:checked={isRecurring}
+          disabled={isReadOnly}
         />
         <span class="label-text text-sm text-base-content">繰り返し設定</span>
       </label>
@@ -1412,9 +1443,12 @@
       <input
         id="event-address"
         type="text"
-        class="input-bordered input w-full"
+        class="input-bordered input w-full {isReadOnly
+          ? 'cursor-not-allowed opacity-70'
+          : ''}"
         bind:value={eventAddress}
         placeholder="場所を入力（任意）"
+        disabled={isReadOnly}
       />
     </div>
 
@@ -1430,8 +1464,11 @@
           type="button"
           class="btn flex-1 btn-sm {eventImportance === 'low'
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-            : 'border-base-300 btn-ghost'} border transition-all duration-200"
+            : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
+            ? 'cursor-not-allowed'
+            : ''}"
           onclick={() => (eventImportance = "low")}
+          disabled={isReadOnly}
         >
           5分前
         </button>
@@ -1439,8 +1476,11 @@
           type="button"
           class="btn flex-1 btn-sm {eventImportance === 'medium'
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-            : 'border-base-300 btn-ghost'} border transition-all duration-200"
+            : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
+            ? 'cursor-not-allowed'
+            : ''}"
           onclick={() => (eventImportance = "medium")}
+          disabled={isReadOnly}
         >
           10分前
         </button>
@@ -1448,8 +1488,11 @@
           type="button"
           class="btn flex-1 btn-sm {eventImportance === 'high'
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-            : 'border-base-300 btn-ghost'} border transition-all duration-200"
+            : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
+            ? 'cursor-not-allowed'
+            : ''}"
           onclick={() => (eventImportance = "high")}
+          disabled={isReadOnly}
         >
           余裕を持って
         </button>
@@ -1470,9 +1513,12 @@
           class="flex h-8 w-8 items-center justify-center rounded-full border-2 transition-all duration-200 {eventColor ===
           undefined
             ? 'ring-opacity-30 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
-            : 'border-base-300 hover:border-base-content/30'}"
+            : 'border-base-300 hover:border-base-content/30'} {isReadOnly
+            ? 'cursor-not-allowed opacity-70'
+            : ''}"
           onclick={() => (eventColor = undefined)}
           title="自動"
+          disabled={isReadOnly}
         >
           <span class="text-xs text-base-content/60">自動</span>
         </button>
@@ -1482,16 +1528,29 @@
             class="h-8 w-8 rounded-full border-2 transition-all duration-200 {eventColor ===
             color.key
               ? 'ring-opacity-30 scale-110 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
-              : 'border-transparent hover:scale-105'}"
+              : 'border-transparent hover:scale-105'} {isReadOnly
+              ? 'cursor-not-allowed opacity-70'
+              : ''}"
             style="background-color: {color.value};"
             onclick={() => (eventColor = color.key)}
             title={color.label}
             aria-label={color.label}
+            disabled={isReadOnly}
           ></button>
         {/each}
       </div>
     </div>
   </div>
+
+  <!-- Google Calendar Read-Only Note -->
+  {#if isReadOnly}
+    <div
+      class="mx-4 mb-4 rounded-lg bg-base-200 p-3 text-center text-sm text-base-content/70"
+    >
+      Googleカレンダーからインポートした予定は編集できません。<br />
+      編集はGoogleカレンダーで行ってください。
+    </div>
+  {/if}
 
   <!-- General Error Display -->
   {#if eventFormState.errors.general}
@@ -1510,26 +1569,32 @@
     class="hidden flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 md:flex"
   >
     {#if isEventEditing}
-      <Button
-        variant="danger"
-        rounded="sharp"
-        class="mr-auto"
-        onclick={handleDelete}
-        disabled={isDeleting}
-        loading={isDeleting}
-      >
-        {isDeleting ? "削除中..." : "削除"}
-      </Button>
-      <Button variant="ghost" onclick={() => eventActions.cancelEventForm()}>
-        キャンセル
-      </Button>
-      <Button
-        variant="primary"
-        rounded="sharp"
-        onclick={() => eventActions.submitEventForm()}
-      >
-        更新
-      </Button>
+      {#if isReadOnly}
+        <Button variant="ghost" onclick={() => eventFormState.close()}>
+          閉じる
+        </Button>
+      {:else}
+        <Button
+          variant="danger"
+          rounded="sharp"
+          class="mr-auto"
+          onclick={handleDelete}
+          disabled={isDeleting}
+          loading={isDeleting}
+        >
+          {isDeleting ? "削除中..." : "削除"}
+        </Button>
+        <Button variant="ghost" onclick={() => eventActions.cancelEventForm()}>
+          キャンセル
+        </Button>
+        <Button
+          variant="primary"
+          rounded="sharp"
+          onclick={() => eventActions.submitEventForm()}
+        >
+          更新
+        </Button>
+      {/if}
     {:else}
       <Button variant="ghost" onclick={() => eventActions.cancelEventForm()}>
         キャンセル

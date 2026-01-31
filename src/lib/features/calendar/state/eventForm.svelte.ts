@@ -31,6 +31,8 @@ export interface EventFormData {
   recurrence?: Recurrence;
   /** For recurring event occurrences: the actual occurrence date being edited */
   occurrenceDate?: Date;
+  /** External calendar ID (e.g., Google Calendar ID for synced events) */
+  calendarId?: string;
 }
 
 /**
@@ -71,6 +73,8 @@ class EventFormState {
   recurrence = $state<Recurrence | undefined>(undefined);
   /** For recurring event occurrences: the actual occurrence date being edited */
   occurrenceDate = $state<Date | undefined>(undefined);
+  /** External calendar ID (e.g., Google Calendar ID for synced events) */
+  calendarId = $state<string | undefined>(undefined);
 
   // Validation errors
   errors = $state<EventFormErrors>({});
@@ -134,6 +138,7 @@ class EventFormState {
       editingId: this.editingId,
       recurrence: this.recurrence,
       occurrenceDate: this.occurrenceDate,
+      calendarId: this.calendarId,
     };
   }
 
@@ -267,6 +272,7 @@ class EventFormState {
     this.editingId = event.id;
     this.recurrence = event.recurrence;
     this.occurrenceDate = occurrenceDate;
+    this.calendarId = event.calendarId;
     this.errors = {};
   }
 
@@ -286,6 +292,7 @@ class EventFormState {
     this.editingId = null;
     this.recurrence = undefined;
     this.occurrenceDate = undefined;
+    this.calendarId = undefined;
     this.errors = {};
     this.isSubmitting = false;
   }
