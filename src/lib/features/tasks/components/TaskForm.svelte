@@ -2,7 +2,6 @@
   import { taskFormState } from "$lib/features/tasks/state/taskForm.svelte.ts";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import Button from "$lib/features/shared/components/Button.svelte";
-  import TextInput from "$lib/features/shared/components/TextInput.svelte";
   import type {
     MemoType,
     LocationPreference,
@@ -214,13 +213,25 @@
       <!-- Basic Info Section -->
       <div class="space-y-4 p-4 md:p-5">
         <!-- Title -->
-        <TextInput
-          id="title"
-          label="タイトル"
-          placeholder="タスクのタイトルを入力"
-          bind:value={taskFormState.title}
-          error={taskFormState.errors.title}
-        />
+        <div class="form-control">
+          <input
+            id="title"
+            type="text"
+            class="w-full border-0 border-b border-base-300 bg-transparent px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none {taskFormState
+              .errors.title
+              ? 'border-[var(--color-error-500)]'
+              : ''}"
+            bind:value={taskFormState.title}
+            placeholder="タスク名"
+          />
+          {#if taskFormState.errors.title}
+            <p class="label">
+              <span class="label-text-alt text-[var(--color-error-500)]"
+                >{taskFormState.errors.title}</span
+              >
+            </p>
+          {/if}
+        </div>
 
         <!-- Type -->
         <div class="space-y-1.5">

@@ -7,11 +7,28 @@
   import ModalSkeletonContent from "$lib/features/shared/components/skeletons/ModalSkeletonContent.svelte";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import { taskFormState } from "$lib/features/tasks/state/taskForm.svelte.ts";
+  import {
+    ReportState,
+    setReportState,
+  } from "$lib/features/tasks/state/report.svelte.ts";
   import type { Memo, MemoType } from "$lib/types.ts";
+
+  // Create and provide ReportState at this level so it persists across tab switches
+  const reportState = new ReportState();
+  setReportState(reportState);
 
   // Filter options
   type FilterType = "active" | "report";
   let filter = $state<FilterType>("active");
+
+  // Load report data on first switch to report tab
+  let reportDataLoaded = $state(false);
+  $effect(() => {
+    if (filter === "report" && !reportDataLoaded && !reportState.isLoading) {
+      reportDataLoaded = true;
+      reportState.load();
+    }
+  });
 
   // Task type priority order: 期限付き (Deadline) → ルーティン (Routine) → バックログ (Backlog)
   const TYPE_ORDER: Record<MemoType, number> = {
@@ -130,37 +147,16 @@
   <!-- Task List or Report View -->
   <div class="flex-1 overflow-y-auto p-4 md:p-6">
     {#if filter === "report"}
-      <!-- Report View Placeholder -->
-      <div class="mx-auto max-w-4xl">
-        <div
-          class="flex flex-col items-center justify-center px-4 py-20 text-center"
-        >
-          <div
-            class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-base-200/80"
-          >
-            <svg
-              class="h-8 w-8 text-base-content/50"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.5"
-              aria-hidden="true"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
+      <!-- Report View (lazy-loaded) -->
+      <LazyLoad loader={() => import("./report/ReportView.svelte")} props={{}}>
+        <div class="mx-auto max-w-4xl">
+          <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {#each Array(4) as _, i (i)}
+              <Skeleton variant="card" />
+            {/each}
           </div>
-          <p class="text-base font-medium text-base-content/70">
-            Report Coming Soon
-          </p>
-          <p class="mt-1 text-sm text-base-content/50">
-            完了したタスクの履歴と統計がここに表示されます
-          </p>
         </div>
-      </div>
+      </LazyLoad>
     {:else}
       <!-- Active Tasks List -->
       <div class="mx-auto max-w-4xl">

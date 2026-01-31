@@ -6,11 +6,14 @@ import { dataState } from "./data.svelte.ts";
 import { timezoneState } from "./timezone.svelte.ts";
 import { scheduleState } from "../features/assistant/state/schedule.svelte.ts";
 import { transitState } from "../features/transit/state/transit.svelte.ts";
+import { initDevConsole } from "./dev-console.ts";
 
 export function initializeStores(): void {
   timezoneState.detect();
   // Initialize selected date to today
   dataState.setSelectedDate(new Date());
+  // Initialize dev console (no-op in production)
+  initDevConsole();
 }
 
 /**

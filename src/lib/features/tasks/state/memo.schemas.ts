@@ -17,6 +17,7 @@ export const RecurrenceGoalSchema = v.object({
 
 export const MemoStatusSchema = v.object({
   timeSpentMinutes: v.number(),
+  timeSpentToday: v.number(),
   completionState: v.picklist(["not_started", "in_progress", "completed"]),
 });
 

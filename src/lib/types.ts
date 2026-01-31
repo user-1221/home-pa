@@ -68,6 +68,7 @@ export interface RecurrenceGoal {
  */
 export interface MemoStatus {
   timeSpentMinutes: number; // Total time user has spent on this memo
+  timeSpentToday: number; // Time spent today (resets daily)
   completionState: "not_started" | "in_progress" | "completed";
 }
 

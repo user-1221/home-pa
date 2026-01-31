@@ -47,6 +47,7 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
         | "no_preference",
       status: {
         timeSpentMinutes: memo.timeSpentMinutes,
+        timeSpentToday: memo.timeSpentToday ?? 0,
         completionState: memo.completionState as
           | "not_started"
           | "in_progress"
@@ -237,6 +238,7 @@ export const createMemo = command(MemoInputSchema, async (input) => {
         | "no_preference",
       status: {
         timeSpentMinutes: created.timeSpentMinutes,
+        timeSpentToday: created.timeSpentToday ?? 0,
         completionState: created.completionState as
           | "not_started"
           | "in_progress"
@@ -449,6 +451,7 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
         | "no_preference",
       status: {
         timeSpentMinutes: updated.timeSpentMinutes,
+        timeSpentToday: updated.timeSpentToday ?? 0,
         completionState: updated.completionState as
           | "not_started"
           | "in_progress"

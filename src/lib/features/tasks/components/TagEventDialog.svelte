@@ -119,6 +119,7 @@
         locationPreference: "no_preference",
         status: {
           timeSpentMinutes: 0,
+          timeSpentToday: 0,
           completionState: "not_started",
         },
         eventLink: {

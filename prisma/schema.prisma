@@ -141,6 +141,7 @@ model Memo {
 
   // Status tracking
   timeSpentMinutes       Int      @default(0)
+  timeSpentToday         Int      @default(0)  // Resets daily via lazy reset
   completionState        String   @default("not_started") // not_started | in_progress | completed
   completionsThisPeriod  Int?
   periodStartDate        DateTime?
@@ -307,6 +308,31 @@ model EventTemplate {
   @@map("event_template")
 }
 
+// Google Calendar sync configuration
+// Tracks which Google calendars are synced for each user
+model GoogleCalendarSync {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String
+
+  googleCalendarId  String   // e.g., "primary" or specific calendar ID
+  calendarName      String   // Display name for UI
+  calendarColor     String?  // Google's calendar color
+
+  syncToken         String?  // For incremental sync
+  lastSyncAt        DateTime?
+  syncEnabled       Boolean  @default(true)
+
+  lastError         String?
+  errorCount        Int      @default(0)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([userId, googleCalendarId])
+  @@index([userId])
+  @@map("google_calendar_sync")
+}
+
 // Active timer session for cross-device sync
 // Only ONE active timer per user (userId is unique)
 model ActiveTimerSession {
@@ -371,4 +397,27 @@ model TaskCompletionLog {
 
   @@index([userId, completedAt])
   @@map("task_completion_log")
+}
+
+// Daily activity log (created by cron job at midnight)
+model DailyActivityLog {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String
+  date      DateTime // Date of activity (midnight of that day)
+
+  // Aggregate stats
+  totalTimeMinutes    Int      // Total time worked
+  tasksWorkedOn       Int      // Number of unique tasks
+  suggestionsAccepted Int
+  suggestionsRejected Int
+  tasksCompleted      Int
+
+  // Detailed per-task breakdown
+  taskActivities      Json     // Array of TaskActivity objects
+
+  // Metadata
+  createdAt DateTime @default(now())
+
+  @@unique([userId, date])
+  @@map("daily_activity_log")
 }

@@ -1,6 +1,7 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 
 import type { Session, User } from "better-auth";
+import type { DevConsoleAPI } from "$lib/bootstrap/dev-console";
 
 // for information about these interfaces
 declare global {
@@ -13,5 +14,10 @@ declare global {
     // interface PageData {}
     // interface PageState {}
     // interface Platform {}
+  }
+
+  // Dev console (development mode only)
+  interface Window {
+    pa?: DevConsoleAPI;
   }
 }

@@ -130,4 +130,7 @@ export { formatDate, formatDateTime } from "../utils/date-utils.ts";
 // Bootstrap functions
 export { initializeStores, loadSyncedData } from "./bootstrap.ts";
 
+// Dev console (for manual initialization if needed)
+export { initDevConsole, type DevConsoleAPI } from "./dev-console.ts";
+
 // Note: isSyncLoaded and isSyncing are now accessible via scheduleState.isSyncLoaded and scheduleState.isSyncing

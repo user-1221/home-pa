@@ -783,3 +783,11 @@ export function reloadTimetableEvents(force?: boolean): boolean {
   );
   return false;
 }
+
+/**
+ * Get the active UnifiedGapState instance (for dev console).
+ * Returns null if assistant page is not mounted.
+ */
+export function getActiveUnifiedGapState(): UnifiedGapState | null {
+  return activeInstance;
+}

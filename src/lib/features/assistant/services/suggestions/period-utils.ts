@@ -155,11 +155,16 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
         (memo.routineState.acceptedToday ||
           memo.routineState.completedToday ||
           memo.routineState.rejectedToday ||
-          memo.routineState.acceptedSlot)
+          memo.routineState.acceptedSlot ||
+          memo.status.timeSpentToday > 0)
       ) {
-        // New day - reset acceptedToday, completedToday, rejectedToday, and acceptedSlot
+        // New day - reset acceptedToday, completedToday, rejectedToday, acceptedSlot, and timeSpentToday
         updated = {
           ...updated,
+          status: {
+            ...updated.status,
+            timeSpentToday: 0,
+          },
           routineState: {
             ...updated.routineState!,
             acceptedToday: false,
@@ -188,11 +193,16 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
       needsReset &&
       (memo.backlogState.acceptedToday ||
         memo.backlogState.rejectedToday ||
-        memo.backlogState.acceptedSlot)
+        memo.backlogState.acceptedSlot ||
+        memo.status.timeSpentToday > 0)
     ) {
-      // New day - reset acceptedToday, rejectedToday, and acceptedSlot
+      // New day - reset acceptedToday, rejectedToday, acceptedSlot, and timeSpentToday
       updated = {
         ...updated,
+        status: {
+          ...updated.status,
+          timeSpentToday: 0,
+        },
         backlogState: {
           ...updated.backlogState!,
           acceptedToday: false,
@@ -219,10 +229,19 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
       memo.deadlineState.acceptedSlots &&
       memo.deadlineState.acceptedSlots.length > 0;
 
-    if (needsReset && (hasAcceptedSlots || memo.deadlineState.rejectedToday)) {
-      // New day - reset acceptedSlots and rejectedToday
+    if (
+      needsReset &&
+      (hasAcceptedSlots ||
+        memo.deadlineState.rejectedToday ||
+        memo.status.timeSpentToday > 0)
+    ) {
+      // New day - reset acceptedSlots, rejectedToday, and timeSpentToday
       updated = {
         ...updated,
+        status: {
+          ...updated.status,
+          timeSpentToday: 0,
+        },
         deadlineState: {
           ...updated.deadlineState!,
           acceptedSlots: [],

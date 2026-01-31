@@ -195,13 +195,6 @@
     return "check"; // Delete
   });
 
-  // Location label (UI in Japanese, internal values unchanged)
-  let locationLabel = $derived(() => {
-    if (task.locationPreference === "home/near_home") return "自宅/自宅付近";
-    if (task.locationPreference === "workplace/near_workplace") return "勤務地";
-    return "どこでも";
-  });
-
   // Handlers
   function handleEdit() {
     translateX = 0; // Close swipe
@@ -337,7 +330,7 @@
       {task.type === '期限付き'
       ? 'border-l-[4px] border-l-[var(--color-warning-500)]'
       : task.type === 'ルーティン'
-        ? 'border-l-[4px] border-l-[var(--color-primary)]'
+        ? 'border-l-[4px] border-l-[var(--color-event-blue)]'
         : 'border-l-[4px] border-l-base-content/20'}"
     style="transform: translateX({translateX}px); transition: {isSwiping
       ? 'none'
@@ -391,10 +384,6 @@
                 >{genreLabel()}</span
               >
             {/if}
-            <span
-              class="inline-flex items-center rounded-md border border-base-300 bg-base-300 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/60"
-              >{locationLabel()}</span
-            >
             {#if sessionDurationLabel()}
               <span
                 class="inline-flex items-center rounded-md border border-base-300 bg-base-300 px-1.5 py-0.5 text-xs font-medium whitespace-nowrap text-base-content/60"

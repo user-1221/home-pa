@@ -8,6 +8,10 @@
 
   import { calendarState } from "$lib/bootstrap/index.svelte.ts";
   import { UserSettings } from "$lib/features/shared/components/index.ts";
+  import GoogleCalendarConnect from "./GoogleCalendarConnect.svelte";
+  import CalendarSelector from "./CalendarSelector.svelte";
+  import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
+  import { onMount } from "svelte";
 
   // State
   let importing = $state(false);
@@ -22,6 +26,39 @@
 
   // API mode is always enabled when using calendarState (API-based store)
   const isApiEnabled = $state(true);
+
+  // Google Calendar Sync state
+  let showCalendarSelector = $state(false);
+  let isSyncing = $state(false);
+  let syncError = $state<string | null>(null);
+
+  // Check Google connection on mount
+  onMount(() => {
+    googleSyncState.checkConnection();
+  });
+
+  async function handleSync() {
+    isSyncing = true;
+    syncError = null;
+    try {
+      await googleSyncState.triggerSync();
+      // Refresh calendar events after sync by re-fetching current window
+      // Force refresh by clearing cache and re-fetching
+      calendarState.clear();
+    } catch (err) {
+      syncError = err instanceof Error ? err.message : "Sync failed";
+    } finally {
+      isSyncing = false;
+    }
+  }
+
+  function openCalendarSelector() {
+    showCalendarSelector = true;
+  }
+
+  function closeCalendarSelector() {
+    showCalendarSelector = false;
+  }
 
   async function handleFileSelect(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -194,22 +231,96 @@
     </button>
   </section>
 
-  <!-- Sync Info -->
-  <section class="rounded-xl border border-base-300 bg-base-200 p-6 shadow-sm">
-    <h3 class="mb-2 text-xl font-normal text-base-content">Calendar Sync</h3>
+  <!-- Google Calendar Sync -->
+  <section class="rounded-xl border border-base-300 bg-base-100 p-6 shadow-sm">
+    <h3 class="mb-2 text-xl font-normal text-base-content">
+      Google Calendar Sync
+    </h3>
     <p class="mb-4 text-sm text-base-content/70">
-      Two-way sync with Google Calendar and Apple Calendar is coming soon!
+      Connect your Google Calendar to automatically sync events.
     </p>
-    <div
-      class="mt-2 flex items-center justify-between rounded-xl bg-base-100 p-4 shadow-sm"
-    >
-      <span class="text-sm font-medium text-base-content/70"
-        >CalDAV support</span
-      >
-      <span
-        class="rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
-        >Coming Soon</span
-      >
-    </div>
+
+    <GoogleCalendarConnect />
+
+    {#if googleSyncState.isConnected}
+      <!-- Synced Calendars -->
+      {#if googleSyncState.calendars.length > 0}
+        <div class="mt-4 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-sm font-medium text-base-content"
+              >Synced Calendars</span
+            >
+            <button
+              class="btn text-primary btn-ghost btn-xs"
+              onclick={openCalendarSelector}
+            >
+              Manage
+            </button>
+          </div>
+          <div class="space-y-1">
+            {#each googleSyncState.calendars as calendar (calendar.id)}
+              <div
+                class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm"
+              >
+                {#if calendar.calendarColor}
+                  <span
+                    class="h-3 w-3 rounded-full"
+                    style="background-color: {calendar.calendarColor}"
+                  ></span>
+                {/if}
+                <span class="flex-1 truncate">{calendar.calendarName}</span>
+                {#if calendar.lastError}
+                  <span class="text-xs text-error" title={calendar.lastError}
+                    >Error</span
+                  >
+                {/if}
+              </div>
+            {/each}
+          </div>
+        </div>
+      {:else}
+        <div class="mt-4">
+          <button
+            class="btn w-full btn-sm btn-primary"
+            onclick={openCalendarSelector}
+          >
+            Select Calendars to Sync
+          </button>
+        </div>
+      {/if}
+
+      <!-- Sync Button -->
+      <div class="mt-4 flex items-center gap-3">
+        <button
+          class="btn flex-1 rounded-xl border border-base-300 bg-base-200 text-base-content/70 shadow-sm transition-all duration-200 hover:bg-base-200/80 hover:text-base-content disabled:opacity-50"
+          onclick={handleSync}
+          disabled={isSyncing || googleSyncState.calendars.length === 0}
+        >
+          {#if isSyncing}
+            <span class="loading loading-sm loading-spinner"></span>
+            Syncing...
+          {:else}
+            Sync Now
+          {/if}
+        </button>
+      </div>
+
+      {#if googleSyncState.lastSyncAt}
+        <p class="mt-2 text-xs text-base-content/50">
+          Last synced: {googleSyncState.lastSyncAt.toLocaleString()}
+        </p>
+      {/if}
+
+      {#if syncError}
+        <div class="mt-2 rounded-lg bg-error/10 p-2 text-sm text-error">
+          {syncError}
+        </div>
+      {/if}
+    {/if}
   </section>
 </div>
+
+<!-- Calendar Selector Modal -->
+{#if showCalendarSelector}
+  <CalendarSelector onClose={closeCalendarSelector} />
+{/if}

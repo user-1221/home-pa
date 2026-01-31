@@ -87,6 +87,7 @@ function jsonToMemo(json: {
   locationPreference: string;
   status: {
     timeSpentMinutes: number;
+    timeSpentToday: number;
     completionState: string;
   };
   sessionDuration?: number;
@@ -155,6 +156,7 @@ function jsonToMemo(json: {
     locationPreference: json.locationPreference as Memo["locationPreference"],
     status: {
       timeSpentMinutes: json.status.timeSpentMinutes,
+      timeSpentToday: json.status.timeSpentToday ?? 0,
       completionState: json.status
         .completionState as MemoStatus["completionState"],
     },
@@ -242,6 +244,7 @@ function memoToJson(memo: Memo) {
     locationPreference: memo.locationPreference,
     status: {
       timeSpentMinutes: memo.status.timeSpentMinutes,
+      timeSpentToday: memo.status.timeSpentToday,
       completionState: memo.status.completionState,
     },
     sessionDuration: memo.sessionDuration,
@@ -299,6 +302,7 @@ function createMemoFromForm(formData: TaskFormData): Memo {
   // Initial status
   const status: MemoStatus = {
     timeSpentMinutes: 0,
+    timeSpentToday: 0,
     completionState: "not_started",
   };
 

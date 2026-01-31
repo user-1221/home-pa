@@ -26,6 +26,7 @@ describe("enrichMemoViaAPI", () => {
     locationPreference: "no_preference",
     status: {
       timeSpentMinutes: 0,
+      timeSpentToday: 0,
       completionState: "not_started",
     },
     ...overrides,
@@ -158,6 +159,7 @@ describe("enrichMemoViaAPI", () => {
       locationPreference: "no_preference",
       status: {
         timeSpentMinutes: 0,
+        timeSpentToday: 0,
         completionState: "not_started",
       },
     };
@@ -177,6 +179,7 @@ describe("getFallbackEnrichment", () => {
     locationPreference: "no_preference",
     status: {
       timeSpentMinutes: 0,
+      timeSpentToday: 0,
       completionState: "not_started",
     },
     ...overrides,

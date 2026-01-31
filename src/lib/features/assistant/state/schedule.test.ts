@@ -41,6 +41,7 @@ function createTestMemo(overrides: Partial<Memo> & { title: string }): Memo {
     locationPreference: rest.locationPreference ?? "no_preference",
     status: rest.status ?? {
       timeSpentMinutes: 0,
+      timeSpentToday: 0,
       completionState: "not_started",
     },
     ...rest,
@@ -74,15 +75,27 @@ describe("Suggestion Engine - Unit Tests", () => {
       const memos: Memo[] = [
         createTestMemo({
           title: "Active task",
-          status: { timeSpentMinutes: 0, completionState: "not_started" },
+          status: {
+            timeSpentMinutes: 0,
+            timeSpentToday: 0,
+            completionState: "not_started",
+          },
         }),
         createTestMemo({
           title: "Completed task",
-          status: { timeSpentMinutes: 60, completionState: "completed" },
+          status: {
+            timeSpentMinutes: 60,
+            timeSpentToday: 0,
+            completionState: "completed",
+          },
         }),
         createTestMemo({
           title: "In progress task",
-          status: { timeSpentMinutes: 30, completionState: "in_progress" },
+          status: {
+            timeSpentMinutes: 30,
+            timeSpentToday: 0,
+            completionState: "in_progress",
+          },
         }),
       ];
 
@@ -640,7 +653,11 @@ describe("Edge Cases - Scheduling Scenarios", () => {
   it("handles completed memo in input (should be filtered)", async () => {
     const memo = createTestMemo({
       title: "Already done",
-      status: { timeSpentMinutes: 60, completionState: "completed" },
+      status: {
+        timeSpentMinutes: 60,
+        timeSpentToday: 0,
+        completionState: "completed",
+      },
     });
     const gaps: Gap[] = [createTestGap("09:00", "10:00")];
 
@@ -712,6 +729,7 @@ describe("Edge Cases - Scheduling Scenarios", () => {
       recurrenceGoal: { count: 3, period: "day" },
       status: {
         timeSpentMinutes: 90,
+        timeSpentToday: 0,
         completionState: "in_progress",
       },
       routineState: {
@@ -774,6 +792,7 @@ describe("Edge Cases - markSessionComplete", () => {
       recurrenceGoal: { count: 3, period: "day" },
       status: {
         timeSpentMinutes: 30,
+        timeSpentToday: 0,
         completionState: "in_progress",
       },
       routineState: {
@@ -802,6 +821,7 @@ describe("Edge Cases - markSessionComplete", () => {
       totalDurationExpected: 60,
       status: {
         timeSpentMinutes: 50,
+        timeSpentToday: 0,
         completionState: "in_progress",
       },
     });

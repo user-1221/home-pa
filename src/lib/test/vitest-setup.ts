@@ -155,6 +155,7 @@ vi.mock("$lib/features/tasks/state/memo.functions.remote.ts", () => ({
       createdAt: data.createdAt ?? new Date().toISOString(),
       status: data.status ?? {
         timeSpentMinutes: 0,
+        timeSpentToday: 0,
         completionState: "not_started",
       },
     };
@@ -173,6 +174,7 @@ vi.mock("$lib/features/tasks/state/memo.functions.remote.ts", () => ({
         locationPreference: "no_preference",
         status: {
           timeSpentMinutes: 0,
+          timeSpentToday: 0,
           completionState: "not_started",
         },
       };

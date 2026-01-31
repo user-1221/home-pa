@@ -1,7 +1,13 @@
 import { redirect, type Handle } from "@sveltejs/kit";
 import { svelteKitHandler } from "better-auth/svelte-kit";
 import { auth } from "$lib/auth.ts";
-import { building } from "$app/environment";
+import { building, dev } from "$app/environment";
+import { initializeCronJobs } from "$lib/server/cron/scheduler.ts";
+
+// Initialize cron jobs on server startup (not during build or in dev)
+if (!building && !dev) {
+  initializeCronJobs();
+}
 
 // Routes that don't require authentication
 const PUBLIC_ROUTES = ["/auth", "/api/auth"];

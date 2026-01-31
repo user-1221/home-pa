@@ -49,8 +49,11 @@ export const logSuggestionComplete = command(
       const now = new Date();
 
       // Build update data
+      const newTimeSpentToday =
+        (existing.timeSpentToday ?? 0) + input.durationMinutes;
       const updateData: Record<string, unknown> = {
         timeSpentMinutes: newTimeSpent,
+        timeSpentToday: newTimeSpentToday,
         lastActivity: now,
         // Update completionState if significant progress
         completionState:

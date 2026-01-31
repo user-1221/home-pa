@@ -28,6 +28,7 @@ const EnrichInputSchema = v.object({
   status: v.optional(
     v.object({
       timeSpentMinutes: v.number(),
+      timeSpentToday: v.optional(v.number()),
       completionState: v.picklist(["not_started", "in_progress", "completed"]),
       completionsThisPeriod: v.optional(v.number()),
       periodStartDate: v.optional(v.string()),
@@ -60,10 +61,12 @@ export const enrichMemo = command(
       status: input.status
         ? {
             timeSpentMinutes: input.status.timeSpentMinutes,
+            timeSpentToday: input.status.timeSpentToday ?? 0,
             completionState: input.status.completionState,
           }
         : {
             timeSpentMinutes: 0,
+            timeSpentToday: 0,
             completionState: "not_started",
           },
       genre: input.genre,

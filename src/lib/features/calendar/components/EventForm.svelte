@@ -6,6 +6,8 @@
     utcToLocalTimeString,
   } from "$lib/utils/date-utils.ts";
   import DatePicker from "$lib/features/shared/components/DatePicker.svelte";
+  import TimePicker from "$lib/features/shared/components/TimePicker.svelte";
+  import TimePickerUI from "$lib/features/shared/components/TimePickerUI.svelte";
   import Button from "$lib/features/shared/components/Button.svelte";
   import { browser } from "$app/environment";
   import { onMount, tick } from "svelte";
@@ -124,6 +126,10 @@
   // Calendar picker state
   type ActiveDatePicker = "start" | "end" | "recurrence-end" | null;
   let activeDatePicker = $state<ActiveDatePicker>(null);
+
+  // Time picker state
+  type ActiveTimePicker = "start" | "end" | null;
+  let activeTimePicker = $state<ActiveTimePicker>(null);
   let activePickerLabel = $derived(() => {
     switch (activeDatePicker) {
       case "start":
@@ -637,6 +643,7 @@
           break;
       }
       activeDatePicker = null;
+      activeTimePicker = null; // Also close time picker when date is selected
     }
   }
 
@@ -656,6 +663,8 @@
   let endDateCalendarRef: HTMLDivElement | undefined = $state();
   let recurrenceEndCalendarRef: HTMLDivElement | undefined = $state();
   let recurrenceSectionRef: HTMLDivElement | undefined = $state();
+  let startTimePickerRef: HTMLDivElement | undefined = $state();
+  let endTimePickerRef: HTMLDivElement | undefined = $state();
 
   // Auto-scroll when calendar opens
   $effect(() => {
@@ -684,6 +693,57 @@
     }
   });
 
+  // Auto-scroll when time picker opens
+  $effect(() => {
+    if (activeTimePicker) {
+      tick().then(() => {
+        if (activeTimePicker === "start" && startTimePickerRef) {
+          startTimePickerRef.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "nearest",
+          });
+        } else if (activeTimePicker === "end" && endTimePickerRef) {
+          endTimePickerRef.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+            inline: "nearest",
+          });
+        }
+      });
+    }
+  });
+
+  // Handle start time changes from TimePicker (for duration preservation)
+  let lastHandledStartTime = $state("");
+  $effect(() => {
+    if (
+      eventStartTime &&
+      eventTimeLabel === "timed" &&
+      eventStartTime !== lastHandledStartTime &&
+      previousStartTime &&
+      eventEndTime
+    ) {
+      // Only handle if time actually changed and we have previous time
+      const originalStartMinutes = timeToMinutes(previousStartTime);
+      const originalEndMinutes = timeToMinutes(eventEndTime);
+      let duration = originalEndMinutes - originalStartMinutes;
+      if (duration < 0) {
+        duration += 1440; // 24 hours in minutes
+      }
+
+      const newStartMinutes = timeToMinutes(eventStartTime);
+      const newEndMinutes = newStartMinutes + duration;
+      eventEndTime = minutesToTime(newEndMinutes);
+      previousStartTime = eventStartTime;
+      lastHandledStartTime = eventStartTime;
+    } else if (eventStartTime && eventStartTime !== lastHandledStartTime) {
+      // Just update tracking without duration preservation
+      previousStartTime = eventStartTime;
+      lastHandledStartTime = eventStartTime;
+    }
+  });
+
   // Auto-scroll when recurrence section opens
   $effect(() => {
     if (isRecurring && recurrenceSectionRef) {
@@ -707,6 +767,7 @@
       !target.closest("#recurrence-end")
     ) {
       activeDatePicker = null;
+      activeTimePicker = null; // Also close time picker when date is selected
     }
   }
 
@@ -936,29 +997,25 @@
             bind:value={eventStartDate}
             active={activeDatePicker === "start"}
             disabled={eventTimeLabel === "some-timing"}
-            onclick={() =>
-              (activeDatePicker =
-                activeDatePicker === "start" ? null : "start")}
+            onclick={() => {
+              activeTimePicker = null; // Close time picker if open
+              activeDatePicker = activeDatePicker === "start" ? null : "start";
+            }}
             class="w-auto"
           />
-          <input
+          <TimePicker
             id="event-start-time"
-            type="time"
-            class="input-bordered input w-auto min-w-[120px] {eventFormState
-              .errors.start
-              ? 'input-error'
-              : ''} {eventTimeLabel === 'some-timing'
-              ? 'cursor-not-allowed opacity-50'
-              : ''}"
-            value={eventStartTime}
+            bind:value={eventStartTime}
+            active={activeTimePicker === "start"}
             disabled={eventTimeLabel === "some-timing"}
-            onfocus={() => eventTimeLabel === "all-day" && switchToTimedMode()}
-            oninput={(e: Event & { currentTarget: HTMLInputElement }) => {
+            onclick={() => {
+              activeDatePicker = null; // Close date picker if open
               if (eventTimeLabel === "all-day") {
                 switchToTimedMode();
               }
-              handleStartTimeChange(e.currentTarget.value);
+              activeTimePicker = activeTimePicker === "start" ? null : "start";
             }}
+            class="w-auto"
           />
         </div>
       </div>
@@ -1011,6 +1068,17 @@
           </div>
         </div>
       {/if}
+
+      <!-- Start Time Picker -->
+      {#if activeTimePicker === "start"}
+        <div
+          id="start-time-picker-section"
+          bind:this={startTimePickerRef}
+          class="mt-3 flex justify-center"
+        >
+          <TimePickerUI bind:value={eventStartTime} />
+        </div>
+      {/if}
     </div>
 
     <!-- Time Settings -->
@@ -1027,23 +1095,25 @@
             bind:value={eventEndDate}
             active={activeDatePicker === "end"}
             disabled={eventTimeLabel === "some-timing"}
-            onclick={() =>
-              (activeDatePicker = activeDatePicker === "end" ? null : "end")}
+            onclick={() => {
+              activeTimePicker = null; // Close time picker if open
+              activeDatePicker = activeDatePicker === "end" ? null : "end";
+            }}
             class="w-auto"
           />
-          <input
+          <TimePicker
             id="event-end-time"
-            type="time"
-            class="input-bordered input w-auto min-w-[120px] {eventFormState
-              .errors.end
-              ? 'input-error'
-              : ''} {eventTimeLabel === 'some-timing'
-              ? 'cursor-not-allowed opacity-50'
-              : ''}"
             bind:value={eventEndTime}
+            active={activeTimePicker === "end"}
             disabled={eventTimeLabel === "some-timing"}
-            onfocus={() => eventTimeLabel === "all-day" && switchToTimedMode()}
-            oninput={() => eventTimeLabel === "all-day" && switchToTimedMode()}
+            onclick={() => {
+              activeDatePicker = null; // Close date picker if open
+              if (eventTimeLabel === "all-day") {
+                switchToTimedMode();
+              }
+              activeTimePicker = activeTimePicker === "end" ? null : "end";
+            }}
+            class="w-auto"
           />
         </div>
       </div>
@@ -1094,6 +1164,24 @@
               <calendar-month></calendar-month>
             </calendar-date>
           </div>
+        </div>
+      {/if}
+
+      <!-- End Time Picker -->
+      {#if activeTimePicker === "end"}
+        <div
+          id="end-time-picker-section"
+          bind:this={endTimePickerRef}
+          class="mt-3 flex justify-center"
+        >
+          <TimePickerUI
+            bind:value={eventEndTime}
+            onchange={() => {
+              if (eventTimeLabel === "all-day") {
+                switchToTimedMode();
+              }
+            }}
+          />
         </div>
       {/if}
     </div>
