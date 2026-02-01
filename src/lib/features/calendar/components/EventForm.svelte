@@ -852,10 +852,12 @@
       <input
         id="event-title"
         type="text"
-        class="w-full border-0 border-b border-base-300 bg-transparent px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none {eventFormState
+        class="w-full border-0 border-b border-base-300 {isReadOnly
+          ? 'bg-base-200'
+          : 'bg-transparent'} px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none {eventFormState
           .errors.title
           ? 'border-[var(--color-error-500)]'
-          : ''} {isReadOnly ? 'cursor-not-allowed opacity-70' : ''}"
+          : ''} {isReadOnly ? 'cursor-not-allowed' : ''}"
         bind:value={eventTitle}
         placeholder="タイトル"
         disabled={isReadOnly}
@@ -938,7 +940,7 @@
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
             : 'border-base-300 btn-ghost'}
               {isGreyState ? 'opacity-60' : ''}
-              {isReadOnly ? 'cursor-not-allowed' : ''}"
+              {isReadOnly ? 'cursor-not-allowed bg-base-200' : ''}"
           disabled={isReadOnly}
           onclick={() => {
             isLocalEdit = true;
@@ -974,7 +976,7 @@
               {timeMode === 'some-timing'
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
             : 'border-base-300 btn-ghost'}
-              {isReadOnly ? 'cursor-not-allowed' : ''}"
+              {isReadOnly ? 'cursor-not-allowed bg-base-200' : ''}"
           disabled={isReadOnly}
           onclick={() => {
             isLocalEdit = true;
@@ -1216,7 +1218,7 @@
     <div class="form-control py-2">
       <label
         class="label cursor-pointer justify-start gap-2 {isReadOnly
-          ? 'cursor-not-allowed opacity-70'
+          ? 'cursor-not-allowed rounded-lg bg-base-200 px-2 py-1'
           : ''}"
       >
         <input
@@ -1444,7 +1446,7 @@
         id="event-address"
         type="text"
         class="input-bordered input w-full {isReadOnly
-          ? 'cursor-not-allowed opacity-70'
+          ? 'cursor-not-allowed bg-base-200'
           : ''}"
         bind:value={eventAddress}
         placeholder="場所を入力（任意）"
@@ -1465,7 +1467,7 @@
           class="btn flex-1 btn-sm {eventImportance === 'low'
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
             : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
-            ? 'cursor-not-allowed'
+            ? 'cursor-not-allowed bg-base-200'
             : ''}"
           onclick={() => (eventImportance = "low")}
           disabled={isReadOnly}
@@ -1477,7 +1479,7 @@
           class="btn flex-1 btn-sm {eventImportance === 'medium'
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
             : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
-            ? 'cursor-not-allowed'
+            ? 'cursor-not-allowed bg-base-200'
             : ''}"
           onclick={() => (eventImportance = "medium")}
           disabled={isReadOnly}
@@ -1489,7 +1491,7 @@
           class="btn flex-1 btn-sm {eventImportance === 'high'
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
             : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
-            ? 'cursor-not-allowed'
+            ? 'cursor-not-allowed bg-base-200'
             : ''}"
           onclick={() => (eventImportance = "high")}
           disabled={isReadOnly}
@@ -1514,7 +1516,7 @@
           undefined
             ? 'ring-opacity-30 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
             : 'border-base-300 hover:border-base-content/30'} {isReadOnly
-            ? 'cursor-not-allowed opacity-70'
+            ? 'cursor-not-allowed bg-base-200'
             : ''}"
           onclick={() => (eventColor = undefined)}
           title="自動"
@@ -1529,7 +1531,7 @@
             color.key
               ? 'ring-opacity-30 scale-110 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
               : 'border-transparent hover:scale-105'} {isReadOnly
-              ? 'cursor-not-allowed opacity-70'
+              ? 'cursor-not-allowed opacity-50'
               : ''}"
             style="background-color: {color.value};"
             onclick={() => (eventColor = color.key)}
