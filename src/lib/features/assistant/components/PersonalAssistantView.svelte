@@ -2,6 +2,7 @@
   import { onMount, untrack } from "svelte";
   import CircularTimelineCss from "./CircularTimelineCss.svelte";
   import TimelineInfoPanel from "./TimelineInfoPanel.svelte";
+  import CalendarVisibilityToggles from "./CalendarVisibilityToggles.svelte";
   import { calendarState, dataState } from "$lib/bootstrap/index.svelte.ts";
   import {
     scheduleState,
@@ -10,6 +11,7 @@
     getUnifiedGapState,
   } from "$lib/features/assistant/state";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
+  import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
   import type { Event, Gap } from "$lib/types.ts";
   import {
     startOfDay,
@@ -136,6 +138,9 @@
     // Trigger sync data loading (fire-and-forget)
     // The $derived isInitialized will become true when this completes
     scheduleState.loadSyncedData();
+
+    // Load Google Calendar sync state for visibility toggle buttons
+    googleSyncState.checkConnection();
   });
 
   function overlapsDay(eventStart: Date, eventEnd: Date, day: Date) {
@@ -561,6 +566,11 @@
             on:dragPreview={handleDragPreview}
             on:clearSelection={handleClearSelection}
           />
+        </div>
+
+        <!-- Calendar visibility toggles -->
+        <div class="mt-4 w-full max-w-[720px]">
+          <CalendarVisibilityToggles />
         </div>
 
         <!-- Events Card with refined styling -->

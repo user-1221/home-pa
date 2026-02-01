@@ -30,6 +30,7 @@ import { getContext, setContext } from "svelte";
 import { dataState } from "$lib/bootstrap/data.svelte.ts";
 import { settingsState } from "$lib/bootstrap/settings.svelte.ts";
 import { calendarState } from "$lib/features/calendar/state/calendar.svelte.ts";
+import { calendarVisibilityState } from "$lib/features/calendar/state/calendar-visibility.svelte.ts";
 import { GapFinder, type Event } from "../services/gap-finder.ts";
 import {
   enrichGapsWithLocation,
@@ -416,9 +417,9 @@ export class UnifiedGapState {
    * Whether data is ready for schedule generation
    * True when timetable is loaded (or not loading)
    */
-  get isReady(): boolean {
+  isReady = $derived.by((): boolean => {
     return isTimetableLoaded && !isTimetableLoading;
-  }
+  });
 
   // ============================================================================
   // Derived State
@@ -441,21 +442,23 @@ export class UnifiedGapState {
   /**
    * Whether the selected date is today
    */
-  get isTodaySelected(): boolean {
+  isTodaySelected = $derived.by((): boolean => {
     const now = new Date();
     return dateKey(dataState.selectedDate) === dateKey(now);
-  }
+  });
 
   /**
    * All gap-finder events for the selected date
    * Combines calendar events, occurrences, and timetable blocking events
+   * Filtered by calendar visibility settings
    */
-  get allEvents(): GapEventWithMeta[] {
+  allEvents = $derived.by((): GapEventWithMeta[] => {
     const selectedDate = dataState.selectedDate;
     const events = calendarState.events;
     const occurrences = calendarState.occurrences;
 
     // Combine master events and recurring occurrences
+    // Inherit calendarId from master event for occurrences
     const allCalendarEvents = [
       ...events,
       ...occurrences.map((occ) => ({
@@ -464,11 +467,17 @@ export class UnifiedGapState {
         start: occ.start,
         end: occ.end,
         timeLabel: occ.timeLabel,
+        calendarId: events.find((e) => e.id === occ.masterEventId)?.calendarId,
       })),
     ];
 
+    // Filter by calendar visibility settings
+    const visibleCalendarEvents = allCalendarEvents.filter((e) =>
+      calendarVisibilityState.isEventVisible(e),
+    );
+
     // Convert to gap-finder format
-    const calendarGapEvents = allCalendarEvents
+    const calendarGapEvents = visibleCalendarEvents
       .map((e) => calendarEventToGapEvent(e, selectedDate))
       .filter((e): e is GapEventWithMeta => e !== null);
 
@@ -478,7 +487,7 @@ export class UnifiedGapState {
     );
 
     return [...calendarGapEvents, ...timetableGapEvents];
-  }
+  });
 
   /**
    * Computed gaps with past time blocking
@@ -487,7 +496,7 @@ export class UnifiedGapState {
    * - Past time (when viewing today)
    * - All calendar and timetable events
    */
-  get computedGaps(): Gap[] {
+  computedGaps = $derived.by((): Gap[] => {
     // Calculate effective day boundaries by extending to include events
     // that occur before/after the configured active times
     const activeStart = settingsState.activeStartTime;
@@ -573,29 +582,29 @@ export class UnifiedGapState {
     }
 
     return gf.findGaps(eventsWithPastBlocker);
-  }
+  });
 
   /**
    * Enriched gaps with location labels
    * This is the FINAL gap state used for schedule generation
    */
-  get enrichedGaps(): Gap[] {
+  enrichedGaps = $derived.by((): Gap[] => {
     const gaps = this.computedGaps;
     const enrichableEvents = toEnrichableEvents(this.allEvents);
     return enrichGapsWithLocation(gaps, enrichableEvents);
-  }
+  });
 
   /**
    * Available gaps after subtracting blockers (accepted + moved suggestions)
    * Used for schedule regeneration - new suggestions only fill truly available gaps.
    */
-  get availableGaps(): Gap[] {
+  availableGaps = $derived.by((): Gap[] => {
     return subtractBlockersFromGaps(
       this.enrichedGaps,
       this._acceptedBlockers,
       this._movedBlockers,
     );
-  }
+  });
 
   /**
    * Gaps available for drag operations (only accepted suggestions subtracted)
@@ -605,30 +614,30 @@ export class UnifiedGapState {
    * After drag completes, overlapping moved suggestions are removed and
    * regeneration fills the remaining gaps.
    */
-  get gapsForDrag(): Gap[] {
+  gapsForDrag = $derived.by((): Gap[] => {
     // Only subtract accepted blockers, not moved ones
     return subtractBlockersFromGaps(
       this.enrichedGaps,
       this._acceptedBlockers,
       [], // No moved blockers during drag
     );
-  }
+  });
 
   /**
    * Whether regeneration is needed
    * True when gaps have changed since last regeneration
    */
-  get needsRegeneration(): boolean {
+  needsRegeneration = $derived.by((): boolean => {
     return this.gapVersion !== this.lastRegeneratedVersion;
-  }
+  });
 
   /**
    * Whether regeneration should happen now
    * True when on assistant tab AND regeneration is needed
    */
-  get shouldRegenerateNow(): boolean {
+  shouldRegenerateNow = $derived.by((): boolean => {
     return this.isOnAssistantTab && this.needsRegeneration;
-  }
+  });
 
   // ============================================================================
   // Actions

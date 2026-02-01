@@ -4,6 +4,7 @@
   import { dataState, calendarState } from "$lib/bootstrap/compat.svelte.ts";
   import type { Event as MyEvent, Gap } from "$lib/types.ts";
   import type { PendingSuggestion } from "$lib/features/assistant/state/schedule.svelte.ts";
+  import { calendarVisibilityState } from "$lib/features/calendar/state/calendar-visibility.svelte.ts";
 
   // Accepted memo display format
   interface AcceptedMemoDisplay {
@@ -152,7 +153,7 @@
 
   let centerDateInput: HTMLInputElement | null = null;
 
-  // Combine events
+  // Combine events and filter by visibility
   let allEvents = $derived.by(() => {
     const regular = masterEvents.filter(
       (e) => !e.recurrence || e.recurrence.type === "NONE",
@@ -173,8 +174,13 @@
         address: o.location,
         importance: o.importance,
         timeLabel: o.timeLabel as "all-day" | "timed" | "some-timing",
+        // Inherit calendarId from master event for visibility filtering
+        calendarId: masterEvents.find((e) => e.id === o.masterEventId)
+          ?.calendarId,
       }));
-    return [...regular, ...expanded, ...(extraEvents ?? [])];
+    const combined = [...regular, ...expanded, ...(extraEvents ?? [])];
+    // Filter by calendar visibility settings
+    return combined.filter((e) => calendarVisibilityState.isEventVisible(e));
   });
 
   // Constants
@@ -419,7 +425,7 @@
   const suggestionOuterRadius = outerRadius - 1; // Outer edge of suggestion trapezoids
   const suggestionInnerRadius = outerRadius - 5; // Inner edge of suggestion trapezoids (thin for visibility)
   const eventBaseRadius = outerRadius - 8; // Events next layer (annular trapezoids)
-  const eventInnerRadius = outerRadius - 20; // Inner edge of event trapezoids
+  const eventInnerRadius = outerRadius - 23; // Inner edge of event trapezoids (19)
   const timetableOuterRadius = outerRadius - 24; // Timetable outer edge (18)
   const timetableInnerRadius = outerRadius - 28; // Timetable inner edge (14)
   // Visual gap between suggestions (in radians)
