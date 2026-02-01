@@ -25,6 +25,7 @@
     type TimetableEvent,
   } from "../services/timetable-events.ts";
   import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
+  import GoogleSyncButton from "./GoogleSyncButton.svelte";
 
   // Local reactive variables for calendar state
   let currentMonth = $state(new Date());
@@ -329,6 +330,12 @@
       class="border-subtle sticky top-14 z-[9] flex min-h-10 flex-shrink-0 items-center gap-2 overflow-x-auto border-b bg-base-100/90 px-3 backdrop-blur-sm md:top-20 md:min-h-12 md:px-5"
       transition:slide={{ duration: 300, axis: "y" }}
     >
+      <!-- Google Sync controls -->
+      <GoogleSyncButton />
+
+      <!-- Divider -->
+      <div class="h-5 w-px flex-shrink-0 bg-base-300/50"></div>
+
       <!-- Local events toggle -->
       <button
         class="btn shrink-0 btn-xs {showLocalEvents
