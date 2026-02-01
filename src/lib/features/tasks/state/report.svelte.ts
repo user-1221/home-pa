@@ -7,7 +7,10 @@
  * @cleanup none - State resets on tab switch
  */
 import { getContext, setContext } from "svelte";
-import { fetchCompletionLogs } from "./memo.functions.ts";
+import {
+  fetchCompletionLogs,
+  fetchDailyActivityLogs,
+} from "./memo.functions.ts";
 import { DateTime } from "luxon";
 import type { MemoType } from "$lib/types.ts";
 
@@ -34,6 +37,16 @@ export interface TypeBreakdown {
   期限付き: number;
   ルーティン: number;
   バックログ: number;
+}
+
+export interface DailyActivityLog {
+  id: string;
+  date: string;
+  totalTimeMinutes: number;
+  tasksWorkedOn: number;
+  suggestionsAccepted: number;
+  suggestionsRejected: number;
+  tasksCompleted: number;
 }
 
 // Utility: Smart time formatting
@@ -64,6 +77,7 @@ export function formatRelativeDate(isoDate: string): string {
 // State class
 export class ReportState {
   logs = $state<CompletionLog[]>([]);
+  dailyLogs = $state<DailyActivityLog[]>([]);
   isLoading = $state(false);
   dateFilter = $state<DateFilter>("week");
   error = $state<string | null>(null);
@@ -152,6 +166,56 @@ export class ReportState {
     return breakdown;
   }
 
+  // Derived: Suggestion acceptance rate (from DailyActivityLog)
+  get suggestionAcceptanceRate(): number {
+    const total = this.dailyLogs.reduce(
+      (sum, log) => sum + log.suggestionsAccepted + log.suggestionsRejected,
+      0,
+    );
+    if (total === 0) return 0;
+    const accepted = this.dailyLogs.reduce(
+      (sum, log) => sum + log.suggestionsAccepted,
+      0,
+    );
+    return Math.round((accepted / total) * 100);
+  }
+
+  // Derived: Total suggestions accepted/rejected
+  get suggestionStats(): { accepted: number; rejected: number } {
+    return {
+      accepted: this.dailyLogs.reduce(
+        (sum, log) => sum + log.suggestionsAccepted,
+        0,
+      ),
+      rejected: this.dailyLogs.reduce(
+        (sum, log) => sum + log.suggestionsRejected,
+        0,
+      ),
+    };
+  }
+
+  // Derived: Average daily time (from DailyActivityLog)
+  get averageDailyMinutes(): number {
+    if (this.dailyLogs.length === 0) return 0;
+    const total = this.dailyLogs.reduce(
+      (sum, log) => sum + log.totalTimeMinutes,
+      0,
+    );
+    return Math.round(total / this.dailyLogs.length);
+  }
+
+  // Derived: Daily trend data for visualization
+  get dailyTrend(): Array<{ date: string; minutes: number; tasks: number }> {
+    return this.dailyLogs
+      .slice()
+      .reverse() // Chronological order for chart
+      .map((log) => ({
+        date: log.date,
+        minutes: log.totalTimeMinutes,
+        tasks: log.tasksCompleted,
+      }));
+  }
+
   // Calculate date range based on filter
   private getDateRange(): { startDate?: string; endDate?: string } {
     const now = DateTime.now();
@@ -173,24 +237,35 @@ export class ReportState {
     }
   }
 
-  // Load completion logs
+  // Load completion logs and daily activity logs
   async load(): Promise<void> {
     this.isLoading = true;
     this.error = null;
 
     try {
       const { startDate, endDate } = this.getDateRange();
-      const logs = await fetchCompletionLogs({
-        startDate,
-        endDate,
-        limit: 100,
-      });
 
-      this.logs = logs as CompletionLog[];
+      // Fetch both datasets in parallel
+      const [completionLogs, dailyLogs] = await Promise.all([
+        fetchCompletionLogs({
+          startDate,
+          endDate,
+          limit: 100,
+        }),
+        fetchDailyActivityLogs({
+          startDate,
+          endDate,
+          limit: 30,
+        }),
+      ]);
+
+      this.logs = completionLogs as CompletionLog[];
+      this.dailyLogs = dailyLogs as DailyActivityLog[];
     } catch (err) {
       console.error("[ReportState] Failed to load logs:", err);
       this.error = "データの読み込みに失敗しました";
       this.logs = [];
+      this.dailyLogs = [];
     } finally {
       this.isLoading = false;
     }

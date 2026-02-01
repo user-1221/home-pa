@@ -41,4 +41,5 @@ export {
 export {
   logTaskCompletion,
   fetchCompletionLogs,
+  fetchDailyActivityLogs,
 } from "./memo.reporting.remote.ts";

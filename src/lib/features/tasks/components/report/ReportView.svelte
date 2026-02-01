@@ -6,6 +6,8 @@
    */
   import StatCard from "./StatCard.svelte";
   import CompletionList from "./CompletionList.svelte";
+  import SuggestionStats from "./SuggestionStats.svelte";
+  import DailyTrendBar from "./DailyTrendBar.svelte";
   import Skeleton from "$lib/features/shared/components/Skeleton.svelte";
   import {
     getReportState,
@@ -104,10 +106,11 @@
   {#if reportState.isLoading}
     <!-- Loading State -->
     <div class="grid grid-cols-2 gap-3">
-      {#each Array(2) as _, i (i)}
+      {#each Array(4) as _, i (i)}
         <Skeleton variant="card" />
       {/each}
     </div>
+    <Skeleton variant="card" />
     <Skeleton variant="card" />
     <Skeleton variant="card" />
     <Skeleton variant="card" />
@@ -151,6 +154,22 @@
       <StatCard
         label="作業時間"
         value={formatDuration(reportState.totalTimeMinutes)}
+      />
+      <StatCard
+        label="日平均"
+        value={formatDuration(reportState.averageDailyMinutes)}
+        subInfo={reportState.dailyLogs.length > 0
+          ? `${reportState.dailyLogs.length}日分`
+          : undefined}
+      />
+      <StatCard
+        label="提案承諾率"
+        value={`${reportState.suggestionAcceptanceRate}%`}
+        subInfo={reportState.suggestionStats.accepted +
+          reportState.suggestionStats.rejected >
+        0
+          ? `${reportState.suggestionStats.accepted}/${reportState.suggestionStats.accepted + reportState.suggestionStats.rejected}`
+          : undefined}
       />
     </div>
 
@@ -243,6 +262,14 @@
           </div>
         </div>
       {/if}
+    {/if}
+
+    <!-- Suggestion Stats -->
+    <SuggestionStats />
+
+    <!-- Daily Trend (when filter is week or month) -->
+    {#if reportState.dateFilter !== "all"}
+      <DailyTrendBar />
     {/if}
 
     <!-- Completion History -->

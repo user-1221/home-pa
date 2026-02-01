@@ -162,3 +162,59 @@ export const fetchCompletionLogs = query(
     }));
   },
 );
+
+// ============================================================================
+// FETCH DAILY ACTIVITY LOGS
+// ============================================================================
+
+/**
+ * Fetch aggregated daily activity logs (created by cron job)
+ */
+export const fetchDailyActivityLogs = query(
+  v.object({
+    startDate: v.optional(v.string()),
+    endDate: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  }),
+  async (input) => {
+    const userId = getAuthenticatedUser();
+
+    interface DateFilter {
+      gte?: Date;
+      lte?: Date;
+    }
+
+    interface WhereClause {
+      userId: string;
+      date?: DateFilter;
+    }
+
+    const where: WhereClause = { userId };
+
+    if (input.startDate || input.endDate) {
+      where.date = {};
+      if (input.startDate) {
+        where.date.gte = new Date(input.startDate);
+      }
+      if (input.endDate) {
+        where.date.lte = new Date(input.endDate);
+      }
+    }
+
+    const logs = await prisma.dailyActivityLog.findMany({
+      where,
+      orderBy: { date: "desc" },
+      take: input.limit ?? 30,
+    });
+
+    return logs.map((log) => ({
+      id: log.id,
+      date: log.date.toISOString(),
+      totalTimeMinutes: log.totalTimeMinutes,
+      tasksWorkedOn: log.tasksWorkedOn,
+      suggestionsAccepted: log.suggestionsAccepted,
+      suggestionsRejected: log.suggestionsRejected,
+      tasksCompleted: log.tasksCompleted,
+    }));
+  },
+);
