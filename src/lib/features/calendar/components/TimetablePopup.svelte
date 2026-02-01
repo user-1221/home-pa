@@ -631,7 +631,7 @@
                         )}
                     />
                     <span
-                      class="hidden text-xs text-[var(--color-text-muted)] md:block"
+                      class="flex items-center justify-center text-xs text-[var(--color-text-muted)] md:block"
                       >〜</span
                     >
                     <div class="flex items-center gap-2">
