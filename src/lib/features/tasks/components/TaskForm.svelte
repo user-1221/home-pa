@@ -283,7 +283,7 @@
           <input
             id="title"
             type="text"
-            class="w-full border-0 border-b border-base-300 bg-transparent px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none {taskFormState
+            class="w-full border-0 border-b border-base-300 bg-transparent px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none focus-visible:outline-none {taskFormState
               .errors.title
               ? 'border-[var(--color-error-500)]'
               : ''}"
