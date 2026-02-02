@@ -219,15 +219,15 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
     // Use lastActivity for day boundary detection (tracks accept/reject/complete)
     const lastActivity = memo.lastActivity ? new Date(memo.lastActivity) : null;
 
-    // Only reset if lastActivity exists and is on a different day
-    // If lastActivity is null, keep current state (no activity to reset from)
-    const needsReset = lastActivity
-      ? !isSameDay(lastActivity, currentTime)
-      : false;
-
     const hasAcceptedSlots =
       memo.deadlineState.acceptedSlots &&
       memo.deadlineState.acceptedSlots.length > 0;
+
+    // Reset if lastActivity is on a different day,
+    // OR if slots exist but lastActivity is null (edge case recovery)
+    const needsReset = lastActivity
+      ? !isSameDay(lastActivity, currentTime)
+      : hasAcceptedSlots;
 
     if (
       needsReset &&

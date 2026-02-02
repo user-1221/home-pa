@@ -1334,50 +1334,101 @@ class TaskState {
   /**
    * Reset acceptedToday flag for a task (when user marks as "missed")
    * This allows the task to reappear in suggestions.
+   *
+   * For deadline tasks with multiple slots, pass startTime to remove only that slot.
+   * If startTime is not provided, all slots are cleared (legacy behavior).
    */
-  async resetAccepted(memoId: string): Promise<boolean> {
+  async resetAccepted(memoId: string, startTime?: string): Promise<boolean> {
     try {
+      const task = this.items.find((t) => t.id === memoId);
+
+      // For deadline tasks with specific startTime, remove only that slot
+      if (
+        task?.type === "期限付き" &&
+        startTime &&
+        task.deadlineState?.acceptedSlots
+      ) {
+        const result = await removeDeadlineAcceptedSlot({
+          memoId,
+          startTime,
+        });
+
+        // Update local store
+        const index = this.items.findIndex((t) => t.id === memoId);
+        if (index !== -1) {
+          const newItems = [...this.items];
+          newItems[index] = {
+            ...task,
+            deadlineState: {
+              ...task.deadlineState,
+              acceptedSlots: result.acceptedSlots,
+              // Only restore lastCompletedDay if all slots are removed
+              ...(result.acceptedSlots.length === 0 && {
+                lastCompletedDay: task.deadlineState.previousLastCompletedDay,
+                previousLastCompletedDay: null,
+              }),
+            },
+          };
+          this.items = newItems;
+        }
+
+        console.log(
+          `[TaskState.resetAccepted] Removed slot ${startTime} for task ${memoId}`,
+        );
+        return true;
+      }
+
+      // For other task types (or deadline without specific slot), use legacy behavior
       await resetMemoAcceptedToday({ memoId });
 
       // Update local store
       const index = this.items.findIndex((t) => t.id === memoId);
       if (index !== -1) {
-        const task = this.items[index];
+        const taskToUpdate = this.items[index];
         const newItems = [...this.items];
 
-        if (task.type === "ルーティン" && task.routineState) {
+        if (taskToUpdate.type === "ルーティン" && taskToUpdate.routineState) {
           newItems[index] = {
-            ...task,
+            ...taskToUpdate,
             routineState: {
-              ...task.routineState,
+              ...taskToUpdate.routineState,
               acceptedToday: false,
               completedToday: false,
               acceptedSlot: null,
               // Restore lastCompletedDay from saved value (undo the acceptance)
-              lastCompletedDay: task.routineState.previousLastCompletedDay,
+              lastCompletedDay:
+                taskToUpdate.routineState.previousLastCompletedDay,
               previousLastCompletedDay: null,
             },
           };
-        } else if (task.type === "バックログ" && task.backlogState) {
+        } else if (
+          taskToUpdate.type === "バックログ" &&
+          taskToUpdate.backlogState
+        ) {
           newItems[index] = {
-            ...task,
+            ...taskToUpdate,
             backlogState: {
-              ...task.backlogState,
+              ...taskToUpdate.backlogState,
               acceptedToday: false,
               acceptedSlot: null,
               // Restore lastCompletedDay from saved value (undo the acceptance)
-              lastCompletedDay: task.backlogState.previousLastCompletedDay,
+              lastCompletedDay:
+                taskToUpdate.backlogState.previousLastCompletedDay,
               previousLastCompletedDay: null,
             },
           };
-        } else if (task.type === "期限付き" && task.deadlineState) {
+        } else if (
+          taskToUpdate.type === "期限付き" &&
+          taskToUpdate.deadlineState
+        ) {
           newItems[index] = {
-            ...task,
+            ...taskToUpdate,
             deadlineState: {
-              ...task.deadlineState,
+              ...taskToUpdate.deadlineState,
               acceptedSlots: [],
               // Restore lastCompletedDay from saved value (undo the acceptance)
-              lastCompletedDay: task.deadlineState.previousLastCompletedDay,
+              lastCompletedDay:
+                taskToUpdate.deadlineState.previousLastCompletedDay,
               previousLastCompletedDay: null,
             },
           };

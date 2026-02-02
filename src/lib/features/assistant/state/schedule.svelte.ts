@@ -137,6 +137,32 @@ function getTodayDateString(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
+/**
+ * Create composite key for accepted slot (supports multiple slots per memo)
+ */
+function makeSlotKey(memoId: string, startTime: string): string {
+  return `${memoId}:${startTime}`;
+}
+
+/**
+ * Parse composite key back to memoId and startTime
+ */
+function parseSlotKey(key: string): { memoId: string; startTime: string } {
+  const idx = key.lastIndexOf(":");
+  return { memoId: key.slice(0, idx), startTime: key.slice(idx + 1) };
+}
+
+/**
+ * Get all unique memoIds from acceptedMemos map
+ */
+function getAcceptedMemoIds(map: Map<string, AcceptedMemoInfo>): Set<string> {
+  const ids = new Set<string>();
+  for (const key of map.keys()) {
+    ids.add(parseSlotKey(key).memoId);
+  }
+  return ids;
+}
+
 // ============================================================================
 // Engine Instance
 // ============================================================================
@@ -245,7 +271,7 @@ class ScheduleState {
     moved: MovedSuggestion[];
   } {
     const scheduled = this.result?.scheduled ?? [];
-    const acceptedMemoIds = new Set(this.acceptedMemos.keys());
+    const acceptedMemoIds = getAcceptedMemoIds(this.acceptedMemos);
 
     // Filter out moved suggestions for memos that are now accepted
     const validMoved = this.movedSuggestions.filter(
@@ -271,7 +297,7 @@ class ScheduleState {
   get pendingSuggestions(): PendingSuggestion[] {
     const scheduled = this.result?.scheduled ?? [];
     const movedIds = new Set(this.movedSuggestions.map((m) => m.suggestionId));
-    const acceptedMemoIds = new Set(this.acceptedMemos.keys());
+    const acceptedMemoIds = getAcceptedMemoIds(this.acceptedMemos);
 
     // Include scheduled blocks (excluding moved ones AND accepted ones) and moved suggestions
     // IMPORTANT: Filter out accepted memos to prevent duplicate keys in CircularTimelineCss
@@ -405,6 +431,35 @@ class ScheduleState {
       this.syncCompleteResolve = null;
     }
     this.syncCompletePromise = null;
+  }
+
+  /**
+   * Find an accepted slot entry by memoId.
+   * For routine/backlog tasks, there's only one slot per memo.
+   * For deadline tasks, returns the first matching slot.
+   * Use findSlotByKey for exact lookup when startTime is known.
+   */
+  private findSlotByMemoId(
+    memoId: string,
+  ): { key: string; info: AcceptedMemoInfo } | undefined {
+    for (const [key, info] of this.acceptedMemos) {
+      if (parseSlotKey(key).memoId === memoId) {
+        return { key, info };
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Find an accepted slot entry by memoId and startTime (exact lookup).
+   */
+  private findSlotByKey(
+    memoId: string,
+    startTime: string,
+  ): { key: string; info: AcceptedMemoInfo } | undefined {
+    const key = makeSlotKey(memoId, startTime);
+    const info = this.acceptedMemos.get(key);
+    return info ? { key, info } : undefined;
   }
 
   /**
@@ -660,6 +715,7 @@ class ScheduleState {
     }
 
     // Add to accepted memos store (for UI/gap calculation)
+    // Use composite key to support multiple slots per deadline task
     const acceptedInfo: AcceptedMemoInfo = {
       memoId: block.memoId,
       startTime: block.startTime,
@@ -669,7 +725,8 @@ class ScheduleState {
     };
 
     const newMap = new Map(this.acceptedMemos);
-    newMap.set(block.memoId, acceptedInfo);
+    const slotKey = makeSlotKey(block.memoId, block.startTime);
+    newMap.set(slotKey, acceptedInfo);
     this.acceptedMemos = newMap;
 
     console.log(
@@ -1097,8 +1154,9 @@ class ScheduleState {
     _memos: Memo[],
     _gaps?: Gap[],
   ): Promise<void> {
-    const info = this.acceptedMemos.get(memoId);
-    if (!info) {
+    // Find the slot by memoId (works for routine/backlog with single slot)
+    const slot = this.findSlotByMemoId(memoId);
+    if (!slot) {
       console.warn(
         "[Schedule] Cannot update accepted duration: memo not found",
         memoId,
@@ -1106,13 +1164,14 @@ class ScheduleState {
       return;
     }
 
+    const { key, info } = slot;
     const newEndTime = minutesToTime(
       timeToMinutes(info.startTime) + newDuration,
     );
 
     // Update the accepted memo info locally
     const newMap = new Map(this.acceptedMemos);
-    newMap.set(memoId, {
+    newMap.set(key, {
       ...info,
       duration: newDuration,
       endTime: newEndTime,
@@ -1138,21 +1197,36 @@ class ScheduleState {
    * Also resets the memo's acceptedToday flag so it can reappear
    *
    * @param memoId - ID of the memo
+   * @param startTime - Start time of the slot (optional, uses first match if not provided)
    * @param memos - Current memos for regeneration
    */
-  async deleteAccepted(memoId: string, memos: Memo[]): Promise<void> {
+  async deleteAccepted(
+    memoId: string,
+    startTime: string | undefined,
+    memos: Memo[],
+  ): Promise<void> {
+    // Find the slot to delete
+    const slot = startTime
+      ? this.findSlotByKey(memoId, startTime)
+      : this.findSlotByMemoId(memoId);
+
+    if (!slot) {
+      console.warn("[Schedule] Cannot delete: slot not found", memoId);
+      return;
+    }
+
     // Remove from accepted memos store
     const newMap = new Map(this.acceptedMemos);
-    newMap.delete(memoId);
+    newMap.delete(slot.key);
     this.acceptedMemos = newMap;
 
-    console.log("[Schedule] Deleted accepted memo:", memoId);
+    console.log("[Schedule] Deleted accepted memo:", memoId, startTime);
 
     // Reset the memo's acceptedToday flag so it can reappear
     const { taskState } = await import(
       "$lib/features/tasks/state/taskActions.svelte.ts"
     );
-    await taskState.resetAccepted(memoId);
+    await taskState.resetAccepted(memoId, startTime);
 
     // Regenerate to fill the freed gap
     await this.regenerate(memos);
@@ -1163,27 +1237,34 @@ class ScheduleState {
    * Logs duration to the memo and removes from accepted list
    *
    * @param memoId - ID of the memo
+   * @param startTime - Start time of the slot (optional, uses first match if not provided)
    * @param duration - Duration in minutes to log
+   * @param actualEndTime - Actual end time (optional)
    * @returns Promise resolving when complete
    */
   async completeSuggestion(
     memoId: string,
+    startTime: string | undefined,
     duration: number,
     actualEndTime?: string,
   ): Promise<void> {
-    // Mark as logged instead of removing - arc stays visible but faded
-    const existing = this.acceptedMemos.get(memoId);
-    if (existing) {
+    // Find the slot to mark as complete
+    const slot = startTime
+      ? this.findSlotByKey(memoId, startTime)
+      : this.findSlotByMemoId(memoId);
+
+    if (slot) {
+      const { key, info } = slot;
       // Use provided actualEndTime, or current time, capped at scheduled endTime
       let endTimeToUse = actualEndTime ?? new Date().toTimeString().slice(0, 5);
       // Cap at scheduled endTime to not extend past original slot
-      if (endTimeToUse > existing.endTime) {
-        endTimeToUse = existing.endTime;
+      if (endTimeToUse > info.endTime) {
+        endTimeToUse = info.endTime;
       }
 
       const newMap = new Map(this.acceptedMemos);
-      newMap.set(memoId, {
-        ...existing,
+      newMap.set(key, {
+        ...info,
         isProgressLogged: true,
         actualEndTime: endTimeToUse,
       });
@@ -1192,6 +1273,7 @@ class ScheduleState {
 
     console.log("[Schedule] Completed suggestion:", {
       memoId,
+      startTime,
       duration,
       actualEndTime,
     });
@@ -1206,20 +1288,31 @@ class ScheduleState {
    * so the task can reappear in suggestions.
    *
    * @param memoId - ID of the memo
+   * @param startTime - Start time of the slot (optional, uses first match if not provided)
    */
-  async missedSuggestion(memoId: string): Promise<void> {
+  async missedSuggestion(memoId: string, startTime?: string): Promise<void> {
+    // Find the slot to mark as missed
+    const slot = startTime
+      ? this.findSlotByKey(memoId, startTime)
+      : this.findSlotByMemoId(memoId);
+
+    if (!slot) {
+      console.warn("[Schedule] Cannot mark as missed: slot not found", memoId);
+      return;
+    }
+
     // Remove from accepted memos store
     const newMap = new Map(this.acceptedMemos);
-    newMap.delete(memoId);
+    newMap.delete(slot.key);
     this.acceptedMemos = newMap;
 
-    console.log("[Schedule] Missed suggestion:", memoId);
+    console.log("[Schedule] Missed suggestion:", memoId, startTime);
 
     // Reset the memo's acceptedToday flag so it can reappear
     const { taskState } = await import(
       "$lib/features/tasks/state/taskActions.svelte.ts"
     );
-    await taskState.resetAccepted(memoId);
+    await taskState.resetAccepted(memoId, startTime);
 
     // Regenerate to potentially show the task again
     // Use taskState.items directly (Svelte 5 reactive, already updated)
@@ -1306,25 +1399,28 @@ class ScheduleState {
         memo.deadlineState?.acceptedSlots &&
         memo.deadlineState.acceptedSlots.length > 0
       ) {
-        // For deadline tasks, use the first slot (UI shows one at a time)
-        const slot = memo.deadlineState.acceptedSlots[0];
-        const isProgressLogged = slot.logged === true;
+        // Add ALL accepted slots (deadline tasks support multiple work sessions)
+        for (const slot of memo.deadlineState.acceptedSlots) {
+          const slotKey = makeSlotKey(memo.id, slot.startTime);
+          const isProgressLogged = slot.logged === true;
 
-        newMap.set(memo.id, {
-          memoId: memo.id,
-          startTime: slot.startTime,
-          endTime: slot.endTime,
-          duration: slot.duration,
-          isProgressLogged,
-        });
+          newMap.set(slotKey, {
+            memoId: memo.id,
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            duration: slot.duration,
+            isProgressLogged,
+          });
+        }
       }
 
       // Routine tasks - single accepted slot
       if (memo.type === "ルーティン" && memo.routineState?.acceptedSlot) {
         const slot = memo.routineState.acceptedSlot;
+        const slotKey = makeSlotKey(memo.id, slot.startTime);
         const isProgressLogged = slot.logged === true;
 
-        newMap.set(memo.id, {
+        newMap.set(slotKey, {
           memoId: memo.id,
           startTime: slot.startTime,
           endTime: slot.endTime,
@@ -1336,9 +1432,10 @@ class ScheduleState {
       // Backlog tasks - single accepted slot
       if (memo.type === "バックログ" && memo.backlogState?.acceptedSlot) {
         const slot = memo.backlogState.acceptedSlot;
+        const slotKey = makeSlotKey(memo.id, slot.startTime);
         const isProgressLogged = slot.logged === true;
 
-        newMap.set(memo.id, {
+        newMap.set(slotKey, {
           memoId: memo.id,
           startTime: slot.startTime,
           endTime: slot.endTime,

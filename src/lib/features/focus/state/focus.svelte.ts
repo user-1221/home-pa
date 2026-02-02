@@ -468,8 +468,14 @@ class FocusState {
     await taskState.logProgress(memoId, duration);
 
     // Mark as complete with actual wall-clock end time
+    // Pass undefined for startTime - helper will find the slot by memoId
     const actualEndTime = new Date().toTimeString().slice(0, 5);
-    await scheduleState.completeSuggestion(memoId, duration, actualEndTime);
+    await scheduleState.completeSuggestion(
+      memoId,
+      undefined,
+      duration,
+      actualEndTime,
+    );
 
     // Clear server session
     try {
@@ -880,8 +886,12 @@ class FocusState {
       // Log progress to task
       await taskState.logProgress(session.memoId, duration);
 
-      // Remove from accepted memos
-      await scheduleState.completeSuggestion(session.memoId, duration);
+      // Mark as complete (pass undefined for startTime - helper will find by memoId)
+      await scheduleState.completeSuggestion(
+        session.memoId,
+        undefined,
+        duration,
+      );
 
       console.log(
         "[Focus] Expired session completed, logged",

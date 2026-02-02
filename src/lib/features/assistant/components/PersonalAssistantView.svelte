@@ -301,8 +301,9 @@
   }
 
   async function handleSuggestionDelete(event: CustomEvent<string>) {
-    const suggestionId = event.detail;
-    await scheduleState.deleteAccepted(suggestionId, taskList);
+    const memoId = event.detail;
+    // Note: No startTime available from this event, use undefined to find first slot
+    await scheduleState.deleteAccepted(memoId, undefined, taskList);
   }
 
   async function handleSuggestionResize(
@@ -447,10 +448,11 @@
   async function handleInfoPanelComplete(
     event: CustomEvent<{
       memoId: string;
+      startTime: string;
       duration: number;
     }>,
   ) {
-    const { memoId, duration } = event.detail;
+    const { memoId, startTime, duration } = event.detail;
 
     // Log progress via taskState (updates DB AND store reactively)
     const { taskState } = await import(
@@ -460,22 +462,31 @@
 
     // Mark as complete with actual wall-clock end time
     const actualEndTime = new Date().toTimeString().slice(0, 5);
-    await scheduleState.completeSuggestion(memoId, duration, actualEndTime);
+    await scheduleState.completeSuggestion(
+      memoId,
+      startTime,
+      duration,
+      actualEndTime,
+    );
 
     // taskList is now $derived from taskState.items, no manual update needed
 
     selectedSuggestion = null;
   }
 
-  async function handleInfoPanelMissed(event: CustomEvent<{ memoId: string }>) {
-    const { memoId } = event.detail;
-    await scheduleState.missedSuggestion(memoId);
+  async function handleInfoPanelMissed(
+    event: CustomEvent<{ memoId: string; startTime: string }>,
+  ) {
+    const { memoId, startTime } = event.detail;
+    await scheduleState.missedSuggestion(memoId, startTime);
     selectedSuggestion = null;
   }
 
-  async function handleInfoPanelDelete(event: CustomEvent<{ memoId: string }>) {
-    const { memoId } = event.detail;
-    await scheduleState.deleteAccepted(memoId, taskList);
+  async function handleInfoPanelDelete(
+    event: CustomEvent<{ memoId: string; startTime: string }>,
+  ) {
+    const { memoId, startTime } = event.detail;
+    await scheduleState.deleteAccepted(memoId, startTime, taskList);
     selectedSuggestion = null;
   }
 

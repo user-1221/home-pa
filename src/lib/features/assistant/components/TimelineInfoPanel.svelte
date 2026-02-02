@@ -54,9 +54,9 @@
   const dispatch = createEventDispatcher<{
     accept: string;
     reject: string;
-    complete: { memoId: string; duration: number };
-    missed: { memoId: string };
-    delete: { memoId: string };
+    complete: { memoId: string; startTime: string; duration: number };
+    missed: { memoId: string; startTime: string };
+    delete: { memoId: string; startTime: string };
     durationChange: {
       suggestionId: string;
       newDuration: number;
@@ -158,13 +158,19 @@
 
   function handleMissed() {
     if (selectedItem?.type === "accepted-suggestion") {
-      dispatch("missed", { memoId: selectedItem.memoId });
+      dispatch("missed", {
+        memoId: selectedItem.memoId,
+        startTime: selectedItem.data.startTime,
+      });
     }
   }
 
   function handleDelete() {
     if (selectedItem?.type === "accepted-suggestion") {
-      dispatch("delete", { memoId: selectedItem.memoId });
+      dispatch("delete", {
+        memoId: selectedItem.memoId,
+        startTime: selectedItem.data.startTime,
+      });
     }
   }
 
@@ -529,6 +535,7 @@
               onSelect={(minutes) =>
                 dispatch("complete", {
                   memoId: selectedItem.memoId,
+                  startTime: selectedItem.data.startTime,
                   duration: minutes,
                 })}
             />
