@@ -854,7 +854,7 @@
         type="text"
         class="w-full border-0 border-b border-base-300 {isReadOnly
           ? 'bg-base-200'
-          : 'bg-transparent'} px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none {eventFormState
+          : 'bg-transparent'} px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none focus-visible:!outline-none {eventFormState
           .errors.title
           ? 'border-[var(--color-error-500)]'
           : ''} {isReadOnly ? 'cursor-not-allowed' : ''}"
@@ -1246,12 +1246,12 @@
               id="recurrence-interval-input"
               type="number"
               min="1"
-              class="input-bordered input w-[60px] text-center text-sm"
+              class="input-bordered input w-[60px] text-center text-sm focus:outline-none focus-visible:!outline-none"
               bind:value={recurrenceInterval}
               placeholder="1"
             />
             <select
-              class="select-bordered select text-sm"
+              class="select-bordered select text-sm focus:outline-none focus-visible:!outline-none"
               bind:value={recurrenceFrequency}
             >
               <option value="DAILY">日</option>
@@ -1445,7 +1445,7 @@
       <input
         id="event-address"
         type="text"
-        class="input-bordered input w-full {isReadOnly
+        class="input-bordered input w-full focus:outline-none focus-visible:!outline-none {isReadOnly
           ? 'cursor-not-allowed bg-base-200'
           : ''}"
         bind:value={eventAddress}
@@ -1568,7 +1568,7 @@
 
   <!-- Desktop Action Bar -->
   <div
-    class="hidden flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-base-300 p-4 md:flex"
+    class="sticky bottom-0 z-10 flex flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-base-300 bg-base-100 p-4"
   >
     {#if isEventEditing}
       {#if isReadOnly}
