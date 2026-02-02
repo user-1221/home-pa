@@ -45,7 +45,7 @@
       ? 'w-auto min-w-[120px]'
       : 'w-full'} {active
       ? 'ring-opacity-30 border-[var(--color-primary)] ring-2 ring-[var(--color-primary)]'
-      : ''} {disabled ? 'cursor-not-allowed opacity-50' : ''}"
+      : ''} {disabled ? 'cursor-not-allowed bg-base-200' : ''}"
     onclick={disabled ? undefined : onclick}
     {disabled}
   >
