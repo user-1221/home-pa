@@ -271,10 +271,7 @@
     </button>
   </div>
 
-  <form
-    onsubmit={handleSubmit}
-    class="flex min-h-0 flex-1 flex-col overflow-hidden"
-  >
+  <form onsubmit={handleSubmit} class="flex min-h-0 flex-1 flex-col">
     <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <!-- Basic Info Section -->
       <div class="space-y-4 p-4 md:p-5">
@@ -283,7 +280,7 @@
           <input
             id="title"
             type="text"
-            class="w-full border-0 border-b border-base-300 bg-transparent px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none focus-visible:outline-none {taskFormState
+            class="w-full border-0 border-b border-base-300 bg-transparent px-0 py-2 focus:border-[var(--color-primary)] focus:outline-none focus-visible:!outline-none {taskFormState
               .errors.title
               ? 'border-[var(--color-error-500)]'
               : ''}"
@@ -344,13 +341,6 @@
           <!-- Deadline -->
           {#if taskFormState.showDeadlineField}
             <div class="space-y-1.5">
-              <label
-                class="text-xs font-medium text-[var(--color-text-muted)]"
-                for="deadline"
-              >
-                期限
-              </label>
-
               <!-- Show event link if set -->
               {#if taskFormState.eventLink}
                 <div
@@ -442,42 +432,58 @@
                 </div>
               {:else}
                 <!-- Manual deadline input or event link button -->
-                <div class="flex flex-col">
-                  <div class="flex gap-2">
-                    <DatePicker
-                      id="deadline-picker"
-                      value={taskFormState.deadline}
-                      active={activeDatePicker === "deadline"}
-                      onclick={() => {
-                        activeDatePicker =
-                          activeDatePicker === "deadline" ? null : "deadline";
-                      }}
-                      class="flex-1 {taskFormState.errors.deadline
-                        ? 'border-error'
-                        : ''}"
-                    />
-                    <button
-                      type="button"
-                      class="btn gap-1.5 border border-base-300 bg-base-100 text-sm text-base-content/70 btn-ghost hover:border-base-300 hover:bg-base-200 hover:text-base-content"
-                      onclick={() => (showEventPicker = true)}
-                      aria-label="イベントから選択"
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        class="h-4 w-4"
-                        aria-hidden="true"
+                <div class="flex flex-col gap-1.5">
+                  <div class="flex items-center gap-2">
+                    <div class="flex flex-1 items-center gap-2">
+                      <label
+                        class="shrink-0 text-xs font-medium text-[var(--color-text-muted)]"
+                        for="deadline"
                       >
-                        <path
-                          d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
-                        />
-                        <path
-                          d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
-                        />
-                      </svg>
-                      連携
-                    </button>
+                        期限
+                      </label>
+                      <DatePicker
+                        id="deadline-picker"
+                        value={taskFormState.deadline}
+                        active={activeDatePicker === "deadline"}
+                        onclick={() => {
+                          activeDatePicker =
+                            activeDatePicker === "deadline" ? null : "deadline";
+                        }}
+                        class="flex-1 {taskFormState.errors.deadline
+                          ? 'border-error'
+                          : ''}"
+                      />
+                    </div>
+                    <div class="h-5 w-px flex-shrink-0 bg-base-300/50"></div>
+                    <div class="flex flex-1 items-center justify-center gap-2">
+                      <span
+                        class="shrink-0 text-xs font-medium text-[var(--color-text-muted)]"
+                      >
+                        予定
+                      </span>
+                      <button
+                        type="button"
+                        class="btn flex-1 gap-1.5 border border-base-300 bg-base-100 text-sm text-base-content/70 btn-ghost hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+                        onclick={() => (showEventPicker = true)}
+                        aria-label="イベントから選択"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 20 20"
+                          fill="currentColor"
+                          class="h-4 w-4"
+                          aria-hidden="true"
+                        >
+                          <path
+                            d="M12.232 4.232a2.5 2.5 0 013.536 3.536l-1.225 1.224a.75.75 0 001.061 1.06l1.224-1.224a4 4 0 00-5.656-5.656l-3 3a4 4 0 00.225 5.865.75.75 0 00.977-1.138 2.5 2.5 0 01-.142-3.667l3-3z"
+                          />
+                          <path
+                            d="M11.603 7.963a.75.75 0 00-.977 1.138 2.5 2.5 0 01.142 3.667l-3 3a2.5 2.5 0 01-3.536-3.536l1.225-1.224a.75.75 0 00-1.061-1.06l-1.224 1.224a4 4 0 105.656 5.656l3-3a4 4 0 00-.225-5.865z"
+                          />
+                        </svg>
+                        連携
+                      </button>
+                    </div>
                   </div>
 
                   <!-- Mini Calendar -->
@@ -822,7 +828,7 @@
 
     <!-- Desktop Action Bar -->
     <div
-      class="hidden flex-shrink-0 items-center justify-end gap-3 border-t border-base-300 bg-[var(--color-bg-grid)] p-4 md:flex md:p-5"
+      class="sticky bottom-0 z-10 flex flex-shrink-0 items-center justify-end gap-3 border-t border-base-300 bg-[var(--color-bg-grid)] p-4 md:p-5"
     >
       <Button variant="ghost" size="sm" type="button" onclick={handleClose}>
         キャンセル
@@ -848,7 +854,7 @@
   {@render formContent()}
 {:else if taskFormState.isOpen}
   <div
-    class="modal-open modal-mobile-fullscreen modal z-[2100] md:modal-middle"
+    class="modal-open modal-mobile-fullscreen modal z-[2300] md:modal-middle"
     onkeydown={(e: KeyboardEvent) => e.key === "Escape" && handleClose()}
     role="dialog"
     aria-modal="true"

@@ -150,7 +150,7 @@
     tabindex="-1"
   >
     <div
-      class="flex max-h-[80vh] w-full max-w-md flex-col rounded-xl border border-base-300 bg-base-100 shadow-xl"
+      class="flex h-[90%] w-full max-w-md flex-col rounded-xl border border-base-300 bg-base-100 shadow-xl"
       onclick={(e: MouseEvent) => e.stopPropagation()}
       onkeydown={(e: KeyboardEvent) => e.stopPropagation()}
       role="document"
