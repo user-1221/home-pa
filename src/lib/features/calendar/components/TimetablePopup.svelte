@@ -615,7 +615,7 @@
               <div class="flex flex-col gap-2">
                 {#each exceptionRanges as range, index (index)}
                   <div
-                    class="flex flex-col gap-2 rounded-lg bg-[var(--color-surface-50)] p-3 md:flex-row md:items-center md:gap-2 md:p-2"
+                    class="flex flex-row items-center gap-2 rounded-lg bg-[var(--color-surface-50)] p-3 md:p-2"
                   >
                     <input
                       type="date"
@@ -631,45 +631,43 @@
                         )}
                     />
                     <span
-                      class="flex items-center justify-center text-xs text-[var(--color-text-muted)] md:block"
+                      class="flex items-center justify-center text-xs text-[var(--color-text-muted)]"
                       >〜</span
                     >
-                    <div class="flex items-center gap-2">
-                      <input
-                        type="date"
-                        class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm md:flex-1"
-                        value={range.end}
-                        onchange={(
-                          e: Event & { currentTarget: HTMLInputElement },
-                        ) =>
-                          updateExceptionRange(
-                            index,
-                            "end",
-                            e.currentTarget.value,
-                          )}
-                      />
-                      <button
-                        type="button"
-                        class="btn btn-circle text-[var(--color-text-muted)] btn-ghost btn-sm hover:bg-[var(--color-error-100)] hover:text-[var(--color-error-500)] md:btn-xs"
-                        onclick={() => removeExceptionRange(index)}
-                        aria-label="削除"
+                    <input
+                      type="date"
+                      class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm md:flex-1"
+                      value={range.end}
+                      onchange={(
+                        e: Event & { currentTarget: HTMLInputElement },
+                      ) =>
+                        updateExceptionRange(
+                          index,
+                          "end",
+                          e.currentTarget.value,
+                        )}
+                    />
+                    <button
+                      type="button"
+                      class="btn btn-circle flex-shrink-0 text-[var(--color-text-muted)] btn-ghost btn-sm hover:bg-[var(--color-error-100)] hover:text-[var(--color-error-500)] md:btn-xs"
+                      onclick={() => removeExceptionRange(index)}
+                      aria-label="削除"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-4 w-4 md:h-3.5 md:w-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
                       >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-4 w-4 md:h-3.5 md:w-3.5"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          stroke-width="2"
-                        >
-                          <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            d="M6 18L18 6M6 6l12 12"
-                          />
-                        </svg>
-                      </button>
-                    </div>
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
                   </div>
                 {/each}
               </div>
