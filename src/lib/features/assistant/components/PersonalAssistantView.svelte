@@ -236,6 +236,42 @@
     });
   });
 
+  // Clean up orphaned accepted slots when task list changes
+  // This handles cases where:
+  // - Task is deleted directly from task list
+  // - Task is completed (markComplete) and the task type results in deletion
+  //   (deadline without recurrence, backlog)
+  $effect(() => {
+    // Track taskList changes
+    const currentTaskIds = new Set(taskList.map((t) => t.id));
+
+    // Only run after initialization to avoid unnecessary work on first render
+    if (!isInitialized) return;
+
+    // Check if any accepted slots reference missing tasks
+    const acceptedMemoIds = new Set(
+      Array.from(scheduleState.acceptedMemos.values()).map(
+        (info) => info.memoId,
+      ),
+    );
+
+    // Find orphaned slots
+    let hasOrphans = false;
+    for (const memoId of acceptedMemoIds) {
+      if (!currentTaskIds.has(memoId)) {
+        hasOrphans = true;
+        break;
+      }
+    }
+
+    // Clean up if orphans found
+    if (hasOrphans) {
+      untrack(() => {
+        scheduleState.cleanupOrphanedSlots(currentTaskIds);
+      });
+    }
+  });
+
   // Helper to get task title from memoId
   function getTaskTitle(memoId: string): string {
     const task = taskList.find((t) => t.id === memoId);
@@ -249,38 +285,47 @@
   });
 
   // Convert accepted memos to display format for CircularTimeline
+  // Also filters out slots where the task no longer exists (safety net)
   let filteredAcceptedForDisplay = $derived.by(() => {
     if (!isTodaySelected) return [];
-    return Array.from(scheduleState.acceptedMemos.entries()).map(
-      ([memoId, info]) => ({
-        memoId,
+
+    // Filter out slots where the task no longer exists (safety net)
+    const taskIds = new Set(taskList.map((t) => t.id));
+
+    return Array.from(scheduleState.acceptedMemos.entries())
+      .filter(([_key, info]) => taskIds.has(info.memoId))
+      .map(([_key, info]) => ({
+        memoId: info.memoId,
         startTime: info.startTime,
         endTime: info.endTime,
         duration: info.duration,
         isProgressLogged: info.isProgressLogged,
         actualEndTime: info.actualEndTime,
-      }),
-    );
+      }));
   });
 
   // Convert accepted memos to Event format for display list
+  // Also filters out slots where the task no longer exists (safety net)
   let acceptedEvents = $derived.by(() => {
     if (!isTodaySelected) return [];
 
     const base = startOfDay(dataState.selectedDate);
-    return Array.from(scheduleState.acceptedMemos.entries()).map(
-      ([memoId, info]) => {
-        const title = getTaskTitle(memoId);
+    // Filter out slots where the task no longer exists (safety net)
+    const taskIds = new Set(taskList.map((t) => t.id));
+
+    return Array.from(scheduleState.acceptedMemos.entries())
+      .filter(([_key, info]) => taskIds.has(info.memoId))
+      .map(([_key, info]) => {
+        const title = getTaskTitle(info.memoId);
         return {
-          id: `accepted-${memoId}`,
+          id: `accepted-${info.memoId}`,
           title,
           start: parseTimeOnDate(base, info.startTime),
           end: parseTimeOnDate(base, info.endTime),
           description: "Accepted suggestion",
           timeLabel: "timed",
         } as Event;
-      },
-    );
+      });
   });
 
   let displayEvents = $derived.by(() =>

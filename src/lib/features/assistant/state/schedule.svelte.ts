@@ -1345,6 +1345,37 @@ class ScheduleState {
   }
 
   /**
+   * Clean up accepted slots that reference tasks which no longer exist.
+   * Call this when the task list changes to keep acceptedMemos in sync.
+   *
+   * This handles cases where:
+   * - Task is deleted directly from task list
+   * - Task is completed (markComplete) and the task type results in deletion
+   *   (deadline without recurrence, backlog)
+   *
+   * @param validMemoIds - Set of memo IDs that currently exist in taskState
+   */
+  cleanupOrphanedSlots(validMemoIds: Set<string>): void {
+    const newMap = new Map(this.acceptedMemos);
+    let removed = false;
+
+    for (const [key, info] of newMap) {
+      if (!validMemoIds.has(info.memoId)) {
+        newMap.delete(key);
+        removed = true;
+        console.log(
+          `[Schedule] Removed orphaned accepted slot for deleted task: ${info.memoId}`,
+        );
+      }
+    }
+
+    if (removed) {
+      this.acceptedMemos = newMap;
+      this.syncBlockersToGapState(); // Update gap calculation
+    }
+  }
+
+  /**
    * Mark a session as complete and update the memo
    *
    * @param memo - The memo that was worked on
