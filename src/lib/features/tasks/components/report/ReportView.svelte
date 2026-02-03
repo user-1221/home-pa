@@ -8,6 +8,8 @@
   import CompletionList from "./CompletionList.svelte";
   import SuggestionStats from "./SuggestionStats.svelte";
   import DailyTrendBar from "./DailyTrendBar.svelte";
+  import DonutChart from "./DonutChart.svelte";
+  import ChartPopover from "./ChartPopover.svelte";
   import Skeleton from "$lib/features/shared/components/Skeleton.svelte";
   import {
     getReportState,
@@ -25,6 +27,13 @@
     { id: "all", label: "全期間" },
   ];
 
+  // Type colors (matching existing app colors)
+  const TYPE_COLORS: Record<string, string> = {
+    期限付き: "#F59E0B", // warning/amber
+    ルーティン: "#3B82F6", // event-blue
+    バックログ: "#9CA3AF", // gray
+  };
+
   // Genre colors (cycle through these for different genres)
   const GENRE_COLORS = [
     "#8B5CF6", // purple
@@ -37,26 +46,46 @@
     "#6366F1", // indigo
   ];
 
-  // Calculate time distribution percentages by type
-  function getTimePercentages() {
+  // Get type distribution as DonutChart segments
+  function getTypeSegments(): Array<{
+    label: string;
+    value: number;
+    color: string;
+  }> {
     const timeByType = reportState.timeByType;
-    const total =
-      timeByType.期限付き + timeByType.ルーティン + timeByType.バックログ;
-
-    if (total === 0) {
-      return { 期限付き: 0, ルーティン: 0, バックログ: 0 };
-    }
-
-    return {
-      期限付き: Math.round((timeByType.期限付き / total) * 100),
-      ルーティン: Math.round((timeByType.ルーティン / total) * 100),
-      バックログ: Math.round((timeByType.バックログ / total) * 100),
-    };
+    return [
+      {
+        label: "期限付き",
+        value: timeByType.期限付き,
+        color: TYPE_COLORS.期限付き,
+      },
+      {
+        label: "ルーティン",
+        value: timeByType.ルーティン,
+        color: TYPE_COLORS.ルーティン,
+      },
+      {
+        label: "バックログ",
+        value: timeByType.バックログ,
+        color: TYPE_COLORS.バックログ,
+      },
+    ].filter((s) => s.value > 0);
   }
+
+  // Genre popover state
+  let genrePopoverOpen = $state(false);
+  let genrePopoverPosition = $state({ x: 0, y: 0 });
+  let selectedGenre = $state<{
+    genre: string;
+    minutes: number;
+    percent: number;
+    color: string;
+  } | null>(null);
 
   // Calculate time distribution percentages by genre
   function getGenrePercentages(): Array<{
     genre: string;
+    minutes: number;
     percent: number;
     color: string;
   }> {
@@ -68,7 +97,12 @@
 
     if (total === 0) return [];
 
-    const result: Array<{ genre: string; percent: number; color: string }> = [];
+    const result: Array<{
+      genre: string;
+      minutes: number;
+      percent: number;
+      color: string;
+    }> = [];
     let colorIndex = 0;
 
     // Sort by time descending
@@ -77,6 +111,7 @@
     for (const [genre, minutes] of sorted) {
       result.push({
         genre,
+        minutes,
         percent: Math.round((minutes / total) * 100),
         color: GENRE_COLORS[colorIndex % GENRE_COLORS.length],
       });
@@ -84,6 +119,24 @@
     }
 
     return result;
+  }
+
+  function handleGenreClick(
+    e: MouseEvent,
+    item: { genre: string; minutes: number; percent: number; color: string },
+  ) {
+    const rect = (e.currentTarget as Element).getBoundingClientRect();
+    genrePopoverPosition = {
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    };
+    selectedGenre = item;
+    genrePopoverOpen = true;
+  }
+
+  function closeGenrePopover() {
+    genrePopoverOpen = false;
+    selectedGenre = null;
   }
 </script>
 
@@ -173,64 +226,28 @@
       />
     </div>
 
-    <!-- Time Distribution Bar (by Type) -->
+    <!-- Type Distribution Donut Chart -->
     {#if reportState.totalTimeMinutes > 0}
-      {@const percentages = getTimePercentages()}
-      <div class="flex flex-col gap-2">
-        <h3 class="text-sm font-medium text-base-content/70">
-          タイプ別作業時間
-        </h3>
-        <div class="flex h-6 w-full overflow-hidden rounded-lg">
-          {#if percentages.期限付き > 0}
-            <div
-              class="flex items-center justify-center text-xs font-medium text-white"
-              style="width: {percentages.期限付き}%; background-color: var(--color-warning-500);"
-            >
-              {percentages.期限付き > 10 ? `${percentages.期限付き}%` : ""}
-            </div>
-          {/if}
-          {#if percentages.ルーティン > 0}
-            <div
-              class="flex items-center justify-center text-xs font-medium text-white"
-              style="width: {percentages.ルーティン}%; background-color: var(--color-event-blue);"
-            >
-              {percentages.ルーティン > 10 ? `${percentages.ルーティン}%` : ""}
-            </div>
-          {/if}
-          {#if percentages.バックログ > 0}
-            <div
-              class="flex items-center justify-center bg-base-content/20 text-xs font-medium text-base-content/70"
-              style="width: {percentages.バックログ}%"
-            >
-              {percentages.バックログ > 10 ? `${percentages.バックログ}%` : ""}
-            </div>
-          {/if}
-        </div>
-        <!-- Legend -->
-        <div class="flex flex-wrap gap-4 text-xs text-base-content/60">
-          <div class="flex items-center gap-1">
-            <div
-              class="h-3 w-3 rounded"
-              style="background-color: var(--color-warning-500);"
-            ></div>
-            <span>期限付き</span>
-          </div>
-          <div class="flex items-center gap-1">
-            <div
-              class="h-3 w-3 rounded"
-              style="background-color: var(--color-event-blue);"
-            ></div>
-            <span>ルーティン</span>
-          </div>
-          <div class="flex items-center gap-1">
-            <div class="h-3 w-3 rounded bg-base-content/20"></div>
-            <span>バックログ</span>
+      {@const typeSegments = getTypeSegments()}
+      {#if typeSegments.length > 0}
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-medium text-base-content/70">
+            タイプ別作業時間
+          </h3>
+          <div
+            class="flex items-center justify-center rounded-xl border border-base-300/50 bg-base-100 py-4"
+          >
+            <DonutChart
+              segments={typeSegments}
+              centerValue={formatDuration(reportState.totalTimeMinutes)}
+              centerLabel="合計"
+            />
           </div>
         </div>
-      </div>
+      {/if}
     {/if}
 
-    <!-- Genre Distribution Bar -->
+    <!-- Genre Distribution Bar (clickable segments) -->
     {#if reportState.totalTimeMinutes > 0}
       {@const genreData = getGenrePercentages()}
       {#if genreData.length > 0}
@@ -238,14 +255,16 @@
           <h3 class="text-sm font-medium text-base-content/70">
             カテゴリ別作業時間
           </h3>
-          <div class="flex h-6 w-full overflow-hidden rounded-lg">
+          <div class="flex h-8 w-full overflow-hidden rounded-lg">
             {#each genreData as item (item.genre)}
-              <div
-                class="flex items-center justify-center text-xs font-medium text-white"
+              <button
+                class="flex items-center justify-center text-xs font-medium text-white transition-opacity hover:opacity-80"
                 style="width: {item.percent}%; background-color: {item.color};"
+                onclick={(e: MouseEvent) => handleGenreClick(e, item)}
+                aria-label="{item.genre}: {item.percent}%"
               >
-                {item.percent > 10 ? `${item.percent}%` : ""}
-              </div>
+                {item.percent > 12 ? `${item.percent}%` : ""}
+              </button>
             {/each}
           </div>
           <!-- Legend -->
@@ -263,6 +282,33 @@
         </div>
       {/if}
     {/if}
+
+    <!-- Genre Popover -->
+    <ChartPopover
+      isOpen={genrePopoverOpen}
+      onClose={closeGenrePopover}
+      position={genrePopoverPosition}
+    >
+      {#if selectedGenre}
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center gap-2">
+            <div
+              class="h-3 w-3 rounded"
+              style="background-color: {selectedGenre.color};"
+            ></div>
+            <span class="font-medium text-base-content"
+              >{selectedGenre.genre}</span
+            >
+          </div>
+          <div class="text-sm text-base-content/70">
+            {formatDuration(selectedGenre.minutes)}
+          </div>
+          <div class="text-xs text-base-content/50">
+            {selectedGenre.percent}%
+          </div>
+        </div>
+      {/if}
+    </ChartPopover>
 
     <!-- Suggestion Stats -->
     <SuggestionStats />
