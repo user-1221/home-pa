@@ -18,6 +18,8 @@ export interface TimetableConfigData {
   breakDuration: number; // minutes
   cellDuration: number; // minutes
   exceptionRanges?: TimetableExceptionRange[]; // Date ranges where timetable is ignored
+  daysPerWeek: number; // 5 = Mon-Fri, 6 = Mon-Sat
+  slotsPerDay: number; // 5 or 6 periods per day
 }
 
 /**

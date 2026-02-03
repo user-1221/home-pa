@@ -6,7 +6,7 @@
    * Opens from settings icon in UtilitiesView.
    */
 
-  import { calendarState, settingsState } from "$lib/bootstrap/index.svelte.ts";
+  import { calendarState } from "$lib/bootstrap/index.svelte.ts";
   import {
     UserSettings,
     Button,
@@ -379,54 +379,6 @@
         {:else}
           <!-- Data Tab -->
           <div class="flex flex-col gap-4">
-            <!-- Active Hours Setting -->
-            <div class="rounded-xl border border-base-200 bg-base-100 p-4">
-              <div class="mb-3 flex items-center gap-2">
-                <svg
-                  class="h-4 w-4 text-[var(--color-text-secondary)]"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <span
-                  class="text-xs font-medium text-[var(--color-text-secondary)]"
-                  >アクティブ時間</span
-                >
-              </div>
-              <p class="mb-3 text-sm text-[var(--color-text-secondary)]">
-                アシスタントのタスクスケジュールに使用されます。
-              </p>
-              <div
-                class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-2"
-              >
-                <input
-                  type="time"
-                  value={settingsState.activeStartTime}
-                  onchange={(e: Event & { currentTarget: HTMLInputElement }) =>
-                    settingsState.setActiveStartTime(e.currentTarget.value)}
-                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none sm:input-sm sm:w-32"
-                />
-                <span
-                  class="hidden text-sm text-[var(--color-text-muted)] sm:block"
-                  >–</span
-                >
-                <input
-                  type="time"
-                  value={settingsState.activeEndTime}
-                  onchange={(e: Event & { currentTarget: HTMLInputElement }) =>
-                    settingsState.setActiveEndTime(e.currentTarget.value)}
-                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none sm:input-sm sm:w-32"
-                />
-              </div>
-            </div>
-
             <!-- Import Section -->
             <div class="rounded-xl border border-base-200 bg-base-100 p-4">
               <div class="mb-3 flex items-center gap-2">

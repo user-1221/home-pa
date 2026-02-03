@@ -218,7 +218,11 @@ model TimetableConfig {
   // Exception date ranges (stored as JSON array of {start: string, end: string})
   // Dates in YYYY-MM-DD format
   exceptionRanges Json?    @default("[]")
-  
+
+  // Grid dimension settings
+  daysPerWeek     Int      @default(5)    // 5 = Mon-Fri, 6 = Mon-Sat
+  slotsPerDay     Int      @default(5)    // 5 or 6 periods per day
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -420,4 +424,19 @@ model DailyActivityLog {
 
   @@unique([userId, date])
   @@map("daily_activity_log")
+}
+
+// User settings (general preferences, assistant settings)
+model UserSettings {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique
+
+  // Active time settings (for gap computation in assistant)
+  activeStartTime String   @default("08:00")  // HH:mm format
+  activeEndTime   String   @default("23:00")  // HH:mm format
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("user_settings")
 }

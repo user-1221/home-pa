@@ -76,6 +76,8 @@
       breakDuration: 10,
       cellDuration: 50,
       exceptionRanges: [],
+      daysPerWeek: 5,
+      slotsPerDay: 5,
     },
   );
 
@@ -95,8 +97,17 @@
   let editorWorkAllowed = $state<"作業可" | "作業不可">("作業不可");
   let isSaving = $state(false);
 
-  const weekdays = ["月", "火", "水", "木", "金"];
-  const SLOTS_PER_DAY = 5;
+  const ALL_WEEKDAYS = ["月", "火", "水", "木", "金", "土"];
+  let weekdays = $derived(ALL_WEEKDAYS.slice(0, config.daysPerWeek));
+  let slotsPerDay = $derived(config.slotsPerDay);
+
+  function handleGridSizeChange(e: Event) {
+    const value = (e.target as HTMLSelectElement).value;
+    const [days, slots] = value.split("x").map(Number);
+    config.daysPerWeek = days;
+    config.slotsPerDay = slots;
+    handleConfigChange();
+  }
 
   // Load data when popup opens
   $effect(() => {
@@ -121,6 +132,8 @@
           breakDuration: configResult.breakDuration,
           cellDuration: configResult.cellDuration,
           exceptionRanges: configResult.exceptionRanges ?? [],
+          daysPerWeek: configResult.daysPerWeek ?? 5,
+          slotsPerDay: configResult.slotsPerDay ?? 5,
         };
         exceptionRanges = configResult.exceptionRanges ?? [];
       }
@@ -379,7 +392,25 @@
                 >基本設定</span
               >
             </div>
-            <div class="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div class="grid grid-cols-2 gap-3 md:grid-cols-6">
+              <label class="form-control w-full">
+                <div class="label py-1">
+                  <span
+                    class="label-text text-xs text-[var(--color-text-muted)]"
+                    >グリッド</span
+                  >
+                </div>
+                <select
+                  class="select w-full border-base-300 bg-base-100 select-md focus:border-[var(--color-primary)] focus:outline-none md:select-sm"
+                  value={`${config.daysPerWeek}x${config.slotsPerDay}`}
+                  onchange={handleGridSizeChange}
+                >
+                  <option value="5x5">5日 × 5コマ</option>
+                  <option value="5x6">5日 × 6コマ</option>
+                  <option value="6x5">6日 × 5コマ</option>
+                  <option value="6x6">6日 × 6コマ</option>
+                </select>
+              </label>
               <label class="form-control w-full">
                 <div class="label py-1">
                   <span
@@ -457,103 +488,59 @@
             </div>
           </div>
 
-          <!-- Timetable Grid - Mobile Card View -->
-          <div class="flex flex-col gap-3 px-4 py-4 md:hidden">
-            {#each weekdays as day, dayIndex (day)}
-              <div class="rounded-xl border border-base-200 bg-base-100">
-                <div class="border-b border-base-200 px-3 py-2">
-                  <span class="text-sm font-medium text-base-content"
-                    >{day}曜日</span
-                  >
+          <!-- Timetable Calendar Grid -->
+          <div class="flex-1 overflow-auto p-4">
+            <div
+              class="mx-auto grid max-w-xl gap-px overflow-hidden rounded-xl border border-base-300 bg-base-300"
+              style="grid-template-columns: 3rem repeat({config.daysPerWeek}, 1fr); grid-template-rows: 2.5rem repeat({slotsPerDay}, 1fr);"
+            >
+              <!-- Header row: empty corner + day names -->
+              <div class="bg-base-100"></div>
+              {#each weekdays as day, dayIndex (day)}
+                <div
+                  class="flex items-center justify-center bg-base-100 text-sm font-medium"
+                  class:text-success={dayIndex === 5}
+                >
+                  {day}
                 </div>
-                <div class="flex gap-2 overflow-x-auto p-3">
-                  {#each Array(SLOTS_PER_DAY) as _, slotIndex (slotIndex)}
-                    {@const cell = getCell(dayIndex, slotIndex)}
-                    <button
-                      class="flex h-20 w-20 flex-shrink-0 flex-col items-center justify-center rounded-lg border p-2 transition-all duration-150 hover:shadow-md {getCellBgClass(
-                        cell,
-                      )}"
-                      onclick={() => openCellEditor(dayIndex, slotIndex)}
-                    >
-                      <span
-                        class="mb-1 text-[10px] text-base-content/50 tabular-nums"
-                        >{getSlotStartTime(slotIndex)}</span
-                      >
-                      {#if cell && cell.attendance === "出席する"}
-                        <span
-                          class="line-clamp-2 text-center text-xs leading-tight font-medium"
-                          >{cell.title || "無題"}</span
-                        >
-                        <span
-                          class="mt-0.5 text-[10px] leading-tight opacity-60"
-                          >{cell.workAllowed}</span
-                        >
-                      {:else if cell?.attendance === "出席しない"}
-                        <span class="text-[10px] opacity-50">欠席</span>
-                      {:else}
-                        <span class="text-lg opacity-20">+</span>
-                      {/if}
-                    </button>
-                  {/each}
-                </div>
-              </div>
-            {/each}
-          </div>
+              {/each}
 
-          <!-- Timetable Grid - Desktop Table View -->
-          <div class="hidden overflow-x-auto px-5 py-4 md:block">
-            <table class="table w-full table-fixed">
-              <thead>
-                <tr class="border-b border-base-300">
-                  <th
-                    class="w-16 bg-transparent py-3 text-center text-xs font-normal text-[var(--color-text-muted)]"
-                    >時限</th
+              <!-- Grid rows: period label + cells -->
+              {#each Array(slotsPerDay) as _, slotIndex (slotIndex)}
+                <div
+                  class="flex flex-col items-center justify-center bg-base-100 p-1"
+                >
+                  <span class="text-sm font-semibold">{slotIndex + 1}</span>
+                  <span class="text-[10px] tabular-nums opacity-50"
+                    >{getSlotStartTime(slotIndex)}</span
                   >
-                  {#each weekdays as day (day)}
-                    <th
-                      class="bg-transparent py-3 text-center text-sm font-medium text-[var(--color-text-primary)]"
-                      >{day}</th
-                    >
-                  {/each}
-                </tr>
-              </thead>
-              <tbody>
-                {#each Array(SLOTS_PER_DAY) as _, slotIndex (slotIndex)}
-                  <tr class="border-b border-base-200/60">
-                    <td
-                      class="py-2 text-center text-xs text-[var(--color-text-muted)] tabular-nums"
-                    >
-                      {getSlotStartTime(slotIndex)}
-                    </td>
-                    {#each Array(5) as _, dayIndex (dayIndex)}
-                      {@const cell = getCell(dayIndex, slotIndex)}
-                      <td class="p-1.5">
-                        <button
-                          class="flex h-16 w-full flex-col items-center justify-center rounded-lg border p-2 transition-all duration-150 hover:shadow-sm {getCellBgClass(
-                            cell,
-                          )}"
-                          onclick={() => openCellEditor(dayIndex, slotIndex)}
-                        >
-                          {#if cell && cell.attendance === "出席する"}
-                            <span class="text-sm leading-tight font-medium"
-                              >{cell.title || "無題"}</span
-                            >
-                            <span
-                              class="mt-0.5 text-[10px] leading-tight opacity-60"
-                              >{cell.workAllowed}</span
-                            >
-                          {:else if cell?.attendance === "出席しない"}
-                            <span class="text-xs opacity-50">欠席</span>
-                          {:else}
-                            <span class="text-base opacity-20">+</span>
-                          {/if}
-                        </button>
-                      </td>
-                    {/each}
-                  </tr>
+                </div>
+                {#each weekdays as _, dayIndex (dayIndex)}
+                  {@const cell = getCell(dayIndex, slotIndex)}
+                  <button
+                    class="flex min-h-14 cursor-pointer flex-col items-center justify-center p-1 transition-colors hover:bg-base-200 {getCellBgClass(
+                      cell,
+                    )}"
+                    onclick={() => openCellEditor(dayIndex, slotIndex)}
+                  >
+                    {#if cell && cell.attendance === "出席する"}
+                      <span class="line-clamp-2 text-center text-xs font-medium"
+                        >{cell.title || "無題"}</span
+                      >
+                      <span
+                        class="mt-1 rounded-full px-2 py-0.5 text-[10px] font-medium {cell.workAllowed ===
+                        '作業可'
+                          ? 'bg-success/30 text-success'
+                          : 'bg-warning/30 text-warning'}"
+                        >{cell.workAllowed}</span
+                      >
+                    {:else if cell?.attendance === "出席しない"}
+                      <span class="text-[10px] opacity-50">欠席</span>
+                    {/if}
+                  </button>
                 {/each}
-              </tbody>
-            </table>
+              {/each}
+            </div>
           </div>
 
           <!-- Exception Ranges -->

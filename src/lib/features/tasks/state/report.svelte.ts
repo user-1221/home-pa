@@ -74,6 +74,13 @@ export function formatRelativeDate(isoDate: string): string {
   return date.toFormat("M/d");
 }
 
+// Cache entry type
+interface CacheEntry {
+  logs: CompletionLog[];
+  dailyLogs: DailyActivityLog[];
+  loadedAt: number;
+}
+
 // State class
 export class ReportState {
   logs = $state<CompletionLog[]>([]);
@@ -81,6 +88,13 @@ export class ReportState {
   isLoading = $state(false);
   dateFilter = $state<DateFilter>("week");
   error = $state<string | null>(null);
+
+  // Cache per filter period for instant switching
+  private cache: Record<DateFilter, CacheEntry | null> = {
+    week: null,
+    month: null,
+    all: null,
+  };
 
   // Derived: Total completions count
   get totalCompletions(): number {
@@ -261,6 +275,13 @@ export class ReportState {
 
       this.logs = completionLogs as CompletionLog[];
       this.dailyLogs = dailyLogs as DailyActivityLog[];
+
+      // Store in cache for instant switching
+      this.cache[this.dateFilter] = {
+        logs: this.logs,
+        dailyLogs: this.dailyLogs,
+        loadedAt: Date.now(),
+      };
     } catch (err) {
       console.error("[ReportState] Failed to load logs:", err);
       this.error = "データの読み込みに失敗しました";
@@ -271,9 +292,25 @@ export class ReportState {
     }
   }
 
-  // Set filter and reload
+  // Set filter - use cache if available, otherwise load
   setFilter(filter: DateFilter): void {
     this.dateFilter = filter;
+
+    // Use cached data if available for instant switching
+    const cached = this.cache[filter];
+    if (cached) {
+      this.logs = cached.logs;
+      this.dailyLogs = cached.dailyLogs;
+      return;
+    }
+
+    // No cache - fetch fresh data
+    this.load();
+  }
+
+  // Force refresh current period (invalidates cache)
+  refresh(): void {
+    this.cache[this.dateFilter] = null;
     this.load();
   }
 }

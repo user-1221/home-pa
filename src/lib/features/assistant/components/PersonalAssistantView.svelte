@@ -3,6 +3,7 @@
   import CircularTimelineCss from "./CircularTimelineCss.svelte";
   import TimelineInfoPanel from "./TimelineInfoPanel.svelte";
   import CalendarVisibilityToggles from "./CalendarVisibilityToggles.svelte";
+  import ActiveTimeControl from "./ActiveTimeControl.svelte";
   import { calendarState, dataState } from "$lib/bootstrap/index.svelte.ts";
   import {
     scheduleState,
@@ -627,6 +628,11 @@
         <!-- Calendar visibility toggles -->
         <div class="mt-4 w-full max-w-[720px]">
           <CalendarVisibilityToggles />
+        </div>
+
+        <!-- Active time control -->
+        <div class="w-full max-w-[720px]">
+          <ActiveTimeControl />
         </div>
 
         <!-- Events Card with refined styling -->

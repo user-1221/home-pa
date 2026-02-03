@@ -20,6 +20,12 @@ const TimetableConfigInputSchema = v.object({
   breakDuration: v.number(),
   cellDuration: v.number(),
   exceptionRanges: v.optional(v.array(ExceptionRangeSchema)),
+  daysPerWeek: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(5), v.maxValue(6)),
+  ),
+  slotsPerDay: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(5), v.maxValue(6)),
+  ),
 });
 
 const TimetableCellInputSchema = v.object({
@@ -60,6 +66,8 @@ export const fetchTimetableConfig = query(
         breakDuration: 10,
         cellDuration: 50,
         exceptionRanges: [] as Array<{ start: string; end: string }>,
+        daysPerWeek: 5,
+        slotsPerDay: 5,
       };
     }
 
@@ -71,6 +79,8 @@ export const fetchTimetableConfig = query(
     return {
       ...config,
       exceptionRanges,
+      daysPerWeek: config.daysPerWeek ?? 5,
+      slotsPerDay: config.slotsPerDay ?? 5,
     };
   },
 );

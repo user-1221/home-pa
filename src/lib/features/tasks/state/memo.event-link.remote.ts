@@ -121,6 +121,8 @@ export const advanceEventLinkedDeadline = command(
                 start: string;
                 end: string;
               }>) ?? [],
+            daysPerWeek: config.daysPerWeek ?? 5,
+            slotsPerDay: config.slotsPerDay ?? 5,
           };
 
           const cellData = {

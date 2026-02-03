@@ -50,6 +50,8 @@ const DEFAULT_CONFIG: TimetableConfigData = {
   lunchEndTime: "13:00",
   breakDuration: 10,
   cellDuration: 50,
+  daysPerWeek: 5,
+  slotsPerDay: 5,
 };
 
 /**
@@ -111,6 +113,8 @@ export async function loadTimetableData(): Promise<{
       breakDuration: configResult.breakDuration,
       cellDuration: configResult.cellDuration,
       exceptionRanges: configResult.exceptionRanges ?? [],
+      daysPerWeek: configResult.daysPerWeek ?? 5,
+      slotsPerDay: configResult.slotsPerDay ?? 5,
     };
 
     cachedCells = cellsResult.map((cell) => ({
@@ -161,8 +165,9 @@ export function getTimetableEventsForDate(
 
   const dayOfWeek = getWeekdayIndex(targetDate);
 
-  // Only Mon-Fri (0-4 in our mapping)
-  if (dayOfWeek < 0 || dayOfWeek > 4) {
+  // Check if day is within configured grid (0-4 for 5 days, 0-5 for 6 days)
+  const maxDayIndex = (config.daysPerWeek ?? 5) - 1;
+  if (dayOfWeek < 0 || dayOfWeek > maxDayIndex) {
     return [];
   }
 
