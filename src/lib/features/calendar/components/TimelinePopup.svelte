@@ -400,7 +400,7 @@
           <!-- Event columns with pagination -->
           <div
             class="absolute overflow-hidden"
-            style="left: 55px; right: 0; top: 0; bottom: {needsPagination
+            style="left: 55px; right: 0; top: 20px; bottom: {needsPagination
               ? '32px'
               : '0'};"
             ontouchstart={handleTouchStart}

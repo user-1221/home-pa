@@ -850,7 +850,7 @@
 
     <!-- Desktop Action Bar -->
     <div
-      class="sticky bottom-0 z-10 flex flex-shrink-0 items-center justify-end gap-3 border-t border-base-300 bg-[var(--color-bg-grid)] p-4 md:p-5"
+      class="sticky bottom-0 z-10 hidden flex-shrink-0 items-center justify-end gap-3 border-t border-base-300 bg-[var(--color-bg-grid)] p-4 md:flex md:p-5"
     >
       <Button variant="ghost" size="sm" type="button" onclick={handleClose}>
         キャンセル

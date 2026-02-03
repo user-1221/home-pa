@@ -1568,7 +1568,7 @@
 
   <!-- Desktop Action Bar -->
   <div
-    class="sticky bottom-0 z-10 flex flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-base-300 bg-base-100 p-4"
+    class="sticky bottom-0 z-10 hidden flex-shrink-0 flex-wrap items-center justify-end gap-2 border-t border-base-300 bg-base-100 p-4 md:flex"
   >
     {#if isEventEditing}
       {#if isReadOnly}

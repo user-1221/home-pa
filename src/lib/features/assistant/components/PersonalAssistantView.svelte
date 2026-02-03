@@ -687,24 +687,27 @@
                 <p class="text-sm">この日の予定はありません</p>
               </div>
             {:else}
-              <ul class="divide-y divide-base-300/30">
+              <ul class="timeline timeline-vertical">
                 {#each displayEvents as event, i (event.id)}
                   <li
-                    class="group flex items-center justify-between py-3 transition-all duration-200 first:pt-0 last:pb-0 hover:translate-x-1"
                     style="animation: fadeSlideIn 0.3s ease-out {i *
                       50}ms backwards;"
                   >
-                    <div class="flex items-center gap-3">
-                      <div
-                        class="h-2 w-2 rounded-full bg-[var(--color-primary)]/60 transition-transform duration-200 group-hover:scale-125"
-                      ></div>
-                      <span class="text-sm font-medium">{event.title}</span>
-                    </div>
-                    <span
-                      class="rounded-md bg-base-200/80 px-2.5 py-1 text-xs font-medium text-base-content/70 transition-colors duration-200 group-hover:bg-base-300/80"
+                    {#if i > 0}<hr class="bg-primary/30" />{/if}
+                    <div
+                      class="timeline-start text-xs font-medium text-base-content/70"
                     >
                       {formatEventTime(event)}
-                    </span>
+                    </div>
+                    <div class="timeline-middle">
+                      <div class="h-3 w-3 rounded-full bg-primary"></div>
+                    </div>
+                    <div class="timeline-end py-2">
+                      <span class="text-sm font-medium">{event.title}</span>
+                    </div>
+                    {#if i < displayEvents.length - 1}<hr
+                        class="bg-primary/30"
+                      />{/if}
                   </li>
                 {/each}
               </ul>
