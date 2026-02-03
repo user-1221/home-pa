@@ -210,6 +210,13 @@ SvelteKit's experimental Remote Functions:
 
 If a `.remote.ts` file doesn't define proper remote functions, the chunk is empty/malformed, causing prerender to crash with `Cannot convert undefined or null to object`.
 
+**Critical: Static import requirement**
+
+Every `.remote.ts` file MUST have at least one **static import** somewhere in the codebase. Files that are only dynamically imported will compile to empty chunks and crash prerender.
+
+- ❌ Only dynamic imports → empty chunk, prerender crash
+- ✅ At least one static import (via barrel file) → properly compiled
+
 ### Test File Location
 
 - Place tests in `{feature}/__tests__/` directory

@@ -9,6 +9,10 @@
  * @cleanup none - State persists across navigation
  */
 import { browser } from "$app/environment";
+import {
+  fetchUserSettings,
+  updateActiveTime,
+} from "$lib/features/assistant/state/user-settings.ts";
 
 // Active hours for gap finding in assistant view
 let activeStartTime = $state("08:00");
@@ -31,9 +35,6 @@ async function loadFromDB(): Promise<void> {
   if (!browser) return;
 
   try {
-    const { fetchUserSettings } = await import(
-      "$lib/features/assistant/state/user-settings.remote"
-    );
     const settings = await fetchUserSettings({});
 
     activeStartTime = settings.activeStartTime;
@@ -59,9 +60,6 @@ async function saveToDB(): Promise<void> {
 
   isSaving = true;
   try {
-    const { updateActiveTime } = await import(
-      "$lib/features/assistant/state/user-settings.remote"
-    );
     await updateActiveTime({
       activeStartTime,
       activeEndTime,
