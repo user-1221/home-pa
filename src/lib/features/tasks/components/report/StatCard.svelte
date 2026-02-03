@@ -1,27 +1,36 @@
 <script lang="ts">
   /**
-   * StatCard - Individual statistic display card
+   * StatCard - Individual statistic display card using DaisyUI stat component
    *
-   * Shows a label, value, and optional sub-info in a clean card format.
+   * Shows a label, value, and optional sub-info with DaisyUI styling.
    */
+  import type { Snippet } from "svelte";
 
   interface Props {
     label: string;
     value: string | number;
     subInfo?: string;
+    valueColor?: "primary" | "secondary" | "error" | "success";
+    icon?: Snippet;
   }
 
-  let { label, value, subInfo }: Props = $props();
+  let { label, value, subInfo, valueColor, icon }: Props = $props();
+
+  // Build value class dynamically
+  const valueClass = $derived(
+    valueColor ? `stat-value text-${valueColor}` : "stat-value",
+  );
 </script>
 
-<div
-  class="flex flex-col rounded-xl border border-base-300/50 bg-base-100 p-4 shadow-sm"
->
-  <span class="text-xs text-base-content/60">{label}</span>
-  <span class="mt-1 text-2xl font-semibold tracking-tight text-base-content">
-    {value}
-  </span>
+<div class="stat">
+  {#if icon}
+    <div class="stat-figure text-base-content/40">
+      {@render icon()}
+    </div>
+  {/if}
+  <div class="stat-title">{label}</div>
+  <div class={valueClass}>{value}</div>
   {#if subInfo}
-    <span class="mt-1 text-xs text-base-content/50">{subInfo}</span>
+    <div class="stat-desc">{subInfo}</div>
   {/if}
 </div>

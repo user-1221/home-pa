@@ -1,26 +1,27 @@
 <script lang="ts">
   /**
-   * DailyTrendBar - Shows daily productivity trend as simple bars
+   * DailyTrendBar - Shows daily productivity trend as horizontal bars
    *
    * Mobile-friendly horizontal bar display showing last 7 days.
-   * Click on a bar to see details in a popover.
+   * Click on a bar to open a detailed modal with category breakdown.
    */
   import {
     getReportState,
     formatDuration,
+    type TaskActivity,
   } from "$lib/features/tasks/state/report.svelte.ts";
   import { DateTime } from "luxon";
-  import ChartPopover from "./ChartPopover.svelte";
+  import DayDetailModal from "./DayDetailModal.svelte";
 
   const reportState = getReportState();
 
-  // Popover state
-  let popoverOpen = $state(false);
-  let popoverPosition = $state({ x: 0, y: 0 });
+  // Modal state
+  let showDetailModal = $state(false);
   let selectedDay = $state<{
     date: string;
     minutes: number;
     tasks: number;
+    taskActivities: TaskActivity[] | null;
   } | null>(null);
 
   function formatDateShort(isoDate: string): string {
@@ -33,15 +34,11 @@
     return dt.toFormat("M/d");
   }
 
-  function formatDateLong(isoDate: string): string {
-    const dt = DateTime.fromISO(isoDate);
-    return dt.toFormat("M月d日 (ccc)", { locale: "ja" });
-  }
-
   function getRecentData(): Array<{
     date: string;
     minutes: number;
     tasks: number;
+    taskActivities: TaskActivity[] | null;
   }> {
     return reportState.dailyTrend.slice(-7);
   }
@@ -52,21 +49,18 @@
     return max > 0 ? max : 60; // Default to 60 if all zeros
   }
 
-  function handleBarClick(
-    e: MouseEvent,
-    day: { date: string; minutes: number; tasks: number },
-  ) {
-    const rect = (e.currentTarget as Element).getBoundingClientRect();
-    popoverPosition = {
-      x: rect.left + rect.width / 2,
-      y: rect.top,
-    };
+  function handleBarClick(day: {
+    date: string;
+    minutes: number;
+    tasks: number;
+    taskActivities: TaskActivity[] | null;
+  }) {
     selectedDay = day;
-    popoverOpen = true;
+    showDetailModal = true;
   }
 
-  function closePopover() {
-    popoverOpen = false;
+  function closeModal() {
+    showDetailModal = false;
     selectedDay = null;
   }
 </script>
@@ -87,7 +81,7 @@
       {#each getRecentData() as day (day.date)}
         <button
           class="flex items-center gap-3 rounded-lg px-1 py-0.5 transition-colors hover:bg-base-200/50"
-          onclick={(e: MouseEvent) => handleBarClick(e, day)}
+          onclick={() => handleBarClick(day)}
           aria-label="{formatDateShort(day.date)}: {formatDuration(
             day.minutes,
           )}"
@@ -112,22 +106,10 @@
   {/if}
 </div>
 
-<!-- Detail Popover -->
-<ChartPopover
-  isOpen={popoverOpen}
-  onClose={closePopover}
-  position={popoverPosition}
->
-  {#if selectedDay}
-    <div class="flex flex-col gap-1">
-      <span class="font-medium text-base-content">
-        {formatDateLong(selectedDay.date)}
-      </span>
-      <div class="flex items-center gap-3 text-sm text-base-content/70">
-        <span>{formatDuration(selectedDay.minutes)}</span>
-        <span class="text-base-content/40">·</span>
-        <span>{selectedDay.tasks}件のタスク</span>
-      </div>
-    </div>
-  {/if}
-</ChartPopover>
+<!-- Detail Modal -->
+<DayDetailModal
+  isOpen={showDetailModal}
+  onClose={closeModal}
+  day={selectedDay}
+  taskActivities={selectedDay?.taskActivities ?? null}
+/>

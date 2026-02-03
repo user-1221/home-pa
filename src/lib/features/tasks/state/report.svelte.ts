@@ -39,6 +39,17 @@ export interface TypeBreakdown {
   バックログ: number;
 }
 
+export interface TaskActivity {
+  memoId: string;
+  taskTitle: string;
+  taskType: string;
+  taskGenre: string | null;
+  timeSpentMinutes: number;
+  wasAccepted: boolean;
+  wasRejected: boolean;
+  wasCompleted: boolean;
+}
+
 export interface DailyActivityLog {
   id: string;
   date: string;
@@ -47,6 +58,7 @@ export interface DailyActivityLog {
   suggestionsAccepted: number;
   suggestionsRejected: number;
   tasksCompleted: number;
+  taskActivities: TaskActivity[] | null;
 }
 
 // Utility: Smart time formatting
@@ -208,6 +220,21 @@ export class ReportState {
     };
   }
 
+  // Derived: Count of tasks that were accepted but not completed (missed)
+  get missedTaskCount(): number {
+    let count = 0;
+    for (const log of this.dailyLogs) {
+      if (log.taskActivities) {
+        for (const activity of log.taskActivities) {
+          if (activity.wasAccepted && !activity.wasCompleted) {
+            count++;
+          }
+        }
+      }
+    }
+    return count;
+  }
+
   // Derived: Average daily time (from DailyActivityLog)
   get averageDailyMinutes(): number {
     if (this.dailyLogs.length === 0) return 0;
@@ -219,7 +246,12 @@ export class ReportState {
   }
 
   // Derived: Daily trend data for visualization
-  get dailyTrend(): Array<{ date: string; minutes: number; tasks: number }> {
+  get dailyTrend(): Array<{
+    date: string;
+    minutes: number;
+    tasks: number;
+    taskActivities: TaskActivity[] | null;
+  }> {
     return this.dailyLogs
       .slice()
       .reverse() // Chronological order for chart
@@ -227,6 +259,7 @@ export class ReportState {
         date: log.date,
         minutes: log.totalTimeMinutes,
         tasks: log.tasksCompleted,
+        taskActivities: log.taskActivities,
       }));
   }
 

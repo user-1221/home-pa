@@ -215,6 +215,19 @@ export const fetchDailyActivityLogs = query(
       suggestionsAccepted: log.suggestionsAccepted,
       suggestionsRejected: log.suggestionsRejected,
       tasksCompleted: log.tasksCompleted,
+      taskActivities: log.taskActivities as TaskActivityData[] | null,
     }));
   },
 );
+
+// Type for taskActivities JSON field
+interface TaskActivityData {
+  memoId: string;
+  taskTitle: string;
+  taskType: string;
+  taskGenre: string | null;
+  timeSpentMinutes: number;
+  wasAccepted: boolean;
+  wasRejected: boolean;
+  wasCompleted: boolean;
+}

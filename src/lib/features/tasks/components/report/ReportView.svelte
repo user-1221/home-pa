@@ -2,14 +2,12 @@
   /**
    * ReportView - Main report container
    *
-   * Combines stat cards, time distribution bar, and completion history.
+   * Combines stat cards, time distribution charts, and completion history.
    */
   import StatCard from "./StatCard.svelte";
   import CompletionList from "./CompletionList.svelte";
-  import SuggestionStats from "./SuggestionStats.svelte";
   import DailyTrendBar from "./DailyTrendBar.svelte";
   import DonutChart from "./DonutChart.svelte";
-  import ChartPopover from "./ChartPopover.svelte";
   import Skeleton from "$lib/features/shared/components/Skeleton.svelte";
   import {
     getReportState,
@@ -72,71 +70,31 @@
     ].filter((s) => s.value > 0);
   }
 
-  // Genre popover state
-  let genrePopoverOpen = $state(false);
-  let genrePopoverPosition = $state({ x: 0, y: 0 });
-  let selectedGenre = $state<{
-    genre: string;
-    minutes: number;
-    percent: number;
-    color: string;
-  } | null>(null);
-
-  // Calculate time distribution percentages by genre
-  function getGenrePercentages(): Array<{
-    genre: string;
-    minutes: number;
-    percent: number;
+  // Get genre distribution as DonutChart segments
+  function getGenreSegments(): Array<{
+    label: string;
+    value: number;
     color: string;
   }> {
     const timeByGenre = reportState.timeByGenre;
-    let total = 0;
-    for (const minutes of timeByGenre.values()) {
-      total += minutes;
-    }
-
-    if (total === 0) return [];
-
-    const result: Array<{
-      genre: string;
-      minutes: number;
-      percent: number;
-      color: string;
-    }> = [];
+    const result: Array<{ label: string; value: number; color: string }> = [];
     let colorIndex = 0;
 
     // Sort by time descending
     const sorted = [...timeByGenre.entries()].sort((a, b) => b[1] - a[1]);
 
     for (const [genre, minutes] of sorted) {
-      result.push({
-        genre,
-        minutes,
-        percent: Math.round((minutes / total) * 100),
-        color: GENRE_COLORS[colorIndex % GENRE_COLORS.length],
-      });
-      colorIndex++;
+      if (minutes > 0) {
+        result.push({
+          label: genre,
+          value: minutes,
+          color: GENRE_COLORS[colorIndex % GENRE_COLORS.length],
+        });
+        colorIndex++;
+      }
     }
 
     return result;
-  }
-
-  function handleGenreClick(
-    e: MouseEvent,
-    item: { genre: string; minutes: number; percent: number; color: string },
-  ) {
-    const rect = (e.currentTarget as Element).getBoundingClientRect();
-    genrePopoverPosition = {
-      x: rect.left + rect.width / 2,
-      y: rect.top,
-    };
-    selectedGenre = item;
-    genrePopoverOpen = true;
-  }
-
-  function closeGenrePopover() {
-    genrePopoverOpen = false;
-    selectedGenre = null;
   }
 </script>
 
@@ -195,8 +153,8 @@
       </button>
     </div>
   {:else}
-    <!-- Stats Grid -->
-    <div class="grid grid-cols-2 gap-3">
+    <!-- Stats -->
+    <div class="stats w-full stats-vertical shadow sm:stats-horizontal">
       <StatCard
         label="完了タスク"
         value={reportState.totalCompletions}
@@ -216,102 +174,53 @@
           : undefined}
       />
       <StatCard
-        label="提案承諾率"
-        value={`${reportState.suggestionAcceptanceRate}%`}
-        subInfo={reportState.suggestionStats.accepted +
-          reportState.suggestionStats.rejected >
-        0
-          ? `${reportState.suggestionStats.accepted}/${reportState.suggestionStats.accepted + reportState.suggestionStats.rejected}`
-          : undefined}
+        label="実行失敗"
+        value={reportState.missedTaskCount}
+        subInfo={reportState.missedTaskCount > 0 ? "承諾後に未完了" : undefined}
+        valueColor={reportState.missedTaskCount > 0 ? "error" : undefined}
       />
     </div>
 
-    <!-- Type Distribution Donut Chart -->
+    <!-- Type & Genre Distribution Charts (side by side) -->
     {#if reportState.totalTimeMinutes > 0}
       {@const typeSegments = getTypeSegments()}
-      {#if typeSegments.length > 0}
-        <div class="flex flex-col gap-2">
-          <h3 class="text-sm font-medium text-base-content/70">
-            タイプ別作業時間
-          </h3>
-          <div
-            class="flex items-center justify-center rounded-xl border border-base-300/50 bg-base-100 py-4"
-          >
-            <DonutChart
-              segments={typeSegments}
-              centerValue={formatDuration(reportState.totalTimeMinutes)}
-              centerLabel="合計"
-            />
-          </div>
-        </div>
-      {/if}
-    {/if}
-
-    <!-- Genre Distribution Bar (clickable segments) -->
-    {#if reportState.totalTimeMinutes > 0}
-      {@const genreData = getGenrePercentages()}
-      {#if genreData.length > 0}
-        <div class="flex flex-col gap-2">
-          <h3 class="text-sm font-medium text-base-content/70">
-            カテゴリ別作業時間
-          </h3>
-          <div class="flex h-8 w-full overflow-hidden rounded-lg">
-            {#each genreData as item (item.genre)}
-              <button
-                class="flex items-center justify-center text-xs font-medium text-white transition-opacity hover:opacity-80"
-                style="width: {item.percent}%; background-color: {item.color};"
-                onclick={(e: MouseEvent) => handleGenreClick(e, item)}
-                aria-label="{item.genre}: {item.percent}%"
-              >
-                {item.percent > 12 ? `${item.percent}%` : ""}
-              </button>
-            {/each}
-          </div>
-          <!-- Legend -->
-          <div class="flex flex-wrap gap-4 text-xs text-base-content/60">
-            {#each genreData as item (item.genre)}
-              <div class="flex items-center gap-1">
-                <div
-                  class="h-3 w-3 rounded"
-                  style="background-color: {item.color};"
-                ></div>
-                <span>{item.genre}</span>
-              </div>
-            {/each}
-          </div>
-        </div>
-      {/if}
-    {/if}
-
-    <!-- Genre Popover -->
-    <ChartPopover
-      isOpen={genrePopoverOpen}
-      onClose={closeGenrePopover}
-      position={genrePopoverPosition}
-    >
-      {#if selectedGenre}
-        <div class="flex flex-col gap-1">
-          <div class="flex items-center gap-2">
+      {@const genreSegments = getGenreSegments()}
+      <div class="grid grid-cols-2 gap-4">
+        <!-- タイプ別 DonutChart -->
+        {#if typeSegments.length > 0}
+          <div class="flex flex-col gap-2">
+            <h3 class="text-sm font-medium text-base-content/70">タイプ別</h3>
             <div
-              class="h-3 w-3 rounded"
-              style="background-color: {selectedGenre.color};"
-            ></div>
-            <span class="font-medium text-base-content"
-              >{selectedGenre.genre}</span
+              class="flex items-center justify-center rounded-xl border border-base-300/50 bg-base-100 py-4"
             >
+              <DonutChart
+                segments={typeSegments}
+                centerValue={formatDuration(reportState.totalTimeMinutes)}
+                centerLabel="合計"
+                size={100}
+              />
+            </div>
           </div>
-          <div class="text-sm text-base-content/70">
-            {formatDuration(selectedGenre.minutes)}
-          </div>
-          <div class="text-xs text-base-content/50">
-            {selectedGenre.percent}%
-          </div>
-        </div>
-      {/if}
-    </ChartPopover>
+        {/if}
 
-    <!-- Suggestion Stats -->
-    <SuggestionStats />
+        <!-- カテゴリ別 DonutChart -->
+        {#if genreSegments.length > 0}
+          <div class="flex flex-col gap-2">
+            <h3 class="text-sm font-medium text-base-content/70">カテゴリ別</h3>
+            <div
+              class="flex items-center justify-center rounded-xl border border-base-300/50 bg-base-100 py-4"
+            >
+              <DonutChart
+                segments={genreSegments}
+                centerValue={genreSegments.length + "種"}
+                centerLabel="カテゴリ"
+                size={100}
+              />
+            </div>
+          </div>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Daily Trend (when filter is week or month) -->
     {#if reportState.dateFilter !== "all"}
