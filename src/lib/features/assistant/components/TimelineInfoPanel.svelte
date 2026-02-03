@@ -16,6 +16,7 @@
     StartNowButton,
     DurationPicker,
   } from "$lib/features/focus/components/index.ts";
+  import { onMount } from "svelte";
 
   interface Props {
     selectedItem:
@@ -216,6 +217,16 @@
     );
   });
 
+  // Popover state for DurationPicker
+  let showDurationPopover = $state(false);
+  let panelRef: HTMLDivElement | null = $state(null);
+  let popoverRef: HTMLDivElement | null = $state(null);
+  let popoverPosition = $state<{
+    top: number;
+    left: number;
+    placement: "above" | "below";
+  } | null>(null);
+
   // Badge config based on item type
   let badgeConfig = $derived.by(() => {
     if (!selectedItem) {
@@ -257,10 +268,163 @@
         return { label: "", class: "" };
     }
   });
+
+  /**
+   * Calculate popover position relative to panel
+   */
+  function calculatePopoverPosition() {
+    if (!panelRef) return;
+
+    const panelRect = panelRef.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
+    const spaceAbove = panelRect.top;
+    const spaceBelow = viewportHeight - panelRect.bottom;
+    const popoverEstimatedHeight = 120; // Approximate height of DurationPicker + padding
+    const popoverEstimatedWidth = 320; // Approximate width of popover
+    const gap = 12; // Gap between panel and popover
+
+    // Determine placement: above or below
+    const placement =
+      spaceAbove >= popoverEstimatedHeight + gap ? "above" : "below";
+
+    let top: number;
+    if (placement === "above") {
+      top = panelRect.top - popoverEstimatedHeight - gap;
+      // Ensure popover doesn't go above viewport
+      if (top < 8) {
+        top = 8;
+      }
+    } else {
+      top = panelRect.bottom + gap;
+      // Ensure popover doesn't go below viewport
+      if (top + popoverEstimatedHeight > viewportHeight - 8) {
+        top = viewportHeight - popoverEstimatedHeight - 8;
+      }
+    }
+
+    // Center horizontally relative to panel, but constrain to viewport
+    let left = panelRect.left + panelRect.width / 2;
+    const minLeft = popoverEstimatedWidth / 2 + 8; // 8px margin from left edge
+    const maxLeft = viewportWidth - popoverEstimatedWidth / 2 - 8; // 8px margin from right edge
+
+    if (left < minLeft) {
+      left = minLeft;
+    } else if (left > maxLeft) {
+      left = maxLeft;
+    }
+
+    popoverPosition = { top, left, placement };
+  }
+
+  /**
+   * Open popover and calculate position
+   */
+  function openDurationPopover() {
+    showDurationPopover = true;
+    // Calculate position after DOM update
+    setTimeout(() => {
+      calculatePopoverPosition();
+      // Focus first button in popover for accessibility
+      if (popoverRef) {
+        const firstButton = popoverRef.querySelector("button");
+        if (firstButton) {
+          firstButton.focus();
+        }
+      }
+    }, 0);
+  }
+
+  /**
+   * Close popover
+   */
+  function closeDurationPopover() {
+    showDurationPopover = false;
+    popoverPosition = null;
+  }
+
+  /**
+   * Handle duration selection and close popover
+   */
+  function handleDurationSelect(minutes: number) {
+    if (selectedItem?.type === "accepted-suggestion") {
+      dispatch("complete", {
+        memoId: selectedItem.memoId,
+        startTime: selectedItem.data.startTime,
+        duration: minutes,
+      });
+      closeDurationPopover();
+    }
+  }
+
+  /**
+   * Handle keyboard events for popover
+   */
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === "Escape" && showDurationPopover) {
+      closeDurationPopover();
+    }
+  }
+
+  /**
+   * Handle click outside popover
+   */
+  function handleClickOutside(e: MouseEvent) {
+    if (
+      showDurationPopover &&
+      popoverRef &&
+      !popoverRef.contains(e.target as Node) &&
+      panelRef &&
+      !panelRef.contains(e.target as Node)
+    ) {
+      e.stopPropagation();
+      closeDurationPopover();
+    }
+  }
+
+  // Update popover position on scroll/resize and handle click outside
+  onMount(() => {
+    const updatePosition = () => {
+      if (showDurationPopover) {
+        calculatePopoverPosition();
+      }
+    };
+
+    const handleDocumentClick = (e: MouseEvent) => {
+      if (
+        showDurationPopover &&
+        popoverRef &&
+        !popoverRef.contains(e.target as Node) &&
+        panelRef &&
+        !panelRef.contains(e.target as Node)
+      ) {
+        closeDurationPopover();
+      }
+    };
+
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    document.addEventListener("click", handleDocumentClick, true);
+
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+      document.removeEventListener("click", handleDocumentClick, true);
+    };
+  });
+
+  // Close popover when selectedItem changes
+  $effect(() => {
+    if (selectedItem) {
+      closeDurationPopover();
+    }
+  });
 </script>
 
 <div
   class="group relative mx-auto w-full max-w-2xl overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm transition-all duration-300 ease-out hover:shadow-md"
+  bind:this={panelRef}
+  onkeydown={handleKeydown}
 >
   <!-- Subtle gradient overlay for depth -->
   <div
@@ -529,16 +693,17 @@
               endTime={selectedItem.data.endTime}
             />
           {:else if isInPast(selectedItem.data.endTime)}
-            <!-- Past: show Duration Picker -->
-            <DurationPicker
-              plannedDuration={selectedItem.data.duration}
-              onSelect={(minutes) =>
-                dispatch("complete", {
-                  memoId: selectedItem.memoId,
-                  startTime: selectedItem.data.startTime,
-                  duration: minutes,
-                })}
-            />
+            <!-- Past: show trigger button for Duration Picker popover -->
+            <button
+              class="flex w-full items-center justify-center rounded-lg border border-base-300 bg-base-100 px-3 py-2 text-center transition-all duration-200 hover:border-primary hover:bg-primary/5 active:scale-[0.98]"
+              onclick={openDurationPopover}
+              aria-label="作業時間を記録"
+              aria-expanded={showDurationPopover}
+            >
+              <span class="text-sm text-[var(--color-text-secondary)]">
+                作業時間を記録
+              </span>
+            </button>
           {/if}
         </div>
       {:else if selectedItem.type === "drag-preview"}
@@ -598,4 +763,56 @@
       </div>
     {/if}
   </div>
+
+  <!-- Duration Picker Popover -->
+  {#if showDurationPopover && popoverPosition && selectedItem?.type === "accepted-suggestion"}
+    <!-- Backdrop for mobile (optional, subtle) -->
+    <div
+      class="fixed inset-0 z-40 bg-black/5 backdrop-blur-[2px] transition-opacity duration-200"
+      onclick={closeDurationPopover}
+      aria-hidden="true"
+    ></div>
+    <div
+      bind:this={popoverRef}
+      class="duration-popover fixed z-50 w-full max-w-[calc(100vw-2rem)] rounded-xl border border-base-300 bg-base-100 p-4 shadow-lg transition-all duration-200 ease-out md:max-w-sm"
+      style="top: {popoverPosition.top}px; left: {popoverPosition.left}px; transform: translateX(-50%);"
+      role="dialog"
+      aria-label="作業時間を選択"
+      aria-modal="false"
+      onkeydown={(e: KeyboardEvent) => {
+        if (e.key === "Escape") {
+          closeDurationPopover();
+        }
+      }}
+    >
+      <DurationPicker
+        plannedDuration={selectedItem.data.duration}
+        onSelect={handleDurationSelect}
+      />
+    </div>
+  {/if}
 </div>
+
+<style>
+  .duration-popover {
+    animation: fadeInPopover 0.2s ease-out;
+  }
+
+  @keyframes fadeInPopover {
+    from {
+      opacity: 0;
+      transform: translateX(-50%) translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .duration-popover {
+      animation: none;
+      transition: none;
+    }
+  }
+</style>

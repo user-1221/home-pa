@@ -327,7 +327,7 @@
   <!-- Dropdown Bar Section -->
   {#if showDropdownBar}
     <div
-      class="border-subtle sticky top-14 z-[9] flex min-h-10 flex-shrink-0 items-center gap-2 overflow-x-auto border-b bg-base-100/90 px-3 backdrop-blur-sm md:top-20 md:min-h-12 md:px-5"
+      class="border-subtle sticky top-14 z-[9] flex min-h-12 flex-shrink-0 items-center gap-2 overflow-x-auto border-b bg-base-100/90 px-3 backdrop-blur-sm md:top-20 md:min-h-10 md:gap-1.5 md:px-5"
       transition:slide={{ duration: 300, axis: "y" }}
     >
       <!-- Google Sync controls -->
@@ -338,7 +338,7 @@
 
       <!-- Local events toggle -->
       <button
-        class="btn shrink-0 btn-xs {showLocalEvents
+        class="btn shrink-0 btn-sm md:btn-xs {showLocalEvents
           ? 'btn-primary'
           : 'opacity-50 btn-ghost'}"
         onclick={() => (showLocalEvents = !showLocalEvents)}
@@ -349,7 +349,7 @@
       <!-- Google Calendar toggles -->
       {#each googleSyncState.calendars as calendar (calendar.id)}
         <button
-          class="btn shrink-0 btn-xs {hiddenCalendars.has(
+          class="btn shrink-0 btn-sm md:btn-xs {hiddenCalendars.has(
             calendar.googleCalendarId,
           )
             ? 'opacity-50 btn-ghost'
@@ -358,9 +358,12 @@
           !hiddenCalendars.has(calendar.googleCalendarId)
             ? `background-color: ${calendar.calendarColor}; border-color: ${calendar.calendarColor}; color: white`
             : ""}
+          title={calendar.calendarName}
           onclick={() => toggleCalendarVisibility(calendar.googleCalendarId)}
         >
-          {calendar.calendarName}
+          <span class="max-w-24 truncate md:max-w-32"
+            >{calendar.calendarName}</span
+          >
         </button>
       {/each}
 

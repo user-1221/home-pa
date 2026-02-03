@@ -1625,7 +1625,7 @@
     tabindex="-1"
   >
     <div
-      class="modal-box h-full w-full max-w-[500px] overflow-hidden p-0 md:h-auto md:max-h-[90vh] md:overflow-y-auto"
+      class="modal-box h-full w-full max-w-[500px] overflow-hidden p-0 md:h-auto md:max-h-[75vh] md:overflow-y-auto"
       onclick={(e: MouseEvent) => e.stopPropagation()}
       onkeydown={(e: KeyboardEvent) =>
         e.key === "Escape" && eventFormState.close()}

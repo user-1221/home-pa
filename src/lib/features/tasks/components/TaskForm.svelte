@@ -315,7 +315,7 @@
       <!-- Scheduling Section -->
       {#if taskFormState.type === "期限付き"}
         <div
-          class="space-y-4 border-t border-base-300/60 p-4 md:p-5"
+          class="space-y-4 p-4 md:p-5"
           transition:slide={{ duration: 300, axis: "y" }}
         >
           <div class="flex items-center gap-2">
@@ -539,46 +539,67 @@
               {/if}
             </div>
           {/if}
+        </div>
+      {/if}
 
-          <!-- Recurrence Goal -->
-          {#if taskFormState.showRecurrenceFields}
-            <div class="space-y-1.5">
-              <label
-                class="text-xs font-medium text-[var(--color-text-muted)]"
-                for="recurrence-count"
+      <!-- Routine Section -->
+      {#if taskFormState.type === "ルーティン"}
+        <div
+          class="space-y-4 p-4 md:p-5"
+          transition:slide={{ duration: 300, axis: "y" }}
+        >
+          <div class="flex items-center gap-2">
+            <svg
+              class="h-4 w-4 text-[var(--color-text-secondary)]"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.5"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 0 0-3.7-3.7 48.678 48.678 0 0 0-7.324 0 4.006 4.006 0 0 0-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 0 0 3.7 3.7 48.656 48.656 0 0 0 7.324 0 4.006 4.006 0 0 0 3.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3-3 3"
+              />
+            </svg>
+            <span
+              class="text-xs font-medium text-[var(--color-text-secondary)]"
+            >
+              目標
+            </span>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex items-center gap-2">
+              <input
+                id="recurrence-count"
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                bind:value={taskFormState.recurrenceCount}
+                class="input w-20 border-base-300 bg-base-100 text-center focus:border-[var(--color-primary)] focus:outline-none"
+                aria-label="回数"
+              />
+              <span class="text-sm text-[var(--color-text-muted)]">回 /</span>
+              <select
+                id="recurrence-period"
+                bind:value={taskFormState.recurrencePeriod}
+                class="select flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                aria-label="期間"
               >
-                目標
-              </label>
-              <div class="flex items-center gap-2">
-                <input
-                  id="recurrence-count"
-                  type="number"
-                  min="1"
-                  max="100"
-                  step="1"
-                  bind:value={taskFormState.recurrenceCount}
-                  class="input w-20 border-base-300 bg-base-100 text-center focus:border-[var(--color-primary)] focus:outline-none"
-                  aria-label="回数"
-                />
-                <span class="text-sm text-[var(--color-text-muted)]">回 /</span>
-                <select
-                  id="recurrence-period"
-                  bind:value={taskFormState.recurrencePeriod}
-                  class="select flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
-                  aria-label="期間"
-                >
-                  {#each periodOptions as option (option.value)}
-                    <option value={option.value}>{option.label}</option>
-                  {/each}
-                </select>
-              </div>
-              {#if taskFormState.errors.recurrence}
-                <p class="text-xs text-error">
-                  {taskFormState.errors.recurrence}
-                </p>
-              {/if}
+                {#each periodOptions as option (option.value)}
+                  <option value={option.value}>{option.label}</option>
+                {/each}
+              </select>
             </div>
-          {/if}
+            {#if taskFormState.errors.recurrence}
+              <p class="text-xs text-error">
+                {taskFormState.errors.recurrence}
+              </p>
+            {/if}
+          </div>
         </div>
       {/if}
 
@@ -650,20 +671,20 @@
 
         {#if showAdvancedSettings}
           <div
-            class="mt-4 flex flex-col gap-4 rounded-lg border border-base-300/60 bg-[var(--color-bg-grid)] p-4"
+            class="mt-4 flex flex-col gap-4"
             transition:slide={{ duration: 300, axis: "y" }}
           >
             <!-- Genre -->
-            <div class="space-y-1.5">
+            <div class="flex items-center gap-2">
               <label
-                class="text-xs font-medium text-[var(--color-text-muted)]"
+                class="w-14 shrink-0 text-xs font-medium text-[var(--color-text-muted)]"
                 for="genre"
               >
                 ジャンル
               </label>
               <select
                 id="genre"
-                class="select w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
+                class="select flex-1 border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
                 bind:value={taskFormState.genre}
               >
                 <option value="">未設定（AIが推定）</option>
@@ -674,14 +695,15 @@
             </div>
 
             <!-- Importance -->
-            <div class="space-y-1.5">
-              <span class="text-xs font-medium text-[var(--color-text-muted)]"
+            <div class="flex items-center gap-2">
+              <span
+                class="w-14 shrink-0 text-xs font-medium text-[var(--color-text-muted)]"
                 >重要度</span
               >
-              <div class="flex gap-2" role="group" aria-label="重要度">
+              <div class="flex flex-1 gap-2" role="group" aria-label="重要度">
                 <button
                   type="button"
-                  class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-150
+                  class="flex flex-1 items-center justify-center rounded border px-3 py-2 text-sm font-medium transition-all duration-150
                         {taskFormState.importance === ''
                     ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary)]'
                     : 'border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
@@ -692,7 +714,7 @@
                 {#each importanceOptions as option (option.value)}
                   <button
                     type="button"
-                    class="flex flex-1 items-center justify-center rounded-lg border px-3 py-2 text-sm font-medium transition-all duration-150
+                    class="flex flex-1 items-center justify-center rounded border px-3 py-2 text-sm font-medium transition-all duration-150
                           {taskFormState.importance === option.value
                       ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary)]'
                       : 'border-base-300 bg-base-100 text-base-content/70 hover:bg-base-200/50 hover:text-base-content'}"
@@ -863,7 +885,7 @@
   >
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="modal-box h-full w-full max-w-[500px] overflow-hidden rounded-none border-none bg-base-100 p-0 shadow-none md:h-auto md:max-h-[90vh] md:overflow-y-auto md:rounded-2xl md:border md:border-base-300/50 md:shadow-xl"
+      class="modal-box h-full w-full max-w-[500px] overflow-hidden rounded-none border-none bg-base-100 p-0 shadow-none md:h-auto md:max-h-[75vh] md:overflow-y-auto md:rounded-2xl md:border md:border-base-300/50 md:shadow-xl"
       onclick={(e: MouseEvent) => e.stopPropagation()}
       onkeydown={(e: KeyboardEvent) => e.key === "Escape" && handleClose()}
     >

@@ -75,17 +75,17 @@
 {#if !isConnected}
   <!-- Connect button -->
   <button
-    class="btn btn-square btn-ghost btn-xs"
+    class="btn btn-square btn-ghost btn-sm md:btn-xs"
     onclick={handleConnect}
     title={getTooltip()}
     disabled={isLoading || isConnecting}
     aria-label="Connect Google Calendar"
   >
     {#if isLoading || isConnecting}
-      <span class="loading loading-xs loading-spinner"></span>
+      <span class="loading loading-sm loading-spinner md:loading-xs"></span>
     {:else}
       <!-- Google "G" multicolor icon -->
-      <svg class="h-4 w-4" viewBox="0 0 24 24">
+      <svg class="h-5 w-5 md:h-4 md:w-4" viewBox="0 0 24 24">
         <path
           fill="#4285F4"
           d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -108,18 +108,20 @@
 {:else}
   <!-- Sync button -->
   <button
-    class="btn btn-square btn-ghost btn-xs {hasError ? 'text-error' : ''}"
+    class="btn btn-square btn-ghost btn-sm md:btn-xs {hasError
+      ? 'text-error'
+      : ''}"
     onclick={handleSync}
     title={getTooltip()}
     disabled={isSyncing}
     aria-label={isSyncing ? "Syncing" : "Sync Google Calendar"}
   >
     {#if isSyncing}
-      <span class="loading loading-xs loading-spinner"></span>
+      <span class="loading loading-sm loading-spinner md:loading-xs"></span>
     {:else}
       <!-- Refresh/sync icon -->
       <svg
-        class="h-4 w-4 {hasError ? '' : 'text-base-content/70'}"
+        class="h-5 w-5 md:h-4 md:w-4 {hasError ? '' : 'text-base-content/70'}"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
