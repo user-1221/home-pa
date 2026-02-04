@@ -600,7 +600,7 @@
 
         <!-- Timeline container with subtle glow effect -->
         <div
-          class="relative h-[min(85vw,75vh)] w-[min(85vw,75vh)] flex-shrink-0 overflow-visible"
+          class="relative h-[min(85vw,50vh)] w-[min(85vw,50vh)] flex-shrink-0 overflow-visible"
         >
           <!-- Subtle ambient glow behind timeline -->
           <div
