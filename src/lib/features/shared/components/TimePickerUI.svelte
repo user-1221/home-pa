@@ -34,6 +34,9 @@
   let hourScrollRef: HTMLDivElement | undefined = $state();
   let minuteScrollRef: HTMLDivElement | undefined = $state();
 
+  // Flag to prevent scroll handlers from firing during initial scroll position setup
+  let isScrollInitialized = $state(false);
+
   function handleHourChange(e: Event & { currentTarget: HTMLSelectElement }) {
     currentHour = Number(e.currentTarget.value);
     updateTime();
@@ -52,6 +55,9 @@
 
   // Mobile scroll handlers
   function handleHourScroll(e: Event & { currentTarget: HTMLDivElement }) {
+    // Ignore scroll events until initial position is set
+    if (!isScrollInitialized) return;
+
     const scrollTop = e.currentTarget.scrollTop;
     const itemHeight = 40; // Height of each option
     const spacerHeight = 96; // Height of top spacer (calc(50%-20px) = 96px when container is 128px)
@@ -65,6 +71,9 @@
   }
 
   function handleMinuteScroll(e: Event & { currentTarget: HTMLDivElement }) {
+    // Ignore scroll events until initial position is set
+    if (!isScrollInitialized) return;
+
     const scrollTop = e.currentTarget.scrollTop;
     const itemHeight = 40; // Height of each option
     const spacerHeight = 96; // Height of top spacer
@@ -77,26 +86,44 @@
     }
   }
 
-  // Sync scroll position when value changes
+  // Sync scroll position when value changes - HOUR
+  // Note: Capture reactive values synchronously for Svelte 5 dependency tracking.
+  // Values read inside async callbacks (.then()) are not tracked as dependencies.
   $effect(() => {
-    if (isMobile && hourScrollRef) {
+    const hour = currentHour;
+    const ref = hourScrollRef;
+    const mobile = isMobile;
+
+    if (mobile && ref) {
+      // Reset flag when refs change (component re-initialized)
+      isScrollInitialized = false;
       tick().then(() => {
-        if (hourScrollRef) {
+        if (ref) {
           const itemHeight = 40;
           const spacerHeight = 96;
-          hourScrollRef.scrollTop = spacerHeight + currentHour * itemHeight;
+          ref.scrollTop = spacerHeight + hour * itemHeight;
         }
       });
     }
   });
 
+  // Sync scroll position when value changes - MINUTE
   $effect(() => {
-    if (isMobile && minuteScrollRef) {
+    const minute = currentMinute;
+    const ref = minuteScrollRef;
+    const mobile = isMobile;
+
+    if (mobile && ref) {
       tick().then(() => {
-        if (minuteScrollRef) {
+        if (ref) {
           const itemHeight = 40;
           const spacerHeight = 96;
-          minuteScrollRef.scrollTop = spacerHeight + currentMinute * itemHeight;
+          ref.scrollTop = spacerHeight + minute * itemHeight;
+          // Enable scroll handlers after both positions are set
+          // Use requestAnimationFrame to ensure scroll events from position setting have settled
+          requestAnimationFrame(() => {
+            isScrollInitialized = true;
+          });
         }
       });
     }
