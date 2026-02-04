@@ -516,16 +516,16 @@
           </div>
 
           <!-- Timetable Calendar Grid -->
-          <div class="flex-1 overflow-auto p-4">
+          <div class="flex-1 p-4">
             <div
-              class="mx-auto grid max-w-xl gap-px overflow-hidden rounded-xl border border-base-300 bg-base-300"
+              class="grid h-full w-full gap-px overflow-auto rounded-xl border border-base-300 bg-base-300"
               style="grid-template-columns: 3rem repeat({config.daysPerWeek}, 1fr); grid-template-rows: 2.5rem repeat({slotsPerDay}, 1fr);"
             >
               <!-- Header row: empty corner + day names -->
-              <div class="bg-base-100"></div>
+              <div class="border border-base-300 bg-base-100"></div>
               {#each weekdays as day, dayIndex (day)}
                 <div
-                  class="flex items-center justify-center bg-base-100 text-sm font-medium"
+                  class="flex items-center justify-center border border-base-300 bg-base-100 text-sm font-medium"
                   class:text-success={dayIndex === 5}
                 >
                   {day}
@@ -535,7 +535,7 @@
               <!-- Grid rows: period label + cells -->
               {#each Array(slotsPerDay) as _, slotIndex (slotIndex)}
                 <div
-                  class="flex flex-col items-center justify-center bg-base-100 p-1"
+                  class="flex flex-col items-center justify-center border border-base-300 bg-base-100 p-1"
                 >
                   <span class="text-sm font-semibold">{slotIndex + 1}</span>
                   <span class="text-[10px] tabular-nums opacity-50"
@@ -545,7 +545,7 @@
                 {#each weekdays as _, dayIndex (dayIndex)}
                   {@const cell = getCell(dayIndex, slotIndex)}
                   <button
-                    class="flex min-h-14 cursor-pointer flex-col items-center justify-center p-1 transition-colors hover:bg-base-200 {getCellBgClass(
+                    class="flex min-h-14 cursor-pointer flex-col items-center justify-center border border-base-300 p-1 {getCellBgClass(
                       cell,
                     )}"
                     onclick={() => openCellEditor(dayIndex, slotIndex)}
