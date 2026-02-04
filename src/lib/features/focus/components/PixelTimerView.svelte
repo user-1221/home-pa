@@ -64,7 +64,7 @@
     const nowMins = now.getMinutes().toString().padStart(2, "0");
     const nowTime = `${nowHours}:${nowMins}`;
 
-    for (const [memoId, info] of scheduleState.acceptedMemos) {
+    for (const [_key, info] of scheduleState.acceptedMemos) {
       // Use actualEndTime if logged, otherwise scheduled endTime
       const effectiveEndTime = info.actualEndTime ?? info.endTime;
       if (
@@ -72,10 +72,10 @@
         nowTime >= info.startTime &&
         nowTime < effectiveEndTime
       ) {
-        const task = taskState.items.find((t) => t.id === memoId);
+        const task = taskState.items.find((t) => t.id === info.memoId);
         if (task) {
           return {
-            memoId,
+            memoId: info.memoId,
             title: task.title,
             endTime: info.endTime,
           };
