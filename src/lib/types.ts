@@ -219,7 +219,9 @@ export interface Suggestion {
   memoId: string; // Reference to source memo
   need: number; // 0.0–1.0 (≥1.0 = mandatory, <0.5 = hidden)
   importance: number; // Discrete: 0.0, 0.2, or 0.4
-  duration: number; // Duration in minutes (both ideal and minimum - no shrinking)
+  duration: number; // Calculated duration in minutes (may be extended by regression for deadline tasks)
+  baseDuration: number; // Original sessionDuration - shrink floor for deadline tasks
+  type: MemoType; // Task type - determines shrink eligibility
   locationPreference: LocationPreference;
   isHidden?: boolean; // True if need < 0.5 (should not be displayed)
 }

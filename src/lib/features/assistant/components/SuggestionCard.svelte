@@ -46,8 +46,9 @@
   const effectiveMaxDuration = $derived(maxDuration ?? 180); // Default 3 hours max
 
   // Update slider when suggestion changes
+  // Safety null check: suggestion may become stale during regeneration
   $effect(() => {
-    if (!isDraggingSlider) {
+    if (!isDraggingSlider && suggestion) {
       sliderDuration = suggestion.duration;
     }
   });

@@ -479,6 +479,35 @@
     position: { x: number; y: number };
   } | null>(null);
 
+  // Sync selectedSuggestion with updated suggestions on regeneration
+  // When minute timer triggers regeneration, suggestion objects are replaced
+  // This effect updates the stale reference to prevent crashes
+  $effect(() => {
+    if (!selectedSuggestion) return;
+
+    const { memoId, isAccepted } = selectedSuggestion;
+
+    if (isAccepted) {
+      // Find updated accepted memo by memoId
+      const updated = acceptedMemos.find((m) => m.memoId === memoId);
+      if (updated) {
+        selectedSuggestion = { ...selectedSuggestion, suggestion: updated };
+      } else {
+        // Memo no longer exists, close card
+        selectedSuggestion = null;
+      }
+    } else {
+      // Find updated pending suggestion by memoId
+      const updated = pendingSuggestions.find((s) => s.memoId === memoId);
+      if (updated) {
+        selectedSuggestion = { ...selectedSuggestion, suggestion: updated };
+      } else {
+        // Suggestion no longer in schedule, close card
+        selectedSuggestion = null;
+      }
+    }
+  });
+
   // Drag state (for resize handle)
   let isDragging = $state(false);
   let dragId = $state<string | null>(null);

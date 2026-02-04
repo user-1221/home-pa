@@ -57,7 +57,8 @@ export interface ScoreInput {
 export interface ScoreOutput {
   need: number; // 0.0–1.0 (≥1.0 = mandatory, <0.5 = hidden)
   importance: number; // Discrete: 0.0, 0.1, 0.2
-  duration: number; // Duration in minutes (both ideal and minimum - no shrinking)
+  duration: number; // Calculated duration in minutes (may be extended for deadline tasks)
+  baseDuration: number; // Original sessionDuration - shrink floor for deadline tasks
   isHidden: boolean; // True if need < 0.5
 }
 
@@ -661,6 +662,7 @@ export function scoreMemo(input: ScoreInput): ScoreOutput {
   const need = calculateNeed(memo, currentTime);
   const importance = calculateImportance(memo);
   const duration = selectDuration(memo, currentTime);
+  const baseDuration = memo.sessionDuration ?? DEFAULT_SESSION_DURATION;
   const isHidden = need < DISPLAY_THRESHOLD;
 
   // Log scores for each task
@@ -669,6 +671,7 @@ export function scoreMemo(input: ScoreInput): ScoreOutput {
     need: need.toFixed(3),
     importance: importance.toFixed(3),
     duration: `${duration}min`,
+    baseDuration: `${baseDuration}min`,
     isHidden,
     threshold: DISPLAY_THRESHOLD,
   });
@@ -677,6 +680,7 @@ export function scoreMemo(input: ScoreInput): ScoreOutput {
     need,
     importance,
     duration,
+    baseDuration,
     isHidden,
   };
 }
@@ -692,6 +696,8 @@ export function memoToSuggestion(memo: Memo, score: ScoreOutput): Suggestion {
     need: score.need,
     importance: score.importance,
     duration: score.duration,
+    baseDuration: score.baseDuration,
+    type: memo.type,
     locationPreference: memo.locationPreference,
     isHidden: score.isHidden,
   };

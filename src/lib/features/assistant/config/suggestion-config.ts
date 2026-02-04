@@ -75,7 +75,6 @@ export const DURATION_CONFIG = {
  * Configuration for duration extension when fitting suggestions to gaps.
  *
  * Extension: When a gap has extra room, suggestions can be extended up to maxFactor.
- * Shrinking: DISABLED - tasks are never shrunk below their duration.
  */
 export const EXTENSION_CONFIG = {
   /** Enable duration extension when gaps have extra time */
@@ -89,6 +88,41 @@ export const EXTENSION_CONFIG = {
 
   /** Extension step size in minutes */
   stepMinutes: 10,
+} as const;
+
+// ============================================================================
+// SHRINK CONFIGURATION
+// ============================================================================
+
+/**
+ * Configuration for duration shrinking when gaps are smaller than calculated duration.
+ *
+ * Shrinking: Deadline tasks can shrink down to their baseDuration (original sessionDuration).
+ * Routine and backlog tasks cannot shrink - they use full duration or are skipped.
+ */
+export const SHRINK_CONFIG = {
+  /** Task types that allow shrinking (only deadline tasks) */
+  allowedTypes: ["期限付き"] as const,
+
+  /** Shrink/extension step size in minutes (snap to grid) */
+  stepMinutes: 10,
+} as const;
+
+/**
+ * Priority tiers for extension distribution when multiple tasks compete for a gap.
+ *
+ * After all tasks get their baseDuration, remaining gap time is distributed
+ * in priority order: mandatory tasks extend first, then high-need, then normal.
+ */
+export const EXTENSION_TIERS = {
+  /** Tier 1: need >= 1.0 (mandatory tasks get extension first) */
+  mandatory: 1.0,
+
+  /** Tier 2: need >= 0.75 (high-need tasks get extension second) */
+  high: 0.75,
+
+  /** Tier 3: need >= 0.5 (normal tasks get remaining extension) */
+  normal: 0.5,
 } as const;
 
 // ============================================================================
@@ -118,11 +152,10 @@ export const GAP_CONFIG = {
   /**
    * Minimum duration for dragging, aligned to dragSnapMinutes.
    *
-   * The dot-based calculation (5 dots × 10 - 5 = 45) creates 5-minute offset times
-   * that don't align with the 10-minute drag snap grid. This explicit value ensures
-   * durations stay on 10-minute boundaries to prevent "stuck" suggestions.
+   * Set to 30 to allow 30-minute routine tasks to be draggable.
+   * Durations stay on 10-minute boundaries via dragSnapMinutes.
    */
-  minDragDuration: 50,
+  minDragDuration: 30,
 
   /** Buffer time before fixed events (in minutes) */
   bufferBeforeEvent: 10,
@@ -137,6 +170,12 @@ export const GAP_CONFIG = {
 
 /** Type for the complete extension config object */
 export type DurationExtensionConfig = typeof EXTENSION_CONFIG;
+
+/** Type for shrink config */
+export type ShrinkConfig = typeof SHRINK_CONFIG;
+
+/** Type for extension tiers */
+export type ExtensionTiers = typeof EXTENSION_TIERS;
 
 /** Type for scoring config */
 export type ScoringConfig = typeof SCORING_CONFIG;

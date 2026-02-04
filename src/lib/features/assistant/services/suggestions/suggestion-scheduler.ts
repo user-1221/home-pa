@@ -17,7 +17,10 @@ import { MANDATORY_THRESHOLD } from "./suggestion-scoring.ts";
 import {
   EXTENSION_CONFIG,
   GAP_CONFIG,
+  SHRINK_CONFIG,
+  EXTENSION_TIERS,
 } from "$lib/features/assistant/config/suggestion-config.ts";
+import type { MemoType } from "$lib/types.ts";
 
 // ============================================================================
 // TYPES
@@ -327,12 +330,13 @@ function evaluateOrder(
     for (let i = gapIndex; i < simGaps.length; i++) {
       const gap = simGaps[i];
 
-      // Calculate effective duration (can extend, no shrinking)
-      const effectiveDuration = calculateEffectiveDuration(
-        suggestion.duration,
-        gap.remaining,
-        extensionConfig,
-      );
+      // Calculate effective duration (with shrinking support for deadline tasks)
+      const effectiveDuration = calculateEffectiveDurationWithShrink({
+        calculatedDuration: suggestion.duration,
+        baseDuration: suggestion.baseDuration,
+        availableTime: gap.remaining,
+        taskType: suggestion.type,
+      });
 
       // Skip if can't fit
       if (effectiveDuration <= 0) {
@@ -447,9 +451,74 @@ function totalRemainingCapacity(gaps: MutableGap[]): number {
 }
 
 /**
- * Calculate effective duration based on available gap time
- * Can EXTEND duration when extra time is available (no shrinking)
+ * Parameters for calculating effective duration with shrinking support
+ */
+export interface EffectiveDurationParams {
+  /** Calculated duration (may be extended by regression for deadline tasks) */
+  calculatedDuration: number;
+  /** Original sessionDuration - shrink floor for deadline tasks */
+  baseDuration: number;
+  /** Available gap time in minutes */
+  availableTime: number;
+  /** Task type - determines if shrinking is allowed */
+  taskType: MemoType;
+}
+
+/**
+ * Calculate effective duration for a single task with shrinking support.
+ * Used for UI operations like drag where multi-task allocation isn't needed.
  *
+ * - Deadline tasks can shrink down to baseDuration
+ * - Routine/backlog tasks cannot shrink (use full duration or skip)
+ * - All tasks can extend up to 2x when extra gap time is available
+ *
+ * @returns Effective duration, or 0 if can't fit
+ */
+export function calculateEffectiveDurationWithShrink(
+  params: EffectiveDurationParams,
+): number {
+  const { calculatedDuration, baseDuration, availableTime, taskType } = params;
+
+  // Determine shrink floor based on task type
+  const shrinkAllowed = canShrink(taskType);
+  const floor = shrinkAllowed ? baseDuration : calculatedDuration;
+
+  // Case 1: Gap too small even for shrunk duration → can't fit
+  if (availableTime < floor) {
+    return 0;
+  }
+
+  // Case 2: Gap smaller than calculated but above floor → shrink with snapping
+  if (availableTime < calculatedDuration) {
+    const snapped =
+      Math.floor(availableTime / SHRINK_CONFIG.stepMinutes) *
+      SHRINK_CONFIG.stepMinutes;
+    return snapped >= floor ? snapped : 0;
+  }
+
+  // Case 3: Gap equals or exceeds calculated → check for extension
+  if (!EXTENSION_CONFIG.enabled) return calculatedDuration;
+
+  const extraTime = availableTime - calculatedDuration;
+  if (extraTime < EXTENSION_CONFIG.minExtraMinutes) {
+    return calculatedDuration;
+  }
+
+  // Calculate extension
+  const maxExtended = Math.floor(
+    calculatedDuration * EXTENSION_CONFIG.maxFactor,
+  );
+  const extensionSteps = Math.floor(extraTime / EXTENSION_CONFIG.stepMinutes);
+  const extension = extensionSteps * EXTENSION_CONFIG.stepMinutes;
+
+  return Math.min(calculatedDuration + extension, maxExtended, availableTime);
+}
+
+/**
+ * Calculate effective duration based on available gap time (legacy version).
+ * Can EXTEND duration when extra time is available.
+ *
+ * @deprecated Use calculateEffectiveDurationWithShrink for shrinking support
  * @param baseDuration - Original/ideal session duration in minutes
  * @param availableTime - Remaining gap time in minutes
  * @param config - Extension configuration
@@ -460,7 +529,7 @@ export function calculateEffectiveDuration(
   availableTime: number,
   config: DurationExtensionConfig = DEFAULT_EXTENSION_CONFIG,
 ): number {
-  // If gap is smaller than base duration, can't fit (no shrinking)
+  // If gap is smaller than base duration, can't fit
   if (availableTime < baseDuration) {
     return 0;
   }
@@ -491,78 +560,223 @@ export function calculateEffectiveDuration(
   return extended;
 }
 
+// ============================================================================
+// MULTI-TASK ALLOCATION WITH SHRINKING
+// ============================================================================
+
 /**
- * Assign an ordered list of suggestions to gaps
- * Returns scheduled blocks and updated gaps
+ * Result of allocating multiple suggestions to a single gap
+ */
+export interface AllocationResult {
+  /** Map from suggestionId to allocated duration */
+  allocations: Map<string, number>;
+  /** Suggestions that couldn't fit in this gap */
+  dropped: Suggestion[];
+}
+
+/**
+ * Check if a task type allows shrinking
+ */
+function canShrink(taskType: MemoType): boolean {
+  return (SHRINK_CONFIG.allowedTypes as readonly string[]).includes(taskType);
+}
+
+/**
+ * Allocate durations for multiple suggestions competing for a single gap.
+ * Uses two-phase algorithm:
  *
- * @param orderedSuggestions - Suggestions in order to assign
+ * Phase 1: Selection (by baseDuration)
+ * - Sort tasks by need + importance (descending)
+ * - Include tasks greedily while sum(baseDuration) <= gapDuration
+ * - Tasks whose baseDuration doesn't fit are skipped
+ *
+ * Phase 2: Tiered Extension
+ * - After base allocation, distribute remaining time in priority tiers
+ * - Tier 1: mandatory (need >= 1.0)
+ * - Tier 2: high (need >= 0.75)
+ * - Tier 3: normal (need >= 0.5)
+ *
+ * @param suggestions - Suggestions sorted by priority (need + importance)
+ * @param gapDuration - Available gap time in minutes
+ * @returns Allocation result with duration map and dropped suggestions
+ */
+export function allocateDurationsToGap(
+  suggestions: Suggestion[],
+  gapDuration: number,
+): AllocationResult {
+  const allocations = new Map<string, number>();
+  const dropped: Suggestion[] = [];
+
+  // Phase 1: Selection by baseDuration
+  const selected: Suggestion[] = [];
+  let totalBase = 0;
+
+  for (const s of suggestions) {
+    // Only deadline tasks can shrink; others use calculated duration as base
+    const effectiveBase = canShrink(s.type) ? s.baseDuration : s.duration;
+
+    if (totalBase + effectiveBase <= gapDuration) {
+      selected.push(s);
+      totalBase += effectiveBase;
+      allocations.set(s.id, effectiveBase); // Start with base
+    } else {
+      dropped.push(s);
+    }
+  }
+
+  // Phase 2: Tiered Extension
+  // Extend each task up to its calculatedDuration (no snapping for restore)
+  // Snapping only applies when extending BEYOND calculatedDuration
+  let remaining = gapDuration - totalBase;
+
+  // Process tiers in priority order: mandatory → high → normal
+  const tierThresholds = [
+    { threshold: EXTENSION_TIERS.mandatory, isTop: true },
+    { threshold: EXTENSION_TIERS.high, isTop: false },
+    { threshold: EXTENSION_TIERS.normal, isTop: false },
+  ];
+
+  for (let i = 0; i < tierThresholds.length && remaining > 0; i++) {
+    const { threshold, isTop } = tierThresholds[i];
+
+    // Collect tasks in this tier
+    const tierTasks = selected.filter((s) => {
+      if (isTop) return s.need >= threshold;
+      return s.need >= threshold && s.need < tierThresholds[i - 1].threshold;
+    });
+
+    if (tierTasks.length === 0) continue;
+
+    // Calculate wanted extension for each task in tier (up to calculatedDuration)
+    const wanted = tierTasks.map((s) => {
+      const currentAlloc = allocations.get(s.id) ?? s.baseDuration;
+      return {
+        suggestion: s,
+        want: Math.max(0, s.duration - currentAlloc), // How much more to reach calculated
+      };
+    });
+
+    const totalWanted = wanted.reduce((sum, w) => sum + w.want, 0);
+    if (totalWanted <= 0) continue;
+
+    // Distribute proportionally (no snapping - we're restoring to calculated, not extending beyond)
+    const toDistribute = Math.min(remaining, totalWanted);
+    const ratio = toDistribute / totalWanted;
+
+    for (const { suggestion, want } of wanted) {
+      // Give proportional share without snapping
+      // This is restoring toward calculatedDuration, not extending beyond
+      const extension = Math.floor(want * ratio);
+      const current = allocations.get(suggestion.id) ?? suggestion.baseDuration;
+      allocations.set(suggestion.id, current + extension);
+    }
+
+    remaining -= toDistribute;
+  }
+
+  // Final snap: Ensure all allocations are on the step grid
+  // Only snap down if it keeps us above the effective base
+  for (const s of selected) {
+    const current = allocations.get(s.id) ?? 0;
+    const effectiveBase = canShrink(s.type) ? s.baseDuration : s.duration;
+    const snapped =
+      Math.floor(current / SHRINK_CONFIG.stepMinutes) *
+      SHRINK_CONFIG.stepMinutes;
+
+    // Only use snapped if it's >= base, otherwise keep current
+    if (snapped >= effectiveBase) {
+      allocations.set(s.id, snapped);
+    }
+    // If snapping would go below base, keep the unsnapped value
+    // (this can happen with odd proportional distributions)
+  }
+
+  return { allocations, dropped };
+}
+
+/**
+ * Assign an ordered list of suggestions to gaps using shrink-extend algorithm.
+ * Processes gaps one by one, fitting as many suggestions as possible into each.
+ *
+ * For each gap:
+ * 1. Filter suggestions by location compatibility
+ * 2. Use allocateDurationsToGap to determine which fit and their durations
+ * 3. Create blocks for allocated suggestions
+ * 4. Continue to next gap with remaining suggestions
+ *
+ * @param orderedSuggestions - Suggestions sorted by priority (need + importance)
  * @param gaps - Mutable gaps to assign into
- * @param extensionConfig - Optional config for duration extension
+ * @param _extensionConfig - Deprecated, extension is now handled by allocateDurationsToGap
  */
 export function assignOrderToGaps(
   orderedSuggestions: Suggestion[],
   gaps: MutableGap[],
-  extensionConfig: DurationExtensionConfig = DEFAULT_EXTENSION_CONFIG,
+  _extensionConfig: DurationExtensionConfig = DEFAULT_EXTENSION_CONFIG,
 ): { blocks: ScheduledBlock[]; dropped: Suggestion[] } {
   const blocks: ScheduledBlock[] = [];
-  const dropped: Suggestion[] = [];
+  let remainingSuggestions = [...orderedSuggestions];
 
-  for (const suggestion of orderedSuggestions) {
-    let allocated = false;
+  for (const gap of gaps) {
+    if (remainingSuggestions.length === 0) break;
+    if (gap.remaining <= 0) continue;
 
-    for (const gap of gaps) {
-      // Calculate effective duration (may extend, no shrinking)
-      // Returns 0 if gap is smaller than suggestion.duration
-      const effectiveDuration = calculateEffectiveDuration(
-        suggestion.duration,
-        gap.remaining,
-        extensionConfig,
-      );
+    // Filter suggestions by location compatibility for this gap
+    const tempGap: Gap = {
+      gapId: gap.gapId,
+      start: gap.currentStartTime,
+      end: gap.end,
+      duration: gap.remaining,
+      locationLabel: gap.locationLabel,
+    };
 
-      // Skip if can't fit (duration is 0)
-      if (effectiveDuration <= 0) {
-        continue;
-      }
+    const compatibleSuggestions = remainingSuggestions.filter((s) =>
+      canFit(s, tempGap),
+    );
 
-      // Check location compatibility
-      const tempGap: Gap = {
-        gapId: gap.gapId,
-        start: gap.currentStartTime,
-        end: gap.end,
-        duration: gap.remaining,
-        locationLabel: gap.locationLabel,
-      };
+    if (compatibleSuggestions.length === 0) continue;
 
-      if (!canFit(suggestion, tempGap)) {
-        continue;
-      }
+    // Allocate durations for compatible suggestions competing for this gap
+    const { allocations, dropped: gapDropped } = allocateDurationsToGap(
+      compatibleSuggestions,
+      gap.remaining,
+    );
 
-      // Allocate!
-      const startTime = gap.currentStartTime;
-      const endTime = addMinutesToTime(startTime, effectiveDuration);
+    // Create blocks for allocated suggestions (in priority order)
+    let currentTime = gap.currentStartTime;
+    const allocatedIds = new Set<string>();
 
+    for (const suggestion of compatibleSuggestions) {
+      const duration = allocations.get(suggestion.id);
+      if (!duration) continue;
+
+      const endTime = addMinutesToTime(currentTime, duration);
       blocks.push({
         suggestionId: suggestion.id,
         memoId: suggestion.memoId,
         gapId: gap.gapId,
-        startTime,
+        startTime: currentTime,
         endTime,
-        duration: effectiveDuration,
+        duration,
       });
 
-      // Update gap
-      gap.remaining -= effectiveDuration;
-      gap.currentStartTime = endTime;
-      allocated = true;
-      break;
+      currentTime = endTime;
+      allocatedIds.add(suggestion.id);
     }
 
-    if (!allocated) {
-      dropped.push(suggestion);
-    }
+    // Update gap state
+    const totalAllocated = [...allocations.values()].reduce((a, b) => a + b, 0);
+    gap.remaining -= totalAllocated;
+    gap.currentStartTime = currentTime;
+
+    // Remove allocated suggestions from remaining pool
+    // Dropped suggestions (couldn't fit in this gap) stay for next gap
+    remainingSuggestions = remainingSuggestions.filter(
+      (s) => !allocatedIds.has(s.id),
+    );
   }
 
-  return { blocks, dropped };
+  // Any remaining suggestions that never got allocated
+  return { blocks, dropped: remainingSuggestions };
 }
 
 // ============================================================================
