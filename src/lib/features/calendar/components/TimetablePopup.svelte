@@ -1,5 +1,6 @@
 <script lang="ts">
   import { SvelteMap } from "svelte/reactivity";
+  import { slide } from "svelte/transition";
   import {
     fetchTimetableConfig,
     upsertTimetableConfig,
@@ -96,6 +97,9 @@
   let editorAttendance = $state<"出席する" | "出席しない">("出席する");
   let editorWorkAllowed = $state<"作業可" | "作業不可">("作業不可");
   let isSaving = $state(false);
+
+  // Collapsible settings state
+  let showBasicSettings = $state(false);
 
   const ALL_WEEKDAYS = ["月", "火", "水", "木", "金", "土"];
   let weekdays = $derived(ALL_WEEKDAYS.slice(0, config.daysPerWeek));
@@ -367,14 +371,34 @@
           <div
             class="flex-shrink-0 border-b border-base-300 bg-[var(--color-surface-50)] px-5 py-4"
           >
-            <div class="mb-3 flex items-center gap-2">
+            <button
+              type="button"
+              class="mb-3 flex w-full items-center gap-2 rounded-lg py-1 text-left text-sm font-medium text-[var(--color-text-secondary)] transition-colors duration-150 hover:text-base-content"
+              onclick={() => (showBasicSettings = !showBasicSettings)}
+            >
               <svg
-                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4 transition-transform duration-200 {showBasicSettings
+                  ? 'rotate-90'
+                  : ''}"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+              <svg
                 class="h-4 w-4 text-[var(--color-text-secondary)]"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
                 stroke-width="1.5"
+                aria-hidden="true"
               >
                 <path
                   stroke-linecap="round"
@@ -387,105 +411,108 @@
                   d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                 />
               </svg>
-              <span
-                class="text-xs font-medium text-[var(--color-text-secondary)]"
-                >基本設定</span
+              <span>基本設定</span>
+            </button>
+
+            {#if showBasicSettings}
+              <div
+                class="grid grid-cols-2 gap-3 md:grid-cols-6"
+                transition:slide={{ duration: 300, axis: "y" }}
               >
-            </div>
-            <div class="grid grid-cols-2 gap-3 md:grid-cols-6">
-              <label class="form-control w-full">
-                <div class="label py-1">
-                  <span
-                    class="label-text text-xs text-[var(--color-text-muted)]"
-                    >グリッド</span
+                <label class="form-control w-full">
+                  <div class="label py-1">
+                    <span
+                      class="label-text text-xs text-[var(--color-text-muted)]"
+                      >グリッド</span
+                    >
+                  </div>
+                  <select
+                    class="select w-full border-base-300 bg-base-100 select-md focus:border-[var(--color-primary)] focus:outline-none md:select-sm"
+                    value={`${config.daysPerWeek}x${config.slotsPerDay}`}
+                    onchange={handleGridSizeChange}
                   >
-                </div>
-                <select
-                  class="select w-full border-base-300 bg-base-100 select-md focus:border-[var(--color-primary)] focus:outline-none md:select-sm"
-                  value={`${config.daysPerWeek}x${config.slotsPerDay}`}
-                  onchange={handleGridSizeChange}
-                >
-                  <option value="5x5">5日 × 5コマ</option>
-                  <option value="5x6">5日 × 6コマ</option>
-                  <option value="6x5">6日 × 5コマ</option>
-                  <option value="6x6">6日 × 6コマ</option>
-                </select>
-              </label>
-              <label class="form-control w-full">
-                <div class="label py-1">
-                  <span
-                    class="label-text text-xs text-[var(--color-text-muted)]"
-                    >開始時間</span
-                  >
-                </div>
-                <input
-                  type="time"
-                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
-                  bind:value={config.dayStartTime}
-                  onchange={handleConfigChange}
-                />
-              </label>
-              <label class="form-control w-full">
-                <div class="label py-1">
-                  <span
-                    class="label-text text-xs text-[var(--color-text-muted)]"
-                    >昼休み開始</span
-                  >
-                </div>
-                <input
-                  type="time"
-                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
-                  bind:value={config.lunchStartTime}
-                  onchange={handleConfigChange}
-                />
-              </label>
-              <label class="form-control w-full">
-                <div class="label py-1">
-                  <span
-                    class="label-text text-xs text-[var(--color-text-muted)]"
-                    >昼休み終了</span
-                  >
-                </div>
-                <input
-                  type="time"
-                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
-                  bind:value={config.lunchEndTime}
-                  onchange={handleConfigChange}
-                />
-              </label>
-              <label class="form-control w-full">
-                <div class="label py-1">
-                  <span
-                    class="label-text text-xs text-[var(--color-text-muted)]"
-                    >授業時間(分)</span
-                  >
-                </div>
-                <input
-                  type="number"
-                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
-                  bind:value={config.cellDuration}
-                  onchange={handleConfigChange}
-                  min="10"
-                  max="180"
-                />
-              </label>
-              <label class="form-control w-full">
-                <div class="label py-1">
-                  <span
-                    class="label-text text-xs text-[var(--color-text-muted)]"
-                    >休憩時間(分)</span
-                  >
-                </div>
-                <input
-                  type="number"
-                  class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
-                  bind:value={config.breakDuration}
-                  onchange={handleConfigChange}
-                  min="0"
-                  max="60"
-                />
-              </label>
-            </div>
+                    <option value="5x5">5日 × 5コマ</option>
+                    <option value="5x6">5日 × 6コマ</option>
+                    <option value="6x5">6日 × 5コマ</option>
+                    <option value="6x6">6日 × 6コマ</option>
+                  </select>
+                </label>
+                <label class="form-control w-full">
+                  <div class="label py-1">
+                    <span
+                      class="label-text text-xs text-[var(--color-text-muted)]"
+                      >開始時間</span
+                    >
+                  </div>
+                  <input
+                    type="time"
+                    class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
+                    bind:value={config.dayStartTime}
+                    onchange={handleConfigChange}
+                  />
+                </label>
+                <label class="form-control w-full">
+                  <div class="label py-1">
+                    <span
+                      class="label-text text-xs text-[var(--color-text-muted)]"
+                      >昼休み開始</span
+                    >
+                  </div>
+                  <input
+                    type="time"
+                    class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
+                    bind:value={config.lunchStartTime}
+                    onchange={handleConfigChange}
+                  />
+                </label>
+                <label class="form-control w-full">
+                  <div class="label py-1">
+                    <span
+                      class="label-text text-xs text-[var(--color-text-muted)]"
+                      >昼休み終了</span
+                    >
+                  </div>
+                  <input
+                    type="time"
+                    class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
+                    bind:value={config.lunchEndTime}
+                    onchange={handleConfigChange}
+                  />
+                </label>
+                <label class="form-control w-full">
+                  <div class="label py-1">
+                    <span
+                      class="label-text text-xs text-[var(--color-text-muted)]"
+                      >授業時間(分)</span
+                    >
+                  </div>
+                  <input
+                    type="number"
+                    class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
+                    bind:value={config.cellDuration}
+                    onchange={handleConfigChange}
+                    min="10"
+                    max="180"
+                  />
+                </label>
+                <label class="form-control w-full">
+                  <div class="label py-1">
+                    <span
+                      class="label-text text-xs text-[var(--color-text-muted)]"
+                      >休憩時間(分)</span
+                    >
+                  </div>
+                  <input
+                    type="number"
+                    class="input input-md w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none md:input-sm"
+                    bind:value={config.breakDuration}
+                    onchange={handleConfigChange}
+                    min="0"
+                    max="60"
+                  />
+                </label>
+              </div>
+            {/if}
           </div>
 
           <!-- Timetable Calendar Grid -->
