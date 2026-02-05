@@ -4,19 +4,25 @@
 
   interface Props {
     value: string; // HH:mm format
-    onchange?: () => void; // Called when time changes
+    onchange?: () => void;
   }
 
   let { value = $bindable(""), onchange }: Props = $props();
 
-  // Parse current time or default to 00:00
   let currentHour = $state(0);
   let currentMinute = $state(0);
-
-  // Mobile detection (screen width < 768px)
   let isMobile = $state(false);
 
-  // Initialize from value
+  let hourScrollRef: HTMLDivElement | undefined = $state();
+  let minuteScrollRef: HTMLDivElement | undefined = $state();
+
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const minutes = Array.from({ length: 60 }, (_, i) => i);
+
+  const ITEM_HEIGHT = 40;
+  const SPACER_HEIGHT = 96;
+
+  // Parse value into hour/minute
   $effect(() => {
     if (value) {
       const [h, m] = value.split(":").map(Number);
@@ -25,18 +31,13 @@
     }
   });
 
-  // Generate hour options (0-23)
-  const hours = Array.from({ length: 24 }, (_, i) => i);
-  // Generate minute options (0-59 for desktop, 0-59 for mobile scroll)
-  const minutes = Array.from({ length: 60 }, (_, i) => i);
+  function updateTime() {
+    const newValue = `${String(currentHour).padStart(2, "0")}:${String(currentMinute).padStart(2, "0")}`;
+    value = newValue;
+    onchange?.();
+  }
 
-  // Mobile scroll picker refs
-  let hourScrollRef: HTMLDivElement | undefined = $state();
-  let minuteScrollRef: HTMLDivElement | undefined = $state();
-
-  // Flag to prevent scroll handlers from firing during initial scroll position setup
-  let isScrollInitialized = $state(false);
-
+  // Desktop handlers
   function handleHourChange(e: Event & { currentTarget: HTMLSelectElement }) {
     currentHour = Number(e.currentTarget.value);
     updateTime();
@@ -47,22 +48,10 @@
     updateTime();
   }
 
-  function updateTime() {
-    const newValue = `${String(currentHour).padStart(2, "0")}:${String(currentMinute).padStart(2, "0")}`;
-    value = newValue;
-    onchange?.();
-  }
-
-  // Mobile scroll handlers
-  function handleHourScroll(e: Event & { currentTarget: HTMLDivElement }) {
-    // Ignore scroll events until initial position is set
-    if (!isScrollInitialized) return;
-
+  // Mobile handlers - use scrollend to avoid race conditions with initial positioning
+  function handleHourScrollEnd(e: Event & { currentTarget: HTMLDivElement }) {
     const scrollTop = e.currentTarget.scrollTop;
-    const itemHeight = 40; // Height of each option
-    const spacerHeight = 96; // Height of top spacer (calc(50%-20px) = 96px when container is 128px)
-    const adjustedScroll = scrollTop - spacerHeight;
-    const selectedIndex = Math.round(adjustedScroll / itemHeight);
+    const selectedIndex = Math.round((scrollTop - SPACER_HEIGHT) / ITEM_HEIGHT);
     const newHour = Math.max(0, Math.min(23, selectedIndex));
     if (newHour !== currentHour) {
       currentHour = newHour;
@@ -70,15 +59,9 @@
     }
   }
 
-  function handleMinuteScroll(e: Event & { currentTarget: HTMLDivElement }) {
-    // Ignore scroll events until initial position is set
-    if (!isScrollInitialized) return;
-
+  function handleMinuteScrollEnd(e: Event & { currentTarget: HTMLDivElement }) {
     const scrollTop = e.currentTarget.scrollTop;
-    const itemHeight = 40; // Height of each option
-    const spacerHeight = 96; // Height of top spacer
-    const adjustedScroll = scrollTop - spacerHeight;
-    const selectedIndex = Math.round(adjustedScroll / itemHeight);
+    const selectedIndex = Math.round((scrollTop - SPACER_HEIGHT) / ITEM_HEIGHT);
     const newMinute = Math.max(0, Math.min(59, selectedIndex));
     if (newMinute !== currentMinute) {
       currentMinute = newMinute;
@@ -86,50 +69,30 @@
     }
   }
 
-  // Sync scroll position when value changes - HOUR
-  // Note: Capture reactive values synchronously for Svelte 5 dependency tracking.
-  // Values read inside async callbacks (.then()) are not tracked as dependencies.
+  // Sync scroll position when value/refs change
   $effect(() => {
     const hour = currentHour;
-    const ref = hourScrollRef;
-    const mobile = isMobile;
-
-    if (mobile && ref) {
-      // Reset flag when refs change (component re-initialized)
-      isScrollInitialized = false;
+    if (isMobile && hourScrollRef) {
       tick().then(() => {
-        if (ref) {
-          const itemHeight = 40;
-          const spacerHeight = 96;
-          ref.scrollTop = spacerHeight + hour * itemHeight;
+        if (hourScrollRef) {
+          hourScrollRef.scrollTop = SPACER_HEIGHT + hour * ITEM_HEIGHT;
         }
       });
     }
   });
 
-  // Sync scroll position when value changes - MINUTE
   $effect(() => {
     const minute = currentMinute;
-    const ref = minuteScrollRef;
-    const mobile = isMobile;
-
-    if (mobile && ref) {
+    if (isMobile && minuteScrollRef) {
       tick().then(() => {
-        if (ref) {
-          const itemHeight = 40;
-          const spacerHeight = 96;
-          ref.scrollTop = spacerHeight + minute * itemHeight;
-          // Enable scroll handlers after both positions are set
-          // Use requestAnimationFrame to ensure scroll events from position setting have settled
-          requestAnimationFrame(() => {
-            isScrollInitialized = true;
-          });
+        if (minuteScrollRef) {
+          minuteScrollRef.scrollTop = SPACER_HEIGHT + minute * ITEM_HEIGHT;
         }
       });
     }
   });
 
-  // Check mobile on mount and resize
+  // Mobile detection
   if (browser) {
     const checkMobile = () => {
       isMobile = window.innerWidth < 768;
@@ -167,7 +130,7 @@
           <div
             bind:this={hourScrollRef}
             class="scrollbar-hide relative h-32 w-16 snap-y snap-mandatory overflow-y-scroll overscroll-contain"
-            onscroll={handleHourScroll}
+            onscrollend={handleHourScrollEnd}
           >
             <!-- Spacer for centering -->
             <div class="h-[calc(50%-20px)]"></div>
@@ -202,7 +165,7 @@
           <div
             bind:this={minuteScrollRef}
             class="scrollbar-hide relative h-32 w-16 snap-y snap-mandatory overflow-y-scroll overscroll-contain"
-            onscroll={handleMinuteScroll}
+            onscrollend={handleMinuteScrollEnd}
           >
             <!-- Spacer for centering -->
             <div class="h-[calc(50%-20px)]"></div>
@@ -223,7 +186,7 @@
       </div>
     </div>
   {:else}
-    <!-- Desktop: Dropdown selectors with 1-minute increments -->
+    <!-- Desktop: Dropdown selectors -->
     <div class="flex items-center justify-center gap-3">
       <!-- Hour Selector -->
       <div class="flex flex-col items-center gap-1">
