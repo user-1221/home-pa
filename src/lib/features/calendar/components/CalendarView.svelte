@@ -347,19 +347,16 @@
       </button>
 
       <!-- Google Calendar toggles -->
-      {#each googleSyncState.calendars as calendar (calendar.id)}
+      {#each googleSyncState.allCalendars as calendar (calendar.id)}
         <button
-          class="btn shrink-0 btn-sm md:btn-xs {hiddenCalendars.has(
-            calendar.googleCalendarId,
-          )
+          class="btn shrink-0 btn-sm md:btn-xs {hiddenCalendars.has(calendar.id)
             ? 'opacity-50 btn-ghost'
             : ''}"
-          style={calendar.calendarColor &&
-          !hiddenCalendars.has(calendar.googleCalendarId)
+          style={calendar.calendarColor && !hiddenCalendars.has(calendar.id)
             ? `background-color: ${calendar.calendarColor}; border-color: ${calendar.calendarColor}; color: white`
             : ""}
           title={calendar.calendarName}
-          onclick={() => toggleCalendarVisibility(calendar.googleCalendarId)}
+          onclick={() => toggleCalendarVisibility(calendar.id)}
         >
           <span class="max-w-24 truncate md:max-w-32"
             >{calendar.calendarName}</span
@@ -367,7 +364,7 @@
         </button>
       {/each}
 
-      {#if googleSyncState.calendars.length === 0 && googleSyncState.isConnected}
+      {#if googleSyncState.allCalendars.length === 0 && googleSyncState.isConnected}
         <span class="text-xs text-base-content/50">No calendars synced</span>
       {/if}
     </div>

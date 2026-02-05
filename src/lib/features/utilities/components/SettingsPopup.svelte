@@ -46,7 +46,10 @@
   ];
 
   // Google Calendar Sync state
-  let showCalendarSelector = $state(false);
+  let calendarSelectorAccount = $state<{
+    id: string;
+    email: string;
+  } | null>(null);
   let isSyncing = $state(false);
   let syncError = $state<string | null>(null);
   const session = authClient.useSession;
@@ -60,11 +63,7 @@
 
   async function connectGoogle() {
     try {
-      // Use linkSocial to link Google to current user (not signIn.social which could create new account)
-      await authClient.linkSocial({
-        provider: "google",
-        callbackURL: window.location.href,
-      });
+      await googleSyncState.connectNewAccount();
     } catch (err) {
       syncError = err instanceof Error ? err.message : "Failed to connect";
     }
@@ -278,9 +277,9 @@
                     <span>連携済み</span>
                   </div>
 
-                  {#if googleSyncState.calendars.length > 0}
+                  {#if googleSyncState.allCalendars.length > 0}
                     <div class="space-y-1.5">
-                      {#each googleSyncState.calendars as calendar (calendar.id)}
+                      {#each googleSyncState.allCalendars as calendar (calendar.id)}
                         <div class="flex items-center gap-2 text-sm">
                           {#if calendar.calendarColor}
                             <span
@@ -296,7 +295,14 @@
                     </div>
                     <button
                       class="text-left text-xs text-[var(--color-primary)] hover:underline"
-                      onclick={() => (showCalendarSelector = true)}
+                      onclick={() => {
+                        const first = googleSyncState.accounts[0];
+                        if (first)
+                          calendarSelectorAccount = {
+                            id: first.id,
+                            email: first.email,
+                          };
+                      }}
                     >
                       カレンダーを管理
                     </button>
@@ -304,7 +310,14 @@
                     <Button
                       variant="primary"
                       size="sm"
-                      onclick={() => (showCalendarSelector = true)}
+                      onclick={() => {
+                        const first = googleSyncState.accounts[0];
+                        if (first)
+                          calendarSelectorAccount = {
+                            id: first.id,
+                            email: first.email,
+                          };
+                      }}
                     >
                       カレンダーを選択
                     </Button>
@@ -315,7 +328,7 @@
                     fullWidth
                     onclick={handleSync}
                     disabled={isSyncing ||
-                      googleSyncState.calendars.length === 0}
+                      googleSyncState.allCalendars.length === 0}
                     loading={isSyncing}
                   >
                     <svg
@@ -561,6 +574,10 @@
   </div>
 {/if}
 
-{#if showCalendarSelector}
-  <CalendarSelector onClose={() => (showCalendarSelector = false)} />
+{#if calendarSelectorAccount}
+  <CalendarSelector
+    accountId={calendarSelectorAccount.id}
+    accountEmail={calendarSelectorAccount.email}
+    onClose={() => (calendarSelectorAccount = null)}
+  />
 {/if}

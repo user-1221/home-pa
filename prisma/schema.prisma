@@ -25,8 +25,9 @@ model User {
   updatedAt      DateTime        @default(now()) @updatedAt
   sessions       Session[]
   accounts       Account[]
-  calendarEvents CalendarEvent[]
-  memos          Memo[]
+  calendarEvents         CalendarEvent[]
+  memos                  Memo[]
+  googleCalendarAccounts GoogleCalendarAccount[]
 
   @@unique([email])
   @@map("user")
@@ -312,11 +313,46 @@ model EventTemplate {
   @@map("event_template")
 }
 
+// Independent Google account connections for calendar sync
+// Decoupled from Better Auth login - users can connect multiple Google accounts
+model GoogleCalendarAccount {
+  id                    String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  googleAccountId       String   // Google's sub (unique user ID from id_token)
+  email                 String   // Google account email (for display in UI)
+
+  // OAuth tokens (independent from Better Auth)
+  accessToken           String
+  refreshToken          String
+  accessTokenExpiresAt  DateTime?
+  scope                 String?
+
+  // Status
+  isValid               Boolean  @default(true) // Set to false when refresh fails permanently
+  lastError             String?
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  // Relations
+  syncConfigs           GoogleCalendarSync[]
+
+  @@unique([userId, googleAccountId])
+  @@index([userId])
+  @@map("google_calendar_account")
+}
+
 // Google Calendar sync configuration
 // Tracks which Google calendars are synced for each user
 model GoogleCalendarSync {
   id                String   @id @default(auto()) @map("_id") @db.ObjectId
   userId            String
+
+  // Link to the Google account that owns this calendar
+  googleAccountId   String   @db.ObjectId
+  googleAccount     GoogleCalendarAccount @relation(fields: [googleAccountId], references: [id], onDelete: Cascade)
 
   googleCalendarId  String   // e.g., "primary" or specific calendar ID
   calendarName      String   // Display name for UI
@@ -332,8 +368,9 @@ model GoogleCalendarSync {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  @@unique([userId, googleCalendarId])
+  @@unique([userId, googleAccountId, googleCalendarId])
   @@index([userId])
+  @@index([googleAccountId])
   @@map("google_calendar_sync")
 }
 

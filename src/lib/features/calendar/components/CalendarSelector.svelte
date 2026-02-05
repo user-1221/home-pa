@@ -3,17 +3,19 @@
    * CalendarSelector Component
    *
    * Modal dialog for selecting which Google calendars to sync.
-   * Fetches available calendars from Google and allows toggling sync status.
+   * Scoped to a specific Google account via accountId prop.
    */
 
   import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
   import { onMount } from "svelte";
 
   interface Props {
+    accountId: string;
+    accountEmail: string;
     onClose: () => void;
   }
 
-  let { onClose }: Props = $props();
+  let { accountId, accountEmail, onClose }: Props = $props();
 
   interface AvailableCalendar {
     id: string;
@@ -27,9 +29,13 @@
   let selectedIds = $state<Set<string>>(new Set());
   let isSaving = $state(false);
 
-  // Initialize selected calendars from current sync state
+  // Initialize selected calendars from current sync state for this account
   const currentlySyncedIds = $derived(
-    new Set(googleSyncState.calendars.map((c) => c.googleCalendarId)),
+    new Set(
+      googleSyncState.accounts
+        .find((a) => a.id === accountId)
+        ?.calendars.map((c) => c.googleCalendarId) ?? [],
+    ),
   );
 
   onMount(async () => {
@@ -37,7 +43,8 @@
     selectedIds = new Set(currentlySyncedIds);
 
     try {
-      availableCalendars = await googleSyncState.fetchAvailableCalendars();
+      availableCalendars =
+        await googleSyncState.fetchAvailableCalendars(accountId);
     } catch (err) {
       error = err instanceof Error ? err.message : "Failed to load calendars";
     } finally {
@@ -60,7 +67,7 @@
     error = null;
 
     try {
-      await googleSyncState.enableSync(Array.from(selectedIds));
+      await googleSyncState.enableSync(accountId, Array.from(selectedIds));
       onClose();
     } catch (err) {
       error = err instanceof Error ? err.message : "Failed to save settings";
@@ -99,10 +106,11 @@
   >
     <h2
       id="calendar-selector-title"
-      class="mb-4 text-xl font-medium text-base-content"
+      class="mb-1 text-xl font-medium text-base-content"
     >
       Select Calendars to Sync
     </h2>
+    <p class="mb-4 text-sm text-base-content/60">{accountEmail}</p>
 
     {#if isLoading}
       <div class="flex items-center justify-center py-8">
@@ -114,7 +122,7 @@
       </div>
     {:else if availableCalendars.length === 0}
       <div class="py-8 text-center text-base-content/60">
-        No calendars found in your Google account.
+        No calendars found in this Google account.
       </div>
     {:else}
       <div class="max-h-[300px] space-y-2 overflow-y-auto">

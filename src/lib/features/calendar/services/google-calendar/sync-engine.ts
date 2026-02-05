@@ -34,6 +34,7 @@ export interface SyncResult {
  * @param googleCalendarId - Google Calendar ID to sync
  * @param accessToken - OAuth access token
  * @param syncToken - Optional sync token from previous sync
+ * @param syncConfigId - GoogleCalendarSync.id used to scope calendarId and uid on events
  * @returns Sync result with counts and new sync token
  */
 export async function performSync(
@@ -41,7 +42,11 @@ export async function performSync(
   googleCalendarId: string,
   accessToken: string,
   syncToken?: string | null,
+  syncConfigId?: string,
 ): Promise<SyncResult> {
+  // Use syncConfigId as the calendarId stored on events (unique per account+calendar)
+  const effectiveCalendarId = syncConfigId ?? googleCalendarId;
+
   try {
     if (syncToken) {
       return await performIncrementalSync(
@@ -49,9 +54,15 @@ export async function performSync(
         googleCalendarId,
         accessToken,
         syncToken,
+        effectiveCalendarId,
       );
     } else {
-      return await performFullSync(userId, googleCalendarId, accessToken);
+      return await performFullSync(
+        userId,
+        googleCalendarId,
+        accessToken,
+        effectiveCalendarId,
+      );
     }
   } catch (error) {
     // If sync token expired, perform full sync
@@ -59,7 +70,12 @@ export async function performSync(
       console.log(
         `Sync token expired for calendar ${googleCalendarId}, performing full sync`,
       );
-      return await performFullSync(userId, googleCalendarId, accessToken);
+      return await performFullSync(
+        userId,
+        googleCalendarId,
+        accessToken,
+        effectiveCalendarId,
+      );
     }
     throw error;
   }
@@ -77,6 +93,7 @@ export async function performFullSync(
   userId: string,
   googleCalendarId: string,
   accessToken: string,
+  effectiveCalendarId?: string,
 ): Promise<SyncResult> {
   const result: SyncResult = {
     created: 0,
@@ -107,9 +124,12 @@ export async function performFullSync(
     `[performFullSync] Fetched ${allEvents.length} events from Google Calendar`,
   );
 
+  // Use effectiveCalendarId (syncConfigId) for event storage scoping
+  const storageCalendarId = effectiveCalendarId ?? googleCalendarId;
+
   // Map Google events to local format
   const mappedEvents = allEvents
-    .map((event) => googleEventToLocal(event, googleCalendarId))
+    .map((event) => googleEventToLocal(event, storageCalendarId))
     .filter((e): e is MappedEvent => e !== null);
 
   console.log(
@@ -120,7 +140,7 @@ export async function performFullSync(
   const applyResult = await applyChanges(
     userId,
     mappedEvents,
-    googleCalendarId,
+    storageCalendarId,
   );
 
   result.created = applyResult.created;
@@ -133,7 +153,10 @@ export async function performFullSync(
     await prisma.googleCalendarSync.updateMany({
       where: {
         userId,
-        googleCalendarId,
+        // Match by storageCalendarId if it's a syncConfigId, otherwise raw Google Calendar ID
+        ...(effectiveCalendarId
+          ? { id: effectiveCalendarId }
+          : { googleCalendarId }),
       },
       data: {
         syncToken: result.newSyncToken,
@@ -157,6 +180,7 @@ export async function performIncrementalSync(
   googleCalendarId: string,
   accessToken: string,
   syncToken: string,
+  effectiveCalendarId?: string,
 ): Promise<SyncResult> {
   const result: SyncResult = {
     created: 0,
@@ -187,9 +211,12 @@ export async function performIncrementalSync(
     `[performIncrementalSync] Fetched ${allEvents.length} changed events from Google Calendar`,
   );
 
+  // Use effectiveCalendarId (syncConfigId) for event storage scoping
+  const storageCalendarId = effectiveCalendarId ?? googleCalendarId;
+
   // Map Google events to local format
   const mappedEvents = allEvents
-    .map((event) => googleEventToLocal(event, googleCalendarId))
+    .map((event) => googleEventToLocal(event, storageCalendarId))
     .filter((e): e is MappedEvent => e !== null);
 
   console.log(
@@ -200,7 +227,7 @@ export async function performIncrementalSync(
   const applyResult = await applyChanges(
     userId,
     mappedEvents,
-    googleCalendarId,
+    storageCalendarId,
   );
 
   result.created = applyResult.created;
@@ -213,7 +240,9 @@ export async function performIncrementalSync(
     await prisma.googleCalendarSync.updateMany({
       where: {
         userId,
-        googleCalendarId,
+        ...(effectiveCalendarId
+          ? { id: effectiveCalendarId }
+          : { googleCalendarId }),
       },
       data: {
         syncToken: result.newSyncToken,
@@ -307,8 +336,9 @@ async function upsertLocalEvent(
 ): Promise<{ created: boolean; updated: boolean }> {
   const { googleEventId, event, calendarId, etag } = mappedEvent;
 
-  // Generate UID for the event (using Google event ID)
-  const uid = `${googleEventId}@google.com`;
+  // Generate UID for the event, scoped by calendarId (which is syncConfigId)
+  // This prevents collisions when the same event appears in multiple Google accounts
+  const uid = `${calendarId}_${googleEventId}@google.com`;
 
   // Check if event already exists
   const existing = await prisma.calendarEvent.findFirst({
@@ -379,9 +409,10 @@ async function upsertLocalEvent(
 async function deleteLocalEvent(
   userId: string,
   googleEventId: string,
-  _googleCalendarId: string,
+  calendarId: string,
 ): Promise<boolean> {
-  const uid = `${googleEventId}@google.com`;
+  // UID is scoped by calendarId (syncConfigId)
+  const uid = `${calendarId}_${googleEventId}@google.com`;
 
   const existing = await prisma.calendarEvent.findFirst({
     where: {

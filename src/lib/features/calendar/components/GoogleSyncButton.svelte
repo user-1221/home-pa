@@ -9,9 +9,9 @@
    * @owner CalendarView.svelte
    */
 
-  import { authClient } from "$lib/auth-client.ts";
   import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
   import { calendarState } from "$lib/bootstrap/index.svelte.ts";
+  import { goto } from "$app/navigation";
 
   let isConnecting = $state(false);
 
@@ -49,10 +49,8 @@
   async function handleConnect() {
     isConnecting = true;
     try {
-      await authClient.signIn.social({
-        provider: "google",
-        callbackURL: window.location.href,
-      });
+      // Redirect to settings page where user can add Google accounts
+      await goto("/calendar/settings");
     } catch {
       isConnecting = false;
     }

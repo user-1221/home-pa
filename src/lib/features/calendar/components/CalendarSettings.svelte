@@ -2,8 +2,8 @@
   /**
    * CalendarSettings Component
    *
-   * Provides import/export functionality for calendar events
-   * Uses ical.js-backed API endpoints
+   * Provides import/export functionality for calendar events and
+   * Google Calendar sync management with multi-account support.
    */
 
   import { calendarState } from "$lib/bootstrap/index.svelte.ts";
@@ -28,7 +28,10 @@
   const isApiEnabled = $state(true);
 
   // Google Calendar Sync state
-  let showCalendarSelector = $state(false);
+  let calendarSelectorAccount = $state<{
+    id: string;
+    email: string;
+  } | null>(null);
   let isSyncing = $state(false);
   let syncError = $state<string | null>(null);
 
@@ -42,8 +45,7 @@
     syncError = null;
     try {
       await googleSyncState.triggerSync();
-      // Refresh calendar events after sync by re-fetching current window
-      // Store window before clearing, then re-fetch
+      // Refresh calendar events after sync
       const window = calendarState.currentWindow;
       calendarState.clear();
       if (window) {
@@ -56,12 +58,12 @@
     }
   }
 
-  function openCalendarSelector() {
-    showCalendarSelector = true;
+  function openCalendarSelector(accountId: string, accountEmail: string) {
+    calendarSelectorAccount = { id: accountId, email: accountEmail };
   }
 
   function closeCalendarSelector() {
-    showCalendarSelector = false;
+    calendarSelectorAccount = null;
   }
 
   async function handleFileSelect(event: Event) {
@@ -113,6 +115,10 @@
   function clearImportResult() {
     importResult = null;
   }
+
+  const hasAnySyncedCalendars = $derived(
+    googleSyncState.allCalendars.length > 0,
+  );
 </script>
 
 <div class="mx-auto max-w-[600px]">
@@ -169,7 +175,7 @@
 
         {#if importResult.imported > 0}
           <p class="my-1 text-success">
-            ✓ Imported {importResult.imported} events
+            Imported {importResult.imported} events
           </p>
         {/if}
 
@@ -241,70 +247,73 @@
       Google Calendar Sync
     </h3>
     <p class="mb-4 text-sm text-base-content/70">
-      Connect your Google Calendar to automatically sync events.
+      Connect Google accounts to sync their calendars. You can add multiple
+      accounts.
     </p>
 
     <GoogleCalendarConnect />
 
     {#if googleSyncState.isConnected}
-      <!-- Synced Calendars -->
-      {#if googleSyncState.calendars.length > 0}
-        <div class="mt-4 space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="text-sm font-medium text-base-content"
-              >Synced Calendars</span
-            >
+      <!-- Per-Account Calendars -->
+      {#each googleSyncState.accounts as account (account.id)}
+        {#if account.calendars.length > 0}
+          <div class="mt-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm font-medium text-base-content">
+                {account.email}
+              </span>
+              <button
+                class="btn text-primary btn-ghost btn-xs"
+                onclick={() => openCalendarSelector(account.id, account.email)}
+              >
+                Manage
+              </button>
+            </div>
+            <div class="space-y-1">
+              {#each account.calendars as calendar (calendar.id)}
+                <div
+                  class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm"
+                >
+                  {#if calendar.calendarColor}
+                    <span
+                      class="h-3 w-3 rounded-full"
+                      style="background-color: {calendar.calendarColor}"
+                    ></span>
+                  {/if}
+                  <span class="flex-1 truncate">{calendar.calendarName}</span>
+                  {#if calendar.lastError}
+                    <span class="text-xs text-error" title={calendar.lastError}
+                      >Error</span
+                    >
+                  {/if}
+                </div>
+              {/each}
+            </div>
+          </div>
+        {:else}
+          <div class="mt-4">
             <button
-              class="btn text-primary btn-ghost btn-xs"
-              onclick={openCalendarSelector}
+              class="btn w-full btn-sm btn-primary"
+              onclick={() => openCalendarSelector(account.id, account.email)}
             >
-              Manage
+              Select Calendars for {account.email}
             </button>
           </div>
-          <div class="space-y-1">
-            {#each googleSyncState.calendars as calendar (calendar.id)}
-              <div
-                class="flex items-center gap-2 rounded-lg bg-base-200 px-3 py-2 text-sm"
-              >
-                {#if calendar.calendarColor}
-                  <span
-                    class="h-3 w-3 rounded-full"
-                    style="background-color: {calendar.calendarColor}"
-                  ></span>
-                {/if}
-                <span class="flex-1 truncate">{calendar.calendarName}</span>
-                {#if calendar.lastError}
-                  <span class="text-xs text-error" title={calendar.lastError}
-                    >Error</span
-                  >
-                {/if}
-              </div>
-            {/each}
-          </div>
-        </div>
-      {:else}
-        <div class="mt-4">
-          <button
-            class="btn w-full btn-sm btn-primary"
-            onclick={openCalendarSelector}
-          >
-            Select Calendars to Sync
-          </button>
-        </div>
-      {/if}
+        {/if}
+      {/each}
 
       <!-- Sync Button -->
       <div class="mt-4 flex items-center gap-3">
         <button
           class="btn flex-1 rounded-xl border border-base-300 bg-base-200 text-base-content/70 shadow-sm transition-all duration-200 hover:bg-base-200/80 hover:text-base-content disabled:opacity-50"
           onclick={handleSync}
-          disabled={isSyncing || googleSyncState.calendars.length === 0}
+          disabled={isSyncing || !hasAnySyncedCalendars}
         >
           {#if isSyncing}
             <span class="loading loading-sm loading-spinner"></span>
             Syncing...
           {:else}
-            Sync Now
+            Sync All
           {/if}
         </button>
       </div>
@@ -325,6 +334,10 @@
 </div>
 
 <!-- Calendar Selector Modal -->
-{#if showCalendarSelector}
-  <CalendarSelector onClose={closeCalendarSelector} />
+{#if calendarSelectorAccount}
+  <CalendarSelector
+    accountId={calendarSelectorAccount.id}
+    accountEmail={calendarSelectorAccount.email}
+    onClose={closeCalendarSelector}
+  />
 {/if}

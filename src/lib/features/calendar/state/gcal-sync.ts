@@ -9,5 +9,10 @@ export {
   enableCalendarSync,
   disableCalendarSync,
   triggerSync,
-  disconnectGoogle,
 } from "./google-sync.remote.ts";
+
+export {
+  initiateGoogleConnect,
+  listGoogleAccounts,
+  removeGoogleAccount,
+} from "./google-account.remote.ts";

@@ -2,7 +2,8 @@
  * Google Calendar Sync Remote Functions (Server-side)
  *
  * Server-side Remote Functions for Google Calendar sync operations.
- * These run on the server and are callable from client with type safety.
+ * Uses GoogleCalendarAccount (independent from Better Auth login)
+ * to support multiple Google accounts per user.
  */
 import { query, command, getRequestEvent } from "$app/server";
 import * as v from "valibot";
@@ -25,28 +26,37 @@ function getAuthenticatedUser(): string {
 // ============================================================================
 
 /**
- * Get a valid access token, refreshing if expired.
- * Google access tokens expire after 1 hour; this uses the refresh token
- * to get a new one when needed.
+ * Get a valid access token for a specific GoogleCalendarAccount.
+ * Refreshes automatically if expired (with 5-minute buffer).
  */
-async function getValidAccessToken(userId: string): Promise<string> {
-  const googleAccount = await prisma.account.findFirst({
-    where: { userId, providerId: "google" },
+async function getValidAccessToken(googleAccountId: string): Promise<string> {
+  const account = await prisma.googleCalendarAccount.findUnique({
+    where: { id: googleAccountId },
   });
 
-  if (!googleAccount?.accessToken || !googleAccount?.refreshToken) {
-    throw new Error("Google account not connected");
+  if (!account) {
+    throw new Error("Google calendar account not found");
+  }
+
+  if (!account.accessToken || !account.refreshToken) {
+    throw new Error("Google account tokens missing");
+  }
+
+  if (!account.isValid) {
+    throw new Error(
+      `Google account ${account.email} needs re-authorization: ${account.lastError ?? "unknown error"}`,
+    );
   }
 
   // Check if token expires within 5 minutes (buffer for API call duration)
   const now = new Date();
-  const expiresAt = googleAccount.accessTokenExpiresAt;
+  const expiresAt = account.accessTokenExpiresAt;
   const bufferMs = 5 * 60 * 1000;
   const isExpired =
     !expiresAt || expiresAt.getTime() - now.getTime() < bufferMs;
 
   if (!isExpired) {
-    return googleAccount.accessToken;
+    return account.accessToken;
   }
 
   // Refresh the token using googleapis
@@ -55,42 +65,62 @@ async function getValidAccessToken(userId: string): Promise<string> {
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
   );
-  oauth2Client.setCredentials({ refresh_token: googleAccount.refreshToken });
+  oauth2Client.setCredentials({ refresh_token: account.refreshToken });
 
-  const { credentials } = await oauth2Client.refreshAccessToken();
+  try {
+    const { credentials } = await oauth2Client.refreshAccessToken();
 
-  if (!credentials.access_token) {
-    throw new Error("Failed to refresh access token");
+    if (!credentials.access_token) {
+      throw new Error("No access token in refresh response");
+    }
+
+    // Update tokens in database
+    await prisma.googleCalendarAccount.update({
+      where: { id: googleAccountId },
+      data: {
+        accessToken: credentials.access_token,
+        accessTokenExpiresAt: credentials.expiry_date
+          ? new Date(credentials.expiry_date)
+          : null,
+        isValid: true,
+        lastError: null,
+      },
+    });
+
+    return credentials.access_token;
+  } catch (err) {
+    // Mark account as invalid on refresh failure
+    const errorMsg =
+      err instanceof Error ? err.message : "Token refresh failed";
+    await prisma.googleCalendarAccount.update({
+      where: { id: googleAccountId },
+      data: { isValid: false, lastError: errorMsg },
+    });
+    throw new Error(
+      `Failed to refresh token for ${account.email}: ${errorMsg}`,
+    );
   }
-
-  // Update tokens in database
-  await prisma.account.update({
-    where: { id: googleAccount.id },
-    data: {
-      accessToken: credentials.access_token,
-      accessTokenExpiresAt: credentials.expiry_date
-        ? new Date(credentials.expiry_date)
-        : null,
-    },
-  });
-
-  return credentials.access_token;
 }
 
 // ============================================================================
 // SCHEMAS
 // ============================================================================
 
+const ListCalendarsSchema = v.object({
+  accountId: v.string(),
+});
+
 const EnableSyncSchema = v.object({
+  accountId: v.string(),
   calendarIds: v.array(v.string()),
 });
 
 const DisableSyncSchema = v.object({
-  googleCalendarId: v.string(),
+  syncConfigId: v.string(),
 });
 
 const TriggerSyncSchema = v.object({
-  googleCalendarId: v.optional(v.string()),
+  accountId: v.optional(v.string()),
 });
 
 // ============================================================================
@@ -107,9 +137,16 @@ interface SyncedCalendarResponse {
   lastError: string | null;
 }
 
-interface ConnectionCheckResponse {
-  isConnected: boolean;
+interface GoogleAccountWithCalendars {
+  id: string;
+  email: string;
+  isValid: boolean;
+  lastError: string | null;
   calendars: SyncedCalendarResponse[];
+}
+
+interface ConnectionCheckResponse {
+  accounts: GoogleAccountWithCalendars[];
 }
 
 interface GoogleCalendarListItem {
@@ -123,57 +160,61 @@ interface GoogleCalendarListItem {
 // ============================================================================
 
 /**
- * Check if user has a Google account linked and get synced calendars.
+ * Check all connected Google accounts and their synced calendars.
  */
 export const checkGoogleConnection = query(
   v.undefined(),
   async (): Promise<ConnectionCheckResponse> => {
     const userId = getAuthenticatedUser();
 
-    // Check if user has a Google account linked via Better Auth
-    const googleAccount = await prisma.account.findFirst({
-      where: {
-        userId,
-        providerId: "google",
-      },
-    });
-
-    if (!googleAccount) {
-      return { isConnected: false, calendars: [] };
-    }
-
-    // Get all synced calendars for this user
-    const syncedCalendars = await prisma.googleCalendarSync.findMany({
+    const accounts = await prisma.googleCalendarAccount.findMany({
       where: { userId },
-      orderBy: { calendarName: "asc" },
+      include: {
+        syncConfigs: {
+          orderBy: { calendarName: "asc" },
+        },
+      },
+      orderBy: { createdAt: "asc" },
     });
 
     return {
-      isConnected: true,
-      calendars: syncedCalendars.map((cal) => ({
-        id: cal.id,
-        googleCalendarId: cal.googleCalendarId,
-        calendarName: cal.calendarName,
-        calendarColor: cal.calendarColor,
-        syncEnabled: cal.syncEnabled,
-        lastSyncAt: cal.lastSyncAt?.toISOString() ?? null,
-        lastError: cal.lastError,
+      accounts: accounts.map((account) => ({
+        id: account.id,
+        email: account.email,
+        isValid: account.isValid,
+        lastError: account.lastError,
+        calendars: account.syncConfigs.map((cal) => ({
+          id: cal.id,
+          googleCalendarId: cal.googleCalendarId,
+          calendarName: cal.calendarName,
+          calendarColor: cal.calendarColor,
+          syncEnabled: cal.syncEnabled,
+          lastSyncAt: cal.lastSyncAt?.toISOString() ?? null,
+          lastError: cal.lastError,
+        })),
       })),
     };
   },
 );
 
 /**
- * List available Google calendars for the connected account.
- * Requires Google account to be linked.
+ * List available Google calendars for a specific connected account.
  */
 export const listGoogleCalendars = query(
-  v.undefined(),
-  async (): Promise<GoogleCalendarListItem[]> => {
+  ListCalendarsSchema,
+  async (input): Promise<GoogleCalendarListItem[]> => {
     const userId = getAuthenticatedUser();
-    const accessToken = await getValidAccessToken(userId);
 
-    // Import and use the Google Calendar API
+    // Verify ownership
+    const account = await prisma.googleCalendarAccount.findFirst({
+      where: { id: input.accountId, userId },
+    });
+    if (!account) {
+      throw new Error("Google account not found");
+    }
+
+    const accessToken = await getValidAccessToken(input.accountId);
+
     const { listCalendars } = await import(
       "$lib/features/calendar/services/google-calendar/google-calendar-api.ts"
     );
@@ -183,13 +224,22 @@ export const listGoogleCalendars = query(
 );
 
 /**
- * Enable sync for selected Google calendars.
+ * Enable sync for selected Google calendars on a specific account.
  */
 export const enableCalendarSync = command(
   EnableSyncSchema,
   async (input): Promise<{ success: boolean }> => {
     const userId = getAuthenticatedUser();
-    const accessToken = await getValidAccessToken(userId);
+
+    // Verify ownership
+    const account = await prisma.googleCalendarAccount.findFirst({
+      where: { id: input.accountId, userId },
+    });
+    if (!account) {
+      throw new Error("Google account not found");
+    }
+
+    const accessToken = await getValidAccessToken(input.accountId);
 
     // Fetch calendar details from Google
     const { listCalendars } = await import(
@@ -204,13 +254,15 @@ export const enableCalendarSync = command(
 
       await prisma.googleCalendarSync.upsert({
         where: {
-          userId_googleCalendarId: {
+          userId_googleAccountId_googleCalendarId: {
             userId,
+            googleAccountId: input.accountId,
             googleCalendarId: calendarId,
           },
         },
         create: {
           userId,
+          googleAccountId: input.accountId,
           googleCalendarId: calendarId,
           calendarName: calendarInfo.name,
           calendarColor: calendarInfo.color,
@@ -229,7 +281,7 @@ export const enableCalendarSync = command(
 );
 
 /**
- * Disable sync for a specific Google calendar.
+ * Disable sync for a specific calendar (by sync config ID).
  */
 export const disableCalendarSync = command(
   DisableSyncSchema,
@@ -238,8 +290,8 @@ export const disableCalendarSync = command(
 
     await prisma.googleCalendarSync.updateMany({
       where: {
+        id: input.syncConfigId,
         userId,
-        googleCalendarId: input.googleCalendarId,
       },
       data: {
         syncEnabled: false,
@@ -251,26 +303,34 @@ export const disableCalendarSync = command(
 );
 
 /**
- * Trigger a sync for all enabled calendars or a specific one.
+ * Trigger a sync for all enabled calendars across all accounts,
+ * or for a specific account.
  */
 export const triggerSync = command(
   TriggerSyncSchema,
   async (input): Promise<{ synced: number; errors: string[] }> => {
     const userId = getAuthenticatedUser();
-    const accessToken = await getValidAccessToken(userId);
 
-    // Get calendars to sync
-    const calendarsToSync = await prisma.googleCalendarSync.findMany({
+    // Get all valid accounts (or specific one)
+    const accounts = await prisma.googleCalendarAccount.findMany({
       where: {
         userId,
-        syncEnabled: true,
-        ...(input.googleCalendarId
-          ? { googleCalendarId: input.googleCalendarId }
-          : {}),
+        isValid: true,
+        ...(input.accountId ? { id: input.accountId } : {}),
+      },
+      include: {
+        syncConfigs: {
+          where: { syncEnabled: true },
+        },
       },
     });
 
-    if (calendarsToSync.length === 0) {
+    if (accounts.length === 0) {
+      return { synced: 0, errors: ["No connected Google accounts"] };
+    }
+
+    const allSyncConfigs = accounts.flatMap((a) => a.syncConfigs);
+    if (allSyncConfigs.length === 0) {
       return { synced: 0, errors: ["No calendars to sync"] };
     }
 
@@ -282,91 +342,76 @@ export const triggerSync = command(
     let synced = 0;
     const errors: string[] = [];
 
-    for (const calendar of calendarsToSync) {
+    for (const account of accounts) {
+      let accessToken: string;
       try {
-        const syncResult = await performSync(
-          userId,
-          calendar.googleCalendarId,
-          accessToken,
-          calendar.syncToken,
-        );
-
-        // Log sync details for debugging
-        console.log(`[triggerSync] Calendar "${calendar.calendarName}":`, {
-          created: syncResult.created,
-          updated: syncResult.updated,
-          deleted: syncResult.deleted,
-          errors: syncResult.errors,
-          newSyncToken: syncResult.newSyncToken ? "received" : "none",
-        });
-
-        // Count as synced if any events were processed
-        if (syncResult.created > 0 || syncResult.updated > 0) {
-          synced++;
-        }
-
-        // Accumulate any errors from the sync
-        if (syncResult.errors.length > 0) {
-          errors.push(
-            ...syncResult.errors.map((e) => `${calendar.calendarName}: ${e}`),
-          );
-        }
-
-        // Update last sync time and sync token
-        await prisma.googleCalendarSync.update({
-          where: { id: calendar.id },
-          data: {
-            lastSyncAt: new Date(),
-            lastError:
-              syncResult.errors.length > 0
-                ? syncResult.errors.join("; ")
-                : null,
-            errorCount: syncResult.errors.length > 0 ? { increment: 1 } : 0,
-            syncToken: syncResult.newSyncToken ?? undefined,
-          },
-        });
+        accessToken = await getValidAccessToken(account.id);
       } catch (err) {
-        const errorMsg =
-          err instanceof Error ? err.message : "Unknown sync error";
-        console.error(
-          `[triggerSync] Calendar "${calendar.calendarName}" failed:`,
-          err,
-        );
-        errors.push(`${calendar.calendarName}: ${errorMsg}`);
+        const errorMsg = err instanceof Error ? err.message : "Token error";
+        errors.push(`${account.email}: ${errorMsg}`);
+        continue;
+      }
 
-        // Update error state
-        await prisma.googleCalendarSync.update({
-          where: { id: calendar.id },
-          data: {
-            lastError: errorMsg,
-            errorCount: { increment: 1 },
-          },
-        });
+      for (const calendar of account.syncConfigs) {
+        try {
+          const syncResult = await performSync(
+            userId,
+            calendar.googleCalendarId,
+            accessToken,
+            calendar.syncToken,
+            calendar.id, // syncConfigId for calendarId/uid scoping
+          );
+
+          console.log(`[triggerSync] Calendar "${calendar.calendarName}":`, {
+            created: syncResult.created,
+            updated: syncResult.updated,
+            deleted: syncResult.deleted,
+            errors: syncResult.errors,
+            newSyncToken: syncResult.newSyncToken ? "received" : "none",
+          });
+
+          if (syncResult.created > 0 || syncResult.updated > 0) {
+            synced++;
+          }
+
+          if (syncResult.errors.length > 0) {
+            errors.push(
+              ...syncResult.errors.map((e) => `${calendar.calendarName}: ${e}`),
+            );
+          }
+
+          await prisma.googleCalendarSync.update({
+            where: { id: calendar.id },
+            data: {
+              lastSyncAt: new Date(),
+              lastError:
+                syncResult.errors.length > 0
+                  ? syncResult.errors.join("; ")
+                  : null,
+              errorCount: syncResult.errors.length > 0 ? { increment: 1 } : 0,
+              syncToken: syncResult.newSyncToken ?? undefined,
+            },
+          });
+        } catch (err) {
+          const errorMsg =
+            err instanceof Error ? err.message : "Unknown sync error";
+          console.error(
+            `[triggerSync] Calendar "${calendar.calendarName}" failed:`,
+            err,
+          );
+          errors.push(`${calendar.calendarName}: ${errorMsg}`);
+
+          await prisma.googleCalendarSync.update({
+            where: { id: calendar.id },
+            data: {
+              lastError: errorMsg,
+              errorCount: { increment: 1 },
+            },
+          });
+        }
       }
     }
 
     return { synced, errors };
-  },
-);
-
-/**
- * Disconnect Google Calendar integration.
- * Removes all sync configurations (but keeps synced events).
- */
-export const disconnectGoogle = command(
-  v.undefined(),
-  async (): Promise<{ success: boolean }> => {
-    const userId = getAuthenticatedUser();
-
-    // Delete all sync configurations for this user
-    await prisma.googleCalendarSync.deleteMany({
-      where: { userId },
-    });
-
-    // Note: We don't delete the Google account from Better Auth
-    // as that would affect login. User can still use Google to login.
-    // Synced events remain in the database with syncStatus = "synced"
-
-    return { success: true };
   },
 );
