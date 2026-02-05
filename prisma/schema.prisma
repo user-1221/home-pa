@@ -346,7 +346,7 @@ model ActiveTimerSession {
   memoId          String
   taskTitle       String
   startedAt       DateTime
-  plannedEndTime  String   // HH:mm
+  plannedEndTime  String?  // HH:mm (null = open-ended)
   mode            String   // "normal" | "pomodoro"
   pomodoroState   Json?    // PomodoroState object
 

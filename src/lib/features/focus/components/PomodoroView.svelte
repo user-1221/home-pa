@@ -16,6 +16,7 @@
   import { scheduleState } from "$lib/features/assistant/state/schedule.svelte.ts";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import Button from "$lib/features/shared/components/Button.svelte";
+  import SlidingSelector from "$lib/features/shared/components/SlidingSelector.svelte";
   import type { Memo } from "$lib/types.ts";
 
   interface Props {
@@ -29,6 +30,9 @@
   let selectedTaskTitle = $state<string>("");
   let customEndTime = $state<string | null>(null);
   let showTaskPicker = $state(false);
+  let selectedMode = $state<"normal" | "pomodoro">("pomodoro");
+  let selectedDuration = $state(60); // minutes, for normal mode end-time calc
+  let noEndTime = $state(false);
 
   // Pomodoro settings
   const WORK_DURATION = 25;
@@ -90,23 +94,38 @@
   async function handleStart() {
     if (!selectedTaskId || !selectedTaskTitle || isStarting) return;
 
-    let endTime = customEndTime;
-    if (!endTime) {
-      // Calculate end time 2 hours from now (non-reactive, just a calculation)
+    let endTime: string | undefined;
+    if (noEndTime) {
+      endTime = undefined;
+    } else if (customEndTime) {
+      endTime = customEndTime;
+    } else {
+      const durationMs =
+        selectedMode === "pomodoro"
+          ? 2 * 60 * 60 * 1000
+          : selectedDuration * 60 * 1000;
       const now = Date.now();
-      const endDate = new Date(now + 2 * 60 * 60 * 1000);
+      const endDate = new Date(now + durationMs);
       endTime = `${endDate.getHours().toString().padStart(2, "0")}:${endDate.getMinutes().toString().padStart(2, "0")}`;
     }
 
     isStarting = true;
     try {
-      await focusState.startPomodoro(
-        selectedTaskId,
-        selectedTaskTitle,
-        endTime,
-        WORK_DURATION,
-        BREAK_DURATION,
-      );
+      if (selectedMode === "pomodoro") {
+        await focusState.startPomodoro(
+          selectedTaskId,
+          selectedTaskTitle,
+          endTime,
+          WORK_DURATION,
+          BREAK_DURATION,
+        );
+      } else {
+        await focusState.startNormal(
+          selectedTaskId,
+          selectedTaskTitle,
+          endTime,
+        );
+      }
     } finally {
       isStarting = false;
     }
@@ -157,8 +176,18 @@
 
   // Calculate circle progress
   let circleProgress = $derived.by(() => {
-    if (!activeSession?.pomodoroState) return 0;
-    return focusState.phaseProgress;
+    if (!activeSession) return 0;
+    if (activeSession.mode === "pomodoro" && activeSession.pomodoroState) {
+      return focusState.phaseProgress;
+    }
+    // Normal mode without end time: no progress (pulsing animation instead)
+    if (!activeSession.plannedEndTime) return 0;
+    // Normal mode: elapsed / total progress
+    const elapsedSec = focusState.elapsedWorkMinutes * 60;
+    const remainingSec = focusState.secondsUntilEnd;
+    const totalSec = elapsedSec + remainingSec;
+    if (totalSec === 0) return 100;
+    return Math.min(100, (elapsedSec / totalSec) * 100);
   });
 
   // SVG circle parameters
@@ -177,11 +206,19 @@
     class="flex items-center justify-between border-b border-base-200 bg-base-100/80 px-4 py-3 backdrop-blur-sm"
   >
     <div class="flex items-center gap-3">
-      <span class="text-xl">🍅</span>
+      <span class="text-xl"
+        >{activeSession?.mode === "normal" ||
+        (!isTracking && selectedMode === "normal")
+          ? "⏱️"
+          : "🍅"}</span
+      >
       <h2
         class="text-base font-normal tracking-tight text-[var(--color-text-primary)]"
       >
-        Pomodoro
+        {activeSession?.mode === "normal" ||
+        (!isTracking && selectedMode === "normal")
+          ? "タイマー"
+          : "Pomodoro"}
       </h2>
     </div>
     {#if onClose}
@@ -281,109 +318,263 @@
         </div>
       </div>
     {:else if isTracking && activeSession}
-      <!-- Active Session View -->
-      <div class="flex flex-col items-center gap-8">
-        <!-- Timer Circle -->
-        <div class="relative">
-          <!-- Outer glow effect -->
-          <div
-            class="absolute -inset-4 rounded-full opacity-20 blur-xl transition-colors duration-1000 {focusState.currentPhase ===
-            'break'
-              ? 'bg-success'
-              : 'bg-primary'}"
-          ></div>
-
-          <svg
-            class="relative h-48 w-48 -rotate-90 transform md:h-56 md:w-56"
-            viewBox="0 0 200 200"
-          >
-            <!-- Background circle -->
-            <circle
-              cx="100"
-              cy="100"
-              r={CIRCLE_RADIUS}
-              fill="none"
-              stroke="currentColor"
-              stroke-width="6"
-              class="text-base-300/50"
-            />
-            <!-- Progress circle -->
-            <circle
-              cx="100"
-              cy="100"
-              r={CIRCLE_RADIUS}
-              fill="none"
-              stroke="currentColor"
-              stroke-width="6"
-              stroke-linecap="round"
-              stroke-dasharray={CIRCLE_CIRCUMFERENCE}
-              stroke-dashoffset={strokeDashoffset}
-              class="transition-all duration-1000 {focusState.currentPhase ===
-              'break'
-                ? 'text-success'
-                : 'text-primary'}"
-            />
-          </svg>
-
-          <!-- Timer display in center -->
-          <div
-            class="absolute inset-0 flex flex-col items-center justify-center"
-          >
-            <span
-              class="font-mono text-5xl font-light tracking-tight md:text-6xl {focusState.currentPhase ===
-              'break'
-                ? 'text-success'
-                : 'text-primary'}"
-            >
-              {formatTimerDisplay(focusState.phaseTimeRemaining)}
-            </span>
-            <span
-              class="mt-2 text-xs tracking-widest uppercase {focusState.currentPhase ===
-              'break'
-                ? 'text-success/70'
-                : 'text-primary/70'}"
-            >
-              {focusState.currentPhase === "break" ? "休憩" : "集中"}
-            </span>
-          </div>
-        </div>
-
-        <!-- Task info -->
-        <div class="w-full max-w-xs text-center">
-          <h3
-            class="truncate text-lg font-normal text-[var(--color-text-primary)]"
-          >
-            {activeSession.taskTitle}
-          </h3>
-          {#if activeSession.pomodoroState}
+      {#if activeSession.mode === "pomodoro"}
+        <!-- Pomodoro Active Session View -->
+        <div class="flex flex-col items-center gap-8">
+          <!-- Timer Circle -->
+          <div class="relative">
+            <!-- Outer glow effect -->
             <div
-              class="mt-2 flex items-center justify-center gap-4 text-sm text-[var(--color-text-secondary)]"
-            >
-              <span>サイクル {activeSession.pomodoroState.cycleNumber}</span>
-              <span class="text-base-300">・</span>
-              <span>{formatDuration(focusState.elapsedWorkMinutes)}</span>
-            </div>
-          {/if}
-        </div>
+              class="absolute -inset-4 rounded-full opacity-20 blur-xl transition-colors duration-1000 {focusState.currentPhase ===
+              'break'
+                ? 'bg-success'
+                : 'bg-primary'}"
+            ></div>
 
-        <!-- Controls -->
-        <div class="flex items-center gap-3">
-          {#if focusState.currentPhase === "break"}
+            <svg
+              class="relative h-48 w-48 -rotate-90 transform md:h-56 md:w-56"
+              viewBox="0 0 200 200"
+            >
+              <!-- Background circle -->
+              <circle
+                cx="100"
+                cy="100"
+                r={CIRCLE_RADIUS}
+                fill="none"
+                stroke="currentColor"
+                stroke-width="6"
+                class="text-base-300/50"
+              />
+              <!-- Progress circle -->
+              <circle
+                cx="100"
+                cy="100"
+                r={CIRCLE_RADIUS}
+                fill="none"
+                stroke="currentColor"
+                stroke-width="6"
+                stroke-linecap="round"
+                stroke-dasharray={CIRCLE_CIRCUMFERENCE}
+                stroke-dashoffset={strokeDashoffset}
+                class="transition-all duration-1000 {focusState.currentPhase ===
+                'break'
+                  ? 'text-success'
+                  : 'text-primary'}"
+              />
+            </svg>
+
+            <!-- Timer display in center -->
+            <div
+              class="absolute inset-0 flex flex-col items-center justify-center"
+            >
+              <span
+                class="font-mono text-5xl font-light tracking-tight md:text-6xl {focusState.currentPhase ===
+                'break'
+                  ? 'text-success'
+                  : 'text-primary'}"
+              >
+                {formatTimerDisplay(focusState.phaseTimeRemaining)}
+              </span>
+              <span
+                class="mt-2 text-xs tracking-widest uppercase {focusState.currentPhase ===
+                'break'
+                  ? 'text-success/70'
+                  : 'text-primary/70'}"
+              >
+                {focusState.currentPhase === "break" ? "休憩" : "集中"}
+              </span>
+            </div>
+          </div>
+
+          <!-- Task info -->
+          <div class="w-full max-w-xs text-center">
+            <h3
+              class="truncate text-lg font-normal text-[var(--color-text-primary)]"
+            >
+              {activeSession.taskTitle}
+            </h3>
+            {#if activeSession.pomodoroState}
+              <div
+                class="mt-2 flex items-center justify-center gap-4 text-sm text-[var(--color-text-secondary)]"
+              >
+                <span>サイクル {activeSession.pomodoroState.cycleNumber}</span>
+                <span class="text-base-300">・</span>
+                <span>{formatDuration(focusState.elapsedWorkMinutes)}</span>
+              </div>
+            {/if}
+          </div>
+
+          <!-- Controls -->
+          <div class="flex items-center gap-3">
+            {#if focusState.currentPhase === "break"}
+              <button
+                class="btn gap-2 border-success/20 bg-success/10 text-success btn-sm hover:bg-success hover:text-success-content"
+                onclick={handleSkipBreak}
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-4 w-4"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M5 4l10 8-10 8V4zm11 0h3v16h-3V4z" />
+                </svg>
+                スキップ
+              </button>
+            {:else}
+              <button
+                class="btn gap-2 border-base-300 bg-base-100 text-base-content btn-sm hover:bg-base-200"
+                onclick={handlePause}
+              >
+                {#if focusState.isPaused}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                  再開
+                {:else}
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    class="h-4 w-4"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
+                  </svg>
+                  一時停止
+                {/if}
+              </button>
+            {/if}
+
             <button
-              class="btn gap-2 border-success/20 bg-success/10 text-success btn-sm hover:bg-success hover:text-success-content"
-              onclick={handleSkipBreak}
+              class="btn gap-2 border-primary/20 bg-primary/10 text-primary btn-sm hover:bg-primary hover:text-primary-content"
+              onclick={handleComplete}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 class="h-4 w-4"
-                fill="currentColor"
+                fill="none"
                 viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
               >
-                <path d="M5 4l10 8-10 8V4zm11 0h3v16h-3V4z" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
-              スキップ
+              完了
             </button>
-          {:else}
+
+            <button
+              class="btn btn-circle text-base-content/40 btn-ghost btn-sm hover:text-error"
+              onclick={handleCancel}
+              title="キャンセル"
+              aria-label="キャンセル"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
+        </div>
+      {:else}
+        <!-- Normal Timer Active Session View -->
+        <div class="flex flex-col items-center gap-8">
+          <!-- Timer Circle -->
+          <div class="relative">
+            <div
+              class="absolute -inset-4 rounded-full bg-primary opacity-20 blur-xl {!activeSession.plannedEndTime
+                ? 'animate-pulse'
+                : ''}"
+            ></div>
+
+            <svg
+              class="relative h-48 w-48 -rotate-90 transform md:h-56 md:w-56"
+              viewBox="0 0 200 200"
+            >
+              <circle
+                cx="100"
+                cy="100"
+                r={CIRCLE_RADIUS}
+                fill="none"
+                stroke="currentColor"
+                stroke-width="6"
+                class="text-base-300/50"
+              />
+              <circle
+                cx="100"
+                cy="100"
+                r={CIRCLE_RADIUS}
+                fill="none"
+                stroke="currentColor"
+                stroke-width="6"
+                stroke-linecap="round"
+                stroke-dasharray={CIRCLE_CIRCUMFERENCE}
+                stroke-dashoffset={strokeDashoffset}
+                class="text-primary transition-all duration-1000"
+              />
+            </svg>
+
+            <!-- Center display -->
+            <div
+              class="absolute inset-0 flex flex-col items-center justify-center"
+            >
+              <span
+                class="font-mono text-4xl font-light tracking-tight text-primary md:text-5xl"
+              >
+                {formatDuration(focusState.elapsedWorkMinutes)}
+              </span>
+              <span
+                class="mt-1 text-[10px] tracking-widest text-primary/70 uppercase"
+                >経過</span
+              >
+              {#if activeSession.plannedEndTime}
+                <span
+                  class="mt-3 font-mono text-lg font-light text-[var(--color-text-secondary)]"
+                >
+                  {formatTimerDisplay(focusState.secondsUntilEnd)}
+                </span>
+                <span
+                  class="text-[9px] tracking-widest text-[var(--color-text-muted)] uppercase"
+                  >残り</span
+                >
+              {/if}
+            </div>
+          </div>
+
+          <!-- Task info -->
+          <div class="w-full max-w-xs text-center">
+            <h3
+              class="truncate text-lg font-normal text-[var(--color-text-primary)]"
+            >
+              {activeSession.taskTitle}
+            </h3>
+            {#if activeSession.plannedEndTime}
+              <p class="mt-2 text-sm text-[var(--color-text-secondary)]">
+                〜 {activeSession.plannedEndTime} まで
+              </p>
+            {/if}
+          </div>
+
+          <!-- Controls -->
+          <div class="flex items-center gap-3">
             <button
               class="btn gap-2 border-base-300 bg-base-100 text-base-content btn-sm hover:bg-base-200"
               onclick={handlePause}
@@ -410,55 +601,68 @@
                 一時停止
               {/if}
             </button>
-          {/if}
 
-          <button
-            class="btn gap-2 border-primary/20 bg-primary/10 text-primary btn-sm hover:bg-primary hover:text-primary-content"
-            onclick={handleComplete}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2"
+            <button
+              class="btn gap-2 border-primary/20 bg-primary/10 text-primary btn-sm hover:bg-primary hover:text-primary-content"
+              onclick={handleComplete}
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-            完了
-          </button>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              完了
+            </button>
 
-          <button
-            class="btn btn-circle text-base-content/40 btn-ghost btn-sm hover:text-error"
-            onclick={handleCancel}
-            title="キャンセル"
-            aria-label="キャンセル"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2"
+            <button
+              class="btn btn-circle text-base-content/40 btn-ghost btn-sm hover:text-error"
+              onclick={handleCancel}
+              title="キャンセル"
+              aria-label="キャンセル"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
+      {/if}
     {:else}
       <!-- Setup View -->
       <div class="flex w-full max-w-sm flex-col items-center gap-8">
+        <!-- Mode Toggle -->
+        <SlidingSelector
+          options={[
+            { value: "normal", label: "通常" },
+            { value: "pomodoro", label: "ポモドーロ" },
+          ]}
+          selected={selectedMode}
+          onSelect={(v) => {
+            if (v === "normal" || v === "pomodoro") selectedMode = v;
+          }}
+          class="w-full max-w-xs"
+        />
+
         <!-- Decorative timer preview -->
         <div class="relative">
           <div
@@ -467,15 +671,33 @@
           <div
             class="relative flex h-32 w-32 items-center justify-center rounded-full border-4 border-base-200 bg-base-100"
           >
-            <div class="text-center">
-              <span class="block font-mono text-3xl font-light text-primary"
-                >{WORK_DURATION}</span
-              >
-              <span
-                class="text-[10px] tracking-widest text-[var(--color-text-muted)] uppercase"
-                >分</span
-              >
-            </div>
+            {#if selectedMode === "pomodoro"}
+              <div class="text-center">
+                <span class="block font-mono text-3xl font-light text-primary"
+                  >{WORK_DURATION}</span
+                >
+                <span
+                  class="text-[10px] tracking-widest text-[var(--color-text-muted)] uppercase"
+                  >分</span
+                >
+              </div>
+            {:else if noEndTime}
+              <div class="text-center">
+                <span class="block font-mono text-3xl font-light text-primary"
+                  >∞</span
+                >
+                <span
+                  class="text-[10px] tracking-widest text-[var(--color-text-muted)] uppercase"
+                  >制限なし</span
+                >
+              </div>
+            {:else}
+              <div class="text-center">
+                <span class="block font-mono text-2xl font-light text-primary">
+                  {formatDuration(selectedDuration)}
+                </span>
+              </div>
+            {/if}
           </div>
         </div>
 
@@ -556,41 +778,116 @@
           {/if}
         </div>
 
-        <!-- Pomodoro cycle info -->
-        <div class="flex items-center gap-6">
-          <div class="text-center">
-            <span class="block font-mono text-2xl font-light text-primary"
-              >{WORK_DURATION}</span
+        {#if selectedMode === "pomodoro"}
+          <!-- Pomodoro cycle info -->
+          <div class="flex items-center gap-6">
+            <div class="text-center">
+              <span class="block font-mono text-2xl font-light text-primary"
+                >{WORK_DURATION}</span
+              >
+              <span
+                class="text-[10px] tracking-widest text-[var(--color-text-muted)] uppercase"
+                >分集中</span
+              >
+            </div>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              class="h-4 w-4 text-base-300"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="1.5"
             >
-            <span
-              class="text-[10px] tracking-widest text-[var(--color-text-muted)] uppercase"
-              >分集中</span
-            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M13 5l7 7-7 7M5 5l7 7-7 7"
+              />
+            </svg>
+            <div class="text-center">
+              <span class="block font-mono text-2xl font-light text-success"
+                >{BREAK_DURATION}</span
+              >
+              <span
+                class="text-[10px] tracking-widest text-[var(--color-text-muted)] uppercase"
+                >分休憩</span
+              >
+            </div>
           </div>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            class="h-4 w-4 text-base-300"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.5"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M13 5l7 7-7 7M5 5l7 7-7 7"
+        {:else if !customEndTime && !noEndTime}
+          <!-- Normal mode duration selector -->
+          <div class="flex items-center gap-4">
+            <button
+              class="btn btn-circle btn-ghost btn-sm"
+              onclick={() => {
+                if (selectedDuration > 30) selectedDuration -= 30;
+              }}
+              disabled={selectedDuration <= 30}
+              aria-label="時間を減らす"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M19 12H5"
+                />
+              </svg>
+            </button>
+            <div class="text-center">
+              <span class="block font-mono text-2xl font-light text-primary">
+                {formatDuration(selectedDuration)}
+              </span>
+              <span
+                class="text-[10px] tracking-widest text-[var(--color-text-muted)] uppercase"
+                >作業時間</span
+              >
+            </div>
+            <button
+              class="btn btn-circle btn-ghost btn-sm"
+              onclick={() => {
+                if (selectedDuration < 300) selectedDuration += 30;
+              }}
+              disabled={selectedDuration >= 300}
+              aria-label="時間を増やす"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                class="h-5 w-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+            </button>
+          </div>
+        {/if}
+
+        <!-- No end time toggle -->
+        {#if !customEndTime}
+          <label class="flex cursor-pointer items-center gap-2 select-none">
+            <input
+              type="checkbox"
+              class="checkbox checkbox-sm checkbox-primary"
+              bind:checked={noEndTime}
             />
-          </svg>
-          <div class="text-center">
-            <span class="block font-mono text-2xl font-light text-success"
-              >{BREAK_DURATION}</span
+            <span class="text-sm text-[var(--color-text-secondary)]"
+              >制限なし</span
             >
-            <span
-              class="text-[10px] tracking-widest text-[var(--color-text-muted)] uppercase"
-              >分休憩</span
-            >
-          </div>
-        </div>
+          </label>
+        {/if}
 
         <!-- Start button -->
         <button

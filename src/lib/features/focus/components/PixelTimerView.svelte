@@ -40,6 +40,8 @@
   let customEndTime = $state<string | null>(null);
   let showTaskPicker = $state(false);
   let selectedDuration = $state(120); // Default 2 hours (in minutes)
+  let selectedMode = $state<"normal" | "pomodoro">("pomodoro");
+  let noEndTime = $state(false);
 
   // Pomodoro settings
   const WORK_DURATION = 25;
@@ -51,7 +53,8 @@
   // Animation state
   let isAnimating = $derived(
     focusState.isActive &&
-      focusState.currentPhase === "work" &&
+      (focusState.currentPhase === "work" ||
+        focusState.activeSession?.mode === "normal") &&
       !focusState.isPaused,
   );
   let currentFrames = $derived(isAnimating ? WALK_FRAMES : REST_FRAMES);
@@ -119,8 +122,12 @@
   async function handleStart() {
     if (!selectedTaskId || !selectedTaskTitle || isStarting) return;
 
-    let endTime = customEndTime;
-    if (!endTime) {
+    let endTime: string | undefined;
+    if (noEndTime) {
+      endTime = undefined;
+    } else if (customEndTime) {
+      endTime = customEndTime;
+    } else {
       const now = Date.now();
       const endDate = new Date(now + selectedDuration * 60 * 1000);
       endTime = `${endDate.getHours().toString().padStart(2, "0")}:${endDate.getMinutes().toString().padStart(2, "0")}`;
@@ -128,13 +135,21 @@
 
     isStarting = true;
     try {
-      await focusState.startPomodoro(
-        selectedTaskId,
-        selectedTaskTitle,
-        endTime,
-        WORK_DURATION,
-        BREAK_DURATION,
-      );
+      if (selectedMode === "pomodoro") {
+        await focusState.startPomodoro(
+          selectedTaskId,
+          selectedTaskTitle,
+          endTime,
+          WORK_DURATION,
+          BREAK_DURATION,
+        );
+      } else {
+        await focusState.startNormal(
+          selectedTaskId,
+          selectedTaskTitle,
+          endTime,
+        );
+      }
     } finally {
       isStarting = false;
     }
@@ -288,7 +303,7 @@
             <span>QUEST</span>
           </div>
           <div class="quest-title-active">{activeSession.taskTitle}</div>
-          {#if activeSession.pomodoroState}
+          {#if activeSession.mode === "pomodoro" && activeSession.pomodoroState}
             <div class="quest-stats-active">
               <span class="stat-label">CYCLE</span>
               <span class="stat-value"
@@ -300,39 +315,147 @@
                 >{formatDuration(focusState.elapsedWorkMinutes)}</span
               >
             </div>
+          {:else}
+            <div class="quest-stats-active">
+              <span class="stat-label">TIME</span>
+              <span class="stat-value"
+                >{formatDuration(focusState.elapsedWorkMinutes)}</span
+              >
+            </div>
           {/if}
         </div>
 
-        <!-- Timer Display Panel -->
-        <div
-          class="timer-panel-active {focusState.currentPhase === 'break'
-            ? 'timer-break-active'
-            : 'timer-work-active'}"
-        >
-          <div class="timer-value-active">
-            {formatTimerDisplay(focusState.phaseTimeRemaining)}
+        {#if activeSession.mode === "pomodoro"}
+          <!-- Pomodoro Timer Display Panel -->
+          <div
+            class="timer-panel-active {focusState.currentPhase === 'break'
+              ? 'timer-break-active'
+              : 'timer-work-active'}"
+          >
+            <div class="timer-value-active">
+              {formatTimerDisplay(focusState.phaseTimeRemaining)}
+            </div>
+            <div class="timer-phase-active">
+              {focusState.currentPhase === "break" ? "REST" : "FOCUS"}
+              {#if focusState.isPaused}
+                <span class="paused-indicator-active">PAUSED</span>
+              {/if}
+            </div>
           </div>
-          <div class="timer-phase-active">
-            {focusState.currentPhase === "break" ? "REST" : "FOCUS"}
-            {#if focusState.isPaused}
-              <span class="paused-indicator-active">PAUSED</span>
-            {/if}
-          </div>
-        </div>
 
-        <!-- Control Buttons -->
-        <div class="control-buttons-active">
-          {#if focusState.currentPhase === "break"}
-            <button class="ctrl-btn ctrl-btn-skip" onclick={handleSkipBreak}>
+          <!-- Control Buttons (Pomodoro) -->
+          <div class="control-buttons-active">
+            {#if focusState.currentPhase === "break"}
+              <button class="ctrl-btn ctrl-btn-skip" onclick={handleSkipBreak}>
+                <svg viewBox="0 0 16 16" fill="none" class="ctrl-btn-icon">
+                  <rect x="3" y="4" width="2" height="8" fill="currentColor" />
+                  <rect x="6" y="6" width="2" height="4" fill="currentColor" />
+                  <rect x="8" y="5" width="2" height="6" fill="currentColor" />
+                  <rect x="10" y="4" width="2" height="8" fill="currentColor" />
+                </svg>
+                <span>SKIP</span>
+              </button>
+            {:else}
+              <button class="ctrl-btn ctrl-btn-pause" onclick={handlePause}>
+                {#if focusState.isPaused}
+                  <svg viewBox="0 0 16 16" fill="none" class="ctrl-btn-icon">
+                    <rect
+                      x="5"
+                      y="3"
+                      width="2"
+                      height="10"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="7"
+                      y="4"
+                      width="2"
+                      height="8"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="9"
+                      y="5"
+                      width="2"
+                      height="6"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="11"
+                      y="6"
+                      width="2"
+                      height="4"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  <span>RESUME</span>
+                {:else}
+                  <svg viewBox="0 0 16 16" fill="none" class="ctrl-btn-icon">
+                    <rect
+                      x="4"
+                      y="3"
+                      width="3"
+                      height="10"
+                      fill="currentColor"
+                    />
+                    <rect
+                      x="9"
+                      y="3"
+                      width="3"
+                      height="10"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  <span>PAUSE</span>
+                {/if}
+              </button>
+            {/if}
+
+            <button class="ctrl-btn ctrl-btn-complete" onclick={handleComplete}>
               <svg viewBox="0 0 16 16" fill="none" class="ctrl-btn-icon">
-                <rect x="3" y="4" width="2" height="8" fill="currentColor" />
-                <rect x="6" y="6" width="2" height="4" fill="currentColor" />
-                <rect x="8" y="5" width="2" height="6" fill="currentColor" />
-                <rect x="10" y="4" width="2" height="8" fill="currentColor" />
+                <rect x="3" y="8" width="2" height="2" fill="currentColor" />
+                <rect x="5" y="10" width="2" height="2" fill="currentColor" />
+                <rect x="7" y="8" width="2" height="2" fill="currentColor" />
+                <rect x="9" y="6" width="2" height="2" fill="currentColor" />
+                <rect x="11" y="4" width="2" height="2" fill="currentColor" />
               </svg>
-              <span>SKIP</span>
+              <span>COMPLETE</span>
             </button>
-          {:else}
+
+            <button class="ctrl-btn ctrl-btn-abandon" onclick={handleCancel}>
+              <svg viewBox="0 0 16 16" fill="none" class="ctrl-btn-icon">
+                <rect x="4" y="4" width="2" height="2" fill="currentColor" />
+                <rect x="6" y="6" width="2" height="2" fill="currentColor" />
+                <rect x="8" y="6" width="2" height="2" fill="currentColor" />
+                <rect x="10" y="4" width="2" height="2" fill="currentColor" />
+                <rect x="4" y="10" width="2" height="2" fill="currentColor" />
+                <rect x="6" y="8" width="2" height="2" fill="currentColor" />
+                <rect x="8" y="8" width="2" height="2" fill="currentColor" />
+                <rect x="10" y="10" width="2" height="2" fill="currentColor" />
+              </svg>
+              <span>QUIT</span>
+            </button>
+          </div>
+        {:else}
+          <!-- Normal Timer Display Panel -->
+          <div class="timer-panel-active timer-work-active">
+            <div class="timer-value-active">
+              {#if activeSession.plannedEndTime}
+                {formatTimerDisplay(focusState.secondsUntilEnd)}
+              {:else}
+                {formatDuration(focusState.elapsedWorkMinutes)}
+              {/if}
+            </div>
+            <div class="timer-phase-active">
+              {activeSession.plannedEndTime ? "REMAINING" : "ELAPSED"}
+              {#if focusState.isPaused}
+                <span class="paused-indicator-active">PAUSED</span>
+              {/if}
+            </div>
+          </div>
+
+          <!-- Control Buttons (Normal - no SKIP) -->
+          <div class="control-buttons-active">
             <button class="ctrl-btn ctrl-btn-pause" onclick={handlePause}>
               {#if focusState.isPaused}
                 <svg viewBox="0 0 16 16" fill="none" class="ctrl-btn-icon">
@@ -350,33 +473,33 @@
                 <span>PAUSE</span>
               {/if}
             </button>
-          {/if}
 
-          <button class="ctrl-btn ctrl-btn-complete" onclick={handleComplete}>
-            <svg viewBox="0 0 16 16" fill="none" class="ctrl-btn-icon">
-              <rect x="3" y="8" width="2" height="2" fill="currentColor" />
-              <rect x="5" y="10" width="2" height="2" fill="currentColor" />
-              <rect x="7" y="8" width="2" height="2" fill="currentColor" />
-              <rect x="9" y="6" width="2" height="2" fill="currentColor" />
-              <rect x="11" y="4" width="2" height="2" fill="currentColor" />
-            </svg>
-            <span>COMPLETE</span>
-          </button>
+            <button class="ctrl-btn ctrl-btn-complete" onclick={handleComplete}>
+              <svg viewBox="0 0 16 16" fill="none" class="ctrl-btn-icon">
+                <rect x="3" y="8" width="2" height="2" fill="currentColor" />
+                <rect x="5" y="10" width="2" height="2" fill="currentColor" />
+                <rect x="7" y="8" width="2" height="2" fill="currentColor" />
+                <rect x="9" y="6" width="2" height="2" fill="currentColor" />
+                <rect x="11" y="4" width="2" height="2" fill="currentColor" />
+              </svg>
+              <span>COMPLETE</span>
+            </button>
 
-          <button class="ctrl-btn ctrl-btn-abandon" onclick={handleCancel}>
-            <svg viewBox="0 0 16 16" fill="none" class="ctrl-btn-icon">
-              <rect x="4" y="4" width="2" height="2" fill="currentColor" />
-              <rect x="6" y="6" width="2" height="2" fill="currentColor" />
-              <rect x="8" y="6" width="2" height="2" fill="currentColor" />
-              <rect x="10" y="4" width="2" height="2" fill="currentColor" />
-              <rect x="4" y="10" width="2" height="2" fill="currentColor" />
-              <rect x="6" y="8" width="2" height="2" fill="currentColor" />
-              <rect x="8" y="8" width="2" height="2" fill="currentColor" />
-              <rect x="10" y="10" width="2" height="2" fill="currentColor" />
-            </svg>
-            <span>QUIT</span>
-          </button>
-        </div>
+            <button class="ctrl-btn ctrl-btn-abandon" onclick={handleCancel}>
+              <svg viewBox="0 0 16 16" fill="none" class="ctrl-btn-icon">
+                <rect x="4" y="4" width="2" height="2" fill="currentColor" />
+                <rect x="6" y="6" width="2" height="2" fill="currentColor" />
+                <rect x="8" y="6" width="2" height="2" fill="currentColor" />
+                <rect x="10" y="4" width="2" height="2" fill="currentColor" />
+                <rect x="4" y="10" width="2" height="2" fill="currentColor" />
+                <rect x="6" y="8" width="2" height="2" fill="currentColor" />
+                <rect x="8" y="8" width="2" height="2" fill="currentColor" />
+                <rect x="10" y="10" width="2" height="2" fill="currentColor" />
+              </svg>
+              <span>QUIT</span>
+            </button>
+          </div>
+        {/if}
       </div>
 
       <!-- ═══════════════════════════════════════════════════════════════════
@@ -384,6 +507,26 @@
            ═══════════════════════════════════════════════════════════════════ -->
     {:else}
       <div class="game-screen">
+        <!-- Mode Toggle -->
+        <div class="mode-toggle">
+          <button
+            class="mode-btn {selectedMode === 'pomodoro'
+              ? 'mode-btn-active'
+              : ''}"
+            onclick={() => (selectedMode = "pomodoro")}
+          >
+            POMODORO
+          </button>
+          <button
+            class="mode-btn {selectedMode === 'normal'
+              ? 'mode-btn-active'
+              : ''}"
+            onclick={() => (selectedMode = "normal")}
+          >
+            TIMER
+          </button>
+        </div>
+
         <!-- Character Area - Central Focus -->
         <div class="character-stage">
           <PixelSprite
@@ -901,252 +1044,262 @@
 
         <!-- Game Rules + Duration Row -->
         <div class="rules-duration-row">
-          <!-- Game Rules Panel -->
-          <div class="rules-panel">
-            <div class="rule-item">
-              <!-- High-detail painterly hourglass (48x48) -->
-              <svg
-                class="rule-icon rule-icon-work"
-                viewBox="0 0 48 48"
-                fill="none"
-              >
-                <!-- === TOP FRAME (ornate brass with engraving) === -->
-                <rect x="8" y="2" width="32" height="4" fill="#B89050" />
-                <rect x="8" y="2" width="32" height="1" fill="#E8C888" />
-                <rect x="8" y="3" width="32" height="1" fill="#D8B070" />
-                <rect x="8" y="4" width="32" height="1" fill="#C4A060" />
-                <rect x="8" y="5" width="32" height="1" fill="#A88050" />
-                <!-- Frame engraving detail -->
-                <rect x="12" y="2" width="4" height="1" fill="#F0D898" />
-                <rect x="20" y="3" width="8" height="1" fill="#E0C080" />
-                <rect x="32" y="2" width="4" height="1" fill="#F0D898" />
-                <rect x="14" y="4" width="2" height="1" fill="#987040" />
-                <rect x="32" y="4" width="2" height="1" fill="#987040" />
-                <!-- Frame edge bevel -->
-                <rect x="6" y="2" width="2" height="4" fill="#C4A060" />
-                <rect x="6" y="2" width="1" height="4" fill="#D8B070" />
-                <rect x="40" y="2" width="2" height="4" fill="#987040" />
-                <rect x="41" y="2" width="1" height="4" fill="#886030" />
+          <!-- Game Rules Panel (pomodoro only) -->
+          {#if selectedMode === "pomodoro"}
+            <div class="rules-panel">
+              <div class="rule-item">
+                <!-- High-detail painterly hourglass (48x48) -->
+                <svg
+                  class="rule-icon rule-icon-work"
+                  viewBox="0 0 48 48"
+                  fill="none"
+                >
+                  <!-- === TOP FRAME (ornate brass with engraving) === -->
+                  <rect x="8" y="2" width="32" height="4" fill="#B89050" />
+                  <rect x="8" y="2" width="32" height="1" fill="#E8C888" />
+                  <rect x="8" y="3" width="32" height="1" fill="#D8B070" />
+                  <rect x="8" y="4" width="32" height="1" fill="#C4A060" />
+                  <rect x="8" y="5" width="32" height="1" fill="#A88050" />
+                  <!-- Frame engraving detail -->
+                  <rect x="12" y="2" width="4" height="1" fill="#F0D898" />
+                  <rect x="20" y="3" width="8" height="1" fill="#E0C080" />
+                  <rect x="32" y="2" width="4" height="1" fill="#F0D898" />
+                  <rect x="14" y="4" width="2" height="1" fill="#987040" />
+                  <rect x="32" y="4" width="2" height="1" fill="#987040" />
+                  <!-- Frame edge bevel -->
+                  <rect x="6" y="2" width="2" height="4" fill="#C4A060" />
+                  <rect x="6" y="2" width="1" height="4" fill="#D8B070" />
+                  <rect x="40" y="2" width="2" height="4" fill="#987040" />
+                  <rect x="41" y="2" width="1" height="4" fill="#886030" />
 
-                <!-- === TOP GLASS BULB (refractive edges) === -->
-                <rect x="12" y="6" width="24" height="2" fill="#E0EAE8" />
-                <rect x="12" y="6" width="2" height="2" fill="#F0F8F5" />
-                <rect x="34" y="6" width="2" height="2" fill="#C8D8D5" />
-                <rect x="14" y="8" width="20" height="2" fill="#D8E8E5" />
-                <rect x="14" y="8" width="2" height="2" fill="#E8F5F0" />
-                <rect x="32" y="8" width="2" height="2" fill="#C0D0CD" />
-                <rect x="16" y="10" width="16" height="2" fill="#E0EAE8" />
-                <rect x="16" y="10" width="2" height="2" fill="#F0F8F5" />
-                <rect x="30" y="10" width="2" height="2" fill="#C8D8D5" />
-                <rect x="18" y="12" width="12" height="2" fill="#D8E8E5" />
-                <rect x="18" y="12" width="2" height="2" fill="#E8F5F0" />
-                <rect x="28" y="12" width="2" height="2" fill="#C0D0CD" />
-                <rect x="20" y="14" width="8" height="2" fill="#E0EAE8" />
-                <rect x="20" y="14" width="2" height="2" fill="#F0F8F5" />
-                <rect x="26" y="14" width="2" height="2" fill="#C8D8D5" />
-                <rect x="22" y="16" width="4" height="2" fill="#D8E8E5" />
-                <rect x="22" y="16" width="1" height="2" fill="#E8F5F0" />
-                <rect x="25" y="16" width="1" height="2" fill="#C0D0CD" />
+                  <!-- === TOP GLASS BULB (refractive edges) === -->
+                  <rect x="12" y="6" width="24" height="2" fill="#E0EAE8" />
+                  <rect x="12" y="6" width="2" height="2" fill="#F0F8F5" />
+                  <rect x="34" y="6" width="2" height="2" fill="#C8D8D5" />
+                  <rect x="14" y="8" width="20" height="2" fill="#D8E8E5" />
+                  <rect x="14" y="8" width="2" height="2" fill="#E8F5F0" />
+                  <rect x="32" y="8" width="2" height="2" fill="#C0D0CD" />
+                  <rect x="16" y="10" width="16" height="2" fill="#E0EAE8" />
+                  <rect x="16" y="10" width="2" height="2" fill="#F0F8F5" />
+                  <rect x="30" y="10" width="2" height="2" fill="#C8D8D5" />
+                  <rect x="18" y="12" width="12" height="2" fill="#D8E8E5" />
+                  <rect x="18" y="12" width="2" height="2" fill="#E8F5F0" />
+                  <rect x="28" y="12" width="2" height="2" fill="#C0D0CD" />
+                  <rect x="20" y="14" width="8" height="2" fill="#E0EAE8" />
+                  <rect x="20" y="14" width="2" height="2" fill="#F0F8F5" />
+                  <rect x="26" y="14" width="2" height="2" fill="#C8D8D5" />
+                  <rect x="22" y="16" width="4" height="2" fill="#D8E8E5" />
+                  <rect x="22" y="16" width="1" height="2" fill="#E8F5F0" />
+                  <rect x="25" y="16" width="1" height="2" fill="#C0D0CD" />
 
-                <!-- === SAND IN TOP (warm amber tones) === -->
-                <rect x="15" y="9" width="18" height="1" fill="#E8C080" />
-                <rect x="15" y="9" width="2" height="1" fill="#F0D090" />
-                <rect x="31" y="9" width="2" height="1" fill="#D0A060" />
-                <rect x="17" y="10" width="14" height="1" fill="#D8B070" />
-                <rect x="19" y="11" width="10" height="1" fill="#E8C080" />
-                <rect x="19" y="11" width="2" height="1" fill="#F0D090" />
-                <rect x="21" y="12" width="6" height="1" fill="#D8B070" />
+                  <!-- === SAND IN TOP (warm amber tones) === -->
+                  <rect x="15" y="9" width="18" height="1" fill="#E8C080" />
+                  <rect x="15" y="9" width="2" height="1" fill="#F0D090" />
+                  <rect x="31" y="9" width="2" height="1" fill="#D0A060" />
+                  <rect x="17" y="10" width="14" height="1" fill="#D8B070" />
+                  <rect x="19" y="11" width="10" height="1" fill="#E8C080" />
+                  <rect x="19" y="11" width="2" height="1" fill="#F0D090" />
+                  <rect x="21" y="12" width="6" height="1" fill="#D8B070" />
 
-                <!-- === NECK (narrow waist) === -->
-                <rect x="23" y="18" width="2" height="4" fill="#E0EAE8" />
-                <rect x="23" y="18" width="1" height="4" fill="#F0F8F5" />
-                <!-- Sand stream -->
-                <rect x="23" y="19" width="2" height="2" fill="#D8B070" />
+                  <!-- === NECK (narrow waist) === -->
+                  <rect x="23" y="18" width="2" height="4" fill="#E0EAE8" />
+                  <rect x="23" y="18" width="1" height="4" fill="#F0F8F5" />
+                  <!-- Sand stream -->
+                  <rect x="23" y="19" width="2" height="2" fill="#D8B070" />
 
-                <!-- === BOTTOM GLASS BULB === -->
-                <rect x="22" y="22" width="4" height="2" fill="#D8E8E5" />
-                <rect x="22" y="22" width="1" height="2" fill="#E8F5F0" />
-                <rect x="25" y="22" width="1" height="2" fill="#C0D0CD" />
-                <rect x="20" y="24" width="8" height="2" fill="#E0EAE8" />
-                <rect x="20" y="24" width="2" height="2" fill="#F0F8F5" />
-                <rect x="26" y="24" width="2" height="2" fill="#C8D8D5" />
-                <rect x="18" y="26" width="12" height="2" fill="#D8E8E5" />
-                <rect x="18" y="26" width="2" height="2" fill="#E8F5F0" />
-                <rect x="28" y="26" width="2" height="2" fill="#C0D0CD" />
-                <rect x="16" y="28" width="16" height="2" fill="#E0EAE8" />
-                <rect x="16" y="28" width="2" height="2" fill="#F0F8F5" />
-                <rect x="30" y="28" width="2" height="2" fill="#C8D8D5" />
-                <rect x="14" y="30" width="20" height="2" fill="#D8E8E5" />
-                <rect x="14" y="30" width="2" height="2" fill="#E8F5F0" />
-                <rect x="32" y="30" width="2" height="2" fill="#C0D0CD" />
-                <rect x="12" y="32" width="24" height="2" fill="#E0EAE8" />
-                <rect x="12" y="32" width="2" height="2" fill="#F0F8F5" />
-                <rect x="34" y="32" width="2" height="2" fill="#C8D8D5" />
-                <rect x="10" y="34" width="28" height="2" fill="#D8E8E5" />
-                <rect x="10" y="34" width="2" height="2" fill="#E8F5F0" />
-                <rect x="36" y="34" width="2" height="2" fill="#C0D0CD" />
-                <rect x="10" y="36" width="28" height="2" fill="#E0EAE8" />
-                <rect x="10" y="36" width="2" height="2" fill="#F0F8F5" />
-                <rect x="36" y="36" width="2" height="2" fill="#C8D8D5" />
+                  <!-- === BOTTOM GLASS BULB === -->
+                  <rect x="22" y="22" width="4" height="2" fill="#D8E8E5" />
+                  <rect x="22" y="22" width="1" height="2" fill="#E8F5F0" />
+                  <rect x="25" y="22" width="1" height="2" fill="#C0D0CD" />
+                  <rect x="20" y="24" width="8" height="2" fill="#E0EAE8" />
+                  <rect x="20" y="24" width="2" height="2" fill="#F0F8F5" />
+                  <rect x="26" y="24" width="2" height="2" fill="#C8D8D5" />
+                  <rect x="18" y="26" width="12" height="2" fill="#D8E8E5" />
+                  <rect x="18" y="26" width="2" height="2" fill="#E8F5F0" />
+                  <rect x="28" y="26" width="2" height="2" fill="#C0D0CD" />
+                  <rect x="16" y="28" width="16" height="2" fill="#E0EAE8" />
+                  <rect x="16" y="28" width="2" height="2" fill="#F0F8F5" />
+                  <rect x="30" y="28" width="2" height="2" fill="#C8D8D5" />
+                  <rect x="14" y="30" width="20" height="2" fill="#D8E8E5" />
+                  <rect x="14" y="30" width="2" height="2" fill="#E8F5F0" />
+                  <rect x="32" y="30" width="2" height="2" fill="#C0D0CD" />
+                  <rect x="12" y="32" width="24" height="2" fill="#E0EAE8" />
+                  <rect x="12" y="32" width="2" height="2" fill="#F0F8F5" />
+                  <rect x="34" y="32" width="2" height="2" fill="#C8D8D5" />
+                  <rect x="10" y="34" width="28" height="2" fill="#D8E8E5" />
+                  <rect x="10" y="34" width="2" height="2" fill="#E8F5F0" />
+                  <rect x="36" y="34" width="2" height="2" fill="#C0D0CD" />
+                  <rect x="10" y="36" width="28" height="2" fill="#E0EAE8" />
+                  <rect x="10" y="36" width="2" height="2" fill="#F0F8F5" />
+                  <rect x="36" y="36" width="2" height="2" fill="#C8D8D5" />
 
-                <!-- === SAND IN BOTTOM (accumulated pile) === -->
-                <rect x="14" y="34" width="20" height="2" fill="#E8C080" />
-                <rect x="14" y="34" width="2" height="2" fill="#F0D090" />
-                <rect x="32" y="34" width="2" height="2" fill="#D0A060" />
-                <rect x="12" y="36" width="24" height="2" fill="#D8B070" />
-                <rect x="12" y="36" width="2" height="2" fill="#E8C080" />
-                <rect x="34" y="36" width="2" height="2" fill="#C4A060" />
-                <!-- Sand pile peak -->
-                <rect x="22" y="32" width="4" height="2" fill="#E8C080" />
-                <rect x="20" y="33" width="8" height="1" fill="#D8B070" />
+                  <!-- === SAND IN BOTTOM (accumulated pile) === -->
+                  <rect x="14" y="34" width="20" height="2" fill="#E8C080" />
+                  <rect x="14" y="34" width="2" height="2" fill="#F0D090" />
+                  <rect x="32" y="34" width="2" height="2" fill="#D0A060" />
+                  <rect x="12" y="36" width="24" height="2" fill="#D8B070" />
+                  <rect x="12" y="36" width="2" height="2" fill="#E8C080" />
+                  <rect x="34" y="36" width="2" height="2" fill="#C4A060" />
+                  <!-- Sand pile peak -->
+                  <rect x="22" y="32" width="4" height="2" fill="#E8C080" />
+                  <rect x="20" y="33" width="8" height="1" fill="#D8B070" />
 
-                <!-- === BOTTOM FRAME === -->
-                <rect x="8" y="38" width="32" height="4" fill="#B89050" />
-                <rect x="8" y="38" width="32" height="1" fill="#C4A060" />
-                <rect x="8" y="39" width="32" height="1" fill="#B89050" />
-                <rect x="8" y="40" width="32" height="1" fill="#A88050" />
-                <rect x="8" y="41" width="32" height="1" fill="#987040" />
-                <!-- Frame engraving -->
-                <rect x="12" y="38" width="4" height="1" fill="#D8B070" />
-                <rect x="32" y="38" width="4" height="1" fill="#D8B070" />
-                <rect x="20" y="39" width="8" height="1" fill="#C4A060" />
-                <!-- Frame edge bevel -->
-                <rect x="6" y="38" width="2" height="4" fill="#C4A060" />
-                <rect x="6" y="38" width="1" height="4" fill="#D8B070" />
-                <rect x="40" y="38" width="2" height="4" fill="#886030" />
-                <rect x="41" y="38" width="1" height="4" fill="#785028" />
+                  <!-- === BOTTOM FRAME === -->
+                  <rect x="8" y="38" width="32" height="4" fill="#B89050" />
+                  <rect x="8" y="38" width="32" height="1" fill="#C4A060" />
+                  <rect x="8" y="39" width="32" height="1" fill="#B89050" />
+                  <rect x="8" y="40" width="32" height="1" fill="#A88050" />
+                  <rect x="8" y="41" width="32" height="1" fill="#987040" />
+                  <!-- Frame engraving -->
+                  <rect x="12" y="38" width="4" height="1" fill="#D8B070" />
+                  <rect x="32" y="38" width="4" height="1" fill="#D8B070" />
+                  <rect x="20" y="39" width="8" height="1" fill="#C4A060" />
+                  <!-- Frame edge bevel -->
+                  <rect x="6" y="38" width="2" height="4" fill="#C4A060" />
+                  <rect x="6" y="38" width="1" height="4" fill="#D8B070" />
+                  <rect x="40" y="38" width="2" height="4" fill="#886030" />
+                  <rect x="41" y="38" width="1" height="4" fill="#785028" />
 
-                <!-- === STAND FEET === -->
-                <rect x="8" y="42" width="4" height="4" fill="#A88050" />
-                <rect x="8" y="42" width="2" height="2" fill="#C4A060" />
-                <rect x="10" y="44" width="2" height="2" fill="#886030" />
-                <rect x="36" y="42" width="4" height="4" fill="#987040" />
-                <rect x="36" y="42" width="2" height="2" fill="#B89050" />
-                <rect x="38" y="44" width="2" height="2" fill="#785028" />
-              </svg>
-              <span class="rule-value">{WORK_DURATION}</span>
-              <span class="rule-label">MIN</span>
+                  <!-- === STAND FEET === -->
+                  <rect x="8" y="42" width="4" height="4" fill="#A88050" />
+                  <rect x="8" y="42" width="2" height="2" fill="#C4A060" />
+                  <rect x="10" y="44" width="2" height="2" fill="#886030" />
+                  <rect x="36" y="42" width="4" height="4" fill="#987040" />
+                  <rect x="36" y="42" width="2" height="2" fill="#B89050" />
+                  <rect x="38" y="44" width="2" height="2" fill="#785028" />
+                </svg>
+                <span class="rule-value">{WORK_DURATION}</span>
+                <span class="rule-label">MIN</span>
+              </div>
+              <div class="rule-divider">
+                <!-- Painterly divider dots -->
+                <svg class="h-16 w-16" viewBox="0 0 24 24" fill="none">
+                  <rect x="4" y="10" width="4" height="4" fill="#9B8B7B" />
+                  <rect x="4" y="10" width="2" height="2" fill="#B8A898" />
+                  <rect x="6" y="12" width="2" height="2" fill="#7B6B5B" />
+                  <rect x="10" y="10" width="4" height="4" fill="#A89888" />
+                  <rect x="10" y="10" width="2" height="2" fill="#C4B4A4" />
+                  <rect x="12" y="12" width="2" height="2" fill="#887868" />
+                  <rect x="16" y="10" width="4" height="4" fill="#9B8B7B" />
+                  <rect x="16" y="10" width="2" height="2" fill="#B8A898" />
+                  <rect x="18" y="12" width="2" height="2" fill="#7B6B5B" />
+                </svg>
+              </div>
+              <div class="rule-item">
+                <!-- High-detail painterly coffee cup (48x48) -->
+                <svg
+                  class="rule-icon rule-icon-rest"
+                  viewBox="0 0 48 48"
+                  fill="none"
+                >
+                  <!-- === STEAM (wispy curling shapes) === -->
+                  <rect x="16" y="2" width="2" height="2" fill="#D0DCE0" />
+                  <rect x="14" y="4" width="2" height="2" fill="#E0E8EC" />
+                  <rect x="16" y="6" width="2" height="2" fill="#D8E4E8" />
+                  <rect x="18" y="4" width="2" height="2" fill="#E8F0F4" />
+                  <rect x="24" y="0" width="2" height="2" fill="#E0E8EC" />
+                  <rect x="26" y="2" width="2" height="2" fill="#D0DCE0" />
+                  <rect x="24" y="4" width="2" height="2" fill="#E8F0F4" />
+                  <rect x="22" y="6" width="2" height="2" fill="#D8E4E8" />
+                  <rect x="32" y="2" width="2" height="2" fill="#D0DCE0" />
+                  <rect x="30" y="4" width="2" height="2" fill="#E0E8EC" />
+                  <rect x="32" y="6" width="2" height="2" fill="#D8E4E8" />
+                  <rect x="34" y="4" width="2" height="2" fill="#E8F0F4" />
+
+                  <!-- === CUP BODY (ceramic with glaze variation) === -->
+                  <!-- Cup base shape -->
+                  <rect x="8" y="14" width="32" height="24" fill="#F0E5D8" />
+                  <!-- Left edge highlight -->
+                  <rect x="8" y="14" width="2" height="24" fill="#FFF8ED" />
+                  <rect x="8" y="16" width="1" height="20" fill="#FFFAF0" />
+                  <!-- Right edge shadow -->
+                  <rect x="38" y="14" width="2" height="24" fill="#D8CFC0" />
+                  <rect x="39" y="16" width="1" height="20" fill="#C8BFB0" />
+                  <!-- Top rim highlight -->
+                  <rect x="8" y="14" width="32" height="2" fill="#FFF8ED" />
+                  <rect x="10" y="14" width="28" height="1" fill="#FFFAF0" />
+                  <!-- Glaze variation (subtle bands) -->
+                  <rect x="10" y="18" width="28" height="1" fill="#F8F0E5" />
+                  <rect x="10" y="22" width="28" height="1" fill="#E8E0D5" />
+                  <rect x="10" y="26" width="28" height="1" fill="#F0E8DD" />
+                  <rect x="10" y="30" width="28" height="1" fill="#E8E0D5" />
+                  <rect x="10" y="34" width="28" height="1" fill="#F8F0E5" />
+                  <!-- Glaze spots/imperfections -->
+                  <rect x="14" y="20" width="2" height="2" fill="#F8F0E5" />
+                  <rect x="26" y="24" width="3" height="2" fill="#E8E0D5" />
+                  <rect x="18" y="28" width="2" height="2" fill="#FFF8ED" />
+                  <rect x="32" y="32" width="2" height="2" fill="#D8CFC0" />
+                  <rect x="12" y="34" width="4" height="1" fill="#F8F0E5" />
+
+                  <!-- === COFFEE SURFACE === -->
+                  <rect x="10" y="16" width="28" height="4" fill="#5D3D20" />
+                  <rect x="10" y="16" width="28" height="1" fill="#6D4D30" />
+                  <rect x="12" y="17" width="24" height="1" fill="#7D5D40" />
+                  <!-- Coffee shine/reflection -->
+                  <rect x="14" y="16" width="8" height="1" fill="#8D6D50" />
+                  <rect x="16" y="17" width="4" height="1" fill="#9D7D60" />
+                  <!-- Coffee edge shadow -->
+                  <rect x="10" y="19" width="28" height="1" fill="#4D2D10" />
+
+                  <!-- === CUP HANDLE (ceramic with detail) === -->
+                  <rect x="40" y="18" width="4" height="2" fill="#F0E5D8" />
+                  <rect x="40" y="18" width="4" height="1" fill="#FFF8ED" />
+                  <rect x="44" y="18" width="2" height="4" fill="#F0E5D8" />
+                  <rect x="44" y="18" width="1" height="4" fill="#FFF8ED" />
+                  <rect x="45" y="20" width="1" height="2" fill="#D8CFC0" />
+                  <rect x="44" y="22" width="2" height="6" fill="#E8DFD0" />
+                  <rect x="44" y="22" width="1" height="6" fill="#F0E5D8" />
+                  <rect x="45" y="24" width="1" height="4" fill="#D8CFC0" />
+                  <rect x="44" y="28" width="2" height="4" fill="#F0E5D8" />
+                  <rect x="44" y="28" width="1" height="4" fill="#FFF8ED" />
+                  <rect x="45" y="30" width="1" height="2" fill="#D8CFC0" />
+                  <rect x="40" y="32" width="4" height="2" fill="#E8DFD0" />
+                  <rect x="40" y="32" width="4" height="1" fill="#F0E5D8" />
+                  <rect x="42" y="33" width="2" height="1" fill="#D8CFC0" />
+                  <!-- Handle inner shadow -->
+                  <rect x="42" y="20" width="2" height="12" fill="#C8BFB0" />
+                  <rect x="42" y="22" width="1" height="8" fill="#D8CFC0" />
+
+                  <!-- === CUP BOTTOM (slight shadow/thickness) === -->
+                  <rect x="8" y="38" width="32" height="2" fill="#D8CFC0" />
+                  <rect x="10" y="38" width="28" height="1" fill="#E8DFD0" />
+                  <rect x="8" y="39" width="32" height="1" fill="#C8BFB0" />
+
+                  <!-- === SAUCER === -->
+                  <rect x="4" y="40" width="40" height="4" fill="#F0E5D8" />
+                  <rect x="4" y="40" width="40" height="1" fill="#FFF8ED" />
+                  <rect x="4" y="41" width="2" height="3" fill="#FFF8ED" />
+                  <rect x="42" y="41" width="2" height="3" fill="#D8CFC0" />
+                  <rect x="4" y="43" width="40" height="1" fill="#D8CFC0" />
+                  <!-- Saucer rim detail -->
+                  <rect x="6" y="40" width="36" height="1" fill="#FFFAF0" />
+                  <rect x="6" y="43" width="36" height="1" fill="#C8BFB0" />
+                  <!-- Saucer glaze variation -->
+                  <rect x="10" y="41" width="6" height="1" fill="#F8F0E5" />
+                  <rect x="22" y="42" width="8" height="1" fill="#E8E0D5" />
+                  <rect x="34" y="41" width="4" height="1" fill="#F8F0E5" />
+
+                  <!-- === TABLE SURFACE HINT === -->
+                  <rect x="2" y="44" width="44" height="2" fill="#B8A090" />
+                  <rect x="2" y="44" width="44" height="1" fill="#C8B0A0" />
+                  <rect x="2" y="45" width="44" height="1" fill="#A89080" />
+                </svg>
+                <span class="rule-value">{BREAK_DURATION}</span>
+                <span class="rule-label">MIN</span>
+              </div>
             </div>
-            <div class="rule-divider">
-              <!-- Painterly divider dots -->
-              <svg class="h-16 w-16" viewBox="0 0 24 24" fill="none">
-                <rect x="4" y="10" width="4" height="4" fill="#9B8B7B" />
-                <rect x="4" y="10" width="2" height="2" fill="#B8A898" />
-                <rect x="6" y="12" width="2" height="2" fill="#7B6B5B" />
-                <rect x="10" y="10" width="4" height="4" fill="#A89888" />
-                <rect x="10" y="10" width="2" height="2" fill="#C4B4A4" />
-                <rect x="12" y="12" width="2" height="2" fill="#887868" />
-                <rect x="16" y="10" width="4" height="4" fill="#9B8B7B" />
-                <rect x="16" y="10" width="2" height="2" fill="#B8A898" />
-                <rect x="18" y="12" width="2" height="2" fill="#7B6B5B" />
-              </svg>
-            </div>
-            <div class="rule-item">
-              <!-- High-detail painterly coffee cup (48x48) -->
-              <svg
-                class="rule-icon rule-icon-rest"
-                viewBox="0 0 48 48"
-                fill="none"
-              >
-                <!-- === STEAM (wispy curling shapes) === -->
-                <rect x="16" y="2" width="2" height="2" fill="#D0DCE0" />
-                <rect x="14" y="4" width="2" height="2" fill="#E0E8EC" />
-                <rect x="16" y="6" width="2" height="2" fill="#D8E4E8" />
-                <rect x="18" y="4" width="2" height="2" fill="#E8F0F4" />
-                <rect x="24" y="0" width="2" height="2" fill="#E0E8EC" />
-                <rect x="26" y="2" width="2" height="2" fill="#D0DCE0" />
-                <rect x="24" y="4" width="2" height="2" fill="#E8F0F4" />
-                <rect x="22" y="6" width="2" height="2" fill="#D8E4E8" />
-                <rect x="32" y="2" width="2" height="2" fill="#D0DCE0" />
-                <rect x="30" y="4" width="2" height="2" fill="#E0E8EC" />
-                <rect x="32" y="6" width="2" height="2" fill="#D8E4E8" />
-                <rect x="34" y="4" width="2" height="2" fill="#E8F0F4" />
+          {/if}
 
-                <!-- === CUP BODY (ceramic with glaze variation) === -->
-                <!-- Cup base shape -->
-                <rect x="8" y="14" width="32" height="24" fill="#F0E5D8" />
-                <!-- Left edge highlight -->
-                <rect x="8" y="14" width="2" height="24" fill="#FFF8ED" />
-                <rect x="8" y="16" width="1" height="20" fill="#FFFAF0" />
-                <!-- Right edge shadow -->
-                <rect x="38" y="14" width="2" height="24" fill="#D8CFC0" />
-                <rect x="39" y="16" width="1" height="20" fill="#C8BFB0" />
-                <!-- Top rim highlight -->
-                <rect x="8" y="14" width="32" height="2" fill="#FFF8ED" />
-                <rect x="10" y="14" width="28" height="1" fill="#FFFAF0" />
-                <!-- Glaze variation (subtle bands) -->
-                <rect x="10" y="18" width="28" height="1" fill="#F8F0E5" />
-                <rect x="10" y="22" width="28" height="1" fill="#E8E0D5" />
-                <rect x="10" y="26" width="28" height="1" fill="#F0E8DD" />
-                <rect x="10" y="30" width="28" height="1" fill="#E8E0D5" />
-                <rect x="10" y="34" width="28" height="1" fill="#F8F0E5" />
-                <!-- Glaze spots/imperfections -->
-                <rect x="14" y="20" width="2" height="2" fill="#F8F0E5" />
-                <rect x="26" y="24" width="3" height="2" fill="#E8E0D5" />
-                <rect x="18" y="28" width="2" height="2" fill="#FFF8ED" />
-                <rect x="32" y="32" width="2" height="2" fill="#D8CFC0" />
-                <rect x="12" y="34" width="4" height="1" fill="#F8F0E5" />
-
-                <!-- === COFFEE SURFACE === -->
-                <rect x="10" y="16" width="28" height="4" fill="#5D3D20" />
-                <rect x="10" y="16" width="28" height="1" fill="#6D4D30" />
-                <rect x="12" y="17" width="24" height="1" fill="#7D5D40" />
-                <!-- Coffee shine/reflection -->
-                <rect x="14" y="16" width="8" height="1" fill="#8D6D50" />
-                <rect x="16" y="17" width="4" height="1" fill="#9D7D60" />
-                <!-- Coffee edge shadow -->
-                <rect x="10" y="19" width="28" height="1" fill="#4D2D10" />
-
-                <!-- === CUP HANDLE (ceramic with detail) === -->
-                <rect x="40" y="18" width="4" height="2" fill="#F0E5D8" />
-                <rect x="40" y="18" width="4" height="1" fill="#FFF8ED" />
-                <rect x="44" y="18" width="2" height="4" fill="#F0E5D8" />
-                <rect x="44" y="18" width="1" height="4" fill="#FFF8ED" />
-                <rect x="45" y="20" width="1" height="2" fill="#D8CFC0" />
-                <rect x="44" y="22" width="2" height="6" fill="#E8DFD0" />
-                <rect x="44" y="22" width="1" height="6" fill="#F0E5D8" />
-                <rect x="45" y="24" width="1" height="4" fill="#D8CFC0" />
-                <rect x="44" y="28" width="2" height="4" fill="#F0E5D8" />
-                <rect x="44" y="28" width="1" height="4" fill="#FFF8ED" />
-                <rect x="45" y="30" width="1" height="2" fill="#D8CFC0" />
-                <rect x="40" y="32" width="4" height="2" fill="#E8DFD0" />
-                <rect x="40" y="32" width="4" height="1" fill="#F0E5D8" />
-                <rect x="42" y="33" width="2" height="1" fill="#D8CFC0" />
-                <!-- Handle inner shadow -->
-                <rect x="42" y="20" width="2" height="12" fill="#C8BFB0" />
-                <rect x="42" y="22" width="1" height="8" fill="#D8CFC0" />
-
-                <!-- === CUP BOTTOM (slight shadow/thickness) === -->
-                <rect x="8" y="38" width="32" height="2" fill="#D8CFC0" />
-                <rect x="10" y="38" width="28" height="1" fill="#E8DFD0" />
-                <rect x="8" y="39" width="32" height="1" fill="#C8BFB0" />
-
-                <!-- === SAUCER === -->
-                <rect x="4" y="40" width="40" height="4" fill="#F0E5D8" />
-                <rect x="4" y="40" width="40" height="1" fill="#FFF8ED" />
-                <rect x="4" y="41" width="2" height="3" fill="#FFF8ED" />
-                <rect x="42" y="41" width="2" height="3" fill="#D8CFC0" />
-                <rect x="4" y="43" width="40" height="1" fill="#D8CFC0" />
-                <!-- Saucer rim detail -->
-                <rect x="6" y="40" width="36" height="1" fill="#FFFAF0" />
-                <rect x="6" y="43" width="36" height="1" fill="#C8BFB0" />
-                <!-- Saucer glaze variation -->
-                <rect x="10" y="41" width="6" height="1" fill="#F8F0E5" />
-                <rect x="22" y="42" width="8" height="1" fill="#E8E0D5" />
-                <rect x="34" y="41" width="4" height="1" fill="#F8F0E5" />
-
-                <!-- === TABLE SURFACE HINT === -->
-                <rect x="2" y="44" width="44" height="2" fill="#B8A090" />
-                <rect x="2" y="44" width="44" height="1" fill="#C8B0A0" />
-                <rect x="2" y="45" width="44" height="1" fill="#A89080" />
-              </svg>
-              <span class="rule-value">{BREAK_DURATION}</span>
-              <span class="rule-label">MIN</span>
-            </div>
-          </div>
-
-          <!-- Duration Selector (only show when not using scheduled suggestion) -->
+          <!-- No end time toggle -->
           {#if !customEndTime}
+            <label class="no-limit-toggle">
+              <input type="checkbox" bind:checked={noEndTime} />
+              <span>NO LIMIT</span>
+            </label>
+          {/if}
+
+          <!-- Duration Selector (only show when not using scheduled suggestion and not no-limit) -->
+          {#if !customEndTime && !noEndTime}
             <PixelDurationSelector
               value={selectedDuration}
               onchange={(v) => (selectedDuration = v)}
@@ -1160,7 +1313,7 @@
           onclick={handleStart}
           disabled={!selectedTaskId}
         >
-          クエスト開始
+          {selectedMode === "pomodoro" ? "クエスト開始" : "開始"}
         </button>
 
         {#if currentAcceptedSuggestion && selectedTaskId !== currentAcceptedSuggestion.memoId}
@@ -1216,6 +1369,97 @@
     font-weight: bold;
     letter-spacing: 0.12em;
     color: oklch(var(--bc));
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     MODE TOGGLE - Pixel art segmented control
+     ═══════════════════════════════════════════════════════════════════════════ */
+  .mode-toggle {
+    display: flex;
+    gap: 0;
+    width: 100%;
+    max-width: 240px;
+    margin: 0 auto 8px;
+  }
+
+  .mode-btn {
+    flex: 1;
+    padding: 8px 12px;
+    background: oklch(var(--b3));
+    border: 2px solid oklch(var(--bc) / 0.2);
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    color: oklch(var(--bc) / 0.5);
+    cursor: pointer;
+    transition: all 0.1s ease;
+    box-shadow:
+      inset -1px -1px 0 oklch(var(--bc) / 0.15),
+      inset 1px 1px 0 oklch(var(--b1) / 0.3);
+  }
+
+  .mode-btn:first-child {
+    border-right: 1px solid oklch(var(--bc) / 0.15);
+  }
+
+  .mode-btn:last-child {
+    border-left: 1px solid oklch(var(--bc) / 0.15);
+  }
+
+  .mode-btn-active {
+    background: linear-gradient(180deg, #c4a060 0%, #9b7b4a 50%, #8b6b3a 100%);
+    color: #f5eed8;
+    text-shadow: 1px 1px 0 #3d2a18;
+    border-color: #e8c888 #5d4028 #3d2a18 #d8b070;
+    box-shadow:
+      inset 1px 1px 0 rgba(255, 255, 255, 0.2),
+      inset -1px -1px 0 rgba(0, 0, 0, 0.15);
+  }
+
+  .mode-btn:hover:not(.mode-btn-active) {
+    background: oklch(var(--bc) / 0.1);
+    color: oklch(var(--bc) / 0.7);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+     NO LIMIT TOGGLE - Pixel art checkbox
+     ═══════════════════════════════════════════════════════════════════════════ */
+  .no-limit-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    user-select: none;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: bold;
+    letter-spacing: 0.1em;
+    color: oklch(var(--bc) / 0.6);
+  }
+
+  .no-limit-toggle input[type="checkbox"] {
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: oklch(var(--b3));
+    border: 2px solid oklch(var(--bc) / 0.3);
+    cursor: pointer;
+  }
+
+  .no-limit-toggle input[type="checkbox"]:checked {
+    background: linear-gradient(180deg, #c4a060 0%, #9b7b4a 100%);
+    border-color: #e8c888 #5d4028 #3d2a18 #d8b070;
+    position: relative;
+  }
+
+  .no-limit-toggle input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 8px;
+    height: 8px;
+    background: #f5eed8;
   }
 
   .close-btn {

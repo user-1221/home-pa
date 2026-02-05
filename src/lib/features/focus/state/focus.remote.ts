@@ -50,7 +50,7 @@ const StartTimerSchema = v.object({
   memoId: v.string(),
   taskTitle: v.string(),
   startedAt: v.string(), // ISO string
-  plannedEndTime: v.string(), // HH:mm
+  plannedEndTime: v.optional(v.string()), // HH:mm (undefined = open-ended)
   mode: v.picklist(["normal", "pomodoro"]),
   pomodoroState: v.optional(PomodoroStateSchema),
   deviceId: v.string(),
@@ -128,7 +128,7 @@ export const startTimerSession = command(StartTimerSchema, async (input) => {
         memoId: input.memoId,
         taskTitle: input.taskTitle,
         startedAt: new Date(input.startedAt),
-        plannedEndTime: input.plannedEndTime,
+        plannedEndTime: input.plannedEndTime ?? null,
         mode: input.mode,
         pomodoroState: input.pomodoroState ?? undefined,
         deviceId: input.deviceId,
@@ -138,7 +138,7 @@ export const startTimerSession = command(StartTimerSchema, async (input) => {
         memoId: input.memoId,
         taskTitle: input.taskTitle,
         startedAt: new Date(input.startedAt),
-        plannedEndTime: input.plannedEndTime,
+        plannedEndTime: input.plannedEndTime ?? null,
         mode: input.mode,
         pomodoroState: input.pomodoroState ?? undefined,
         deviceId: input.deviceId,
@@ -160,7 +160,7 @@ export const startTimerSession = command(StartTimerSchema, async (input) => {
           memoId: input.memoId,
           taskTitle: input.taskTitle,
           startedAt: input.startedAt,
-          plannedEndTime: input.plannedEndTime,
+          plannedEndTime: input.plannedEndTime ?? null,
           mode: input.mode,
           pomodoroState: input.pomodoroState,
           deviceName: input.deviceName,

@@ -53,7 +53,7 @@ export interface FocusSession {
   memoId: string;
   taskTitle: string;
   startedAt: string; // ISO string for serialization
-  plannedEndTime: string; // HH:mm from suggestion
+  plannedEndTime?: string; // HH:mm from suggestion (undefined = open-ended)
   mode: "normal" | "pomodoro";
   pomodoroState?: PomodoroState;
 }
@@ -201,7 +201,7 @@ class FocusState {
     // Reference tick to make this reactive
     void this.tick;
 
-    if (!this.activeSession) return 0;
+    if (!this.activeSession?.plannedEndTime) return 0;
 
     const startedAt = new Date(this.activeSession.startedAt);
     const endTime = parseTimeToday(this.activeSession.plannedEndTime);
@@ -222,7 +222,8 @@ class FocusState {
    * Check if planned end time has passed
    */
   get hasEndTimePassed(): boolean {
-    return this.secondsUntilEnd === 0 && this.activeSession !== null;
+    if (!this.activeSession?.plannedEndTime) return false;
+    return this.secondsUntilEnd === 0;
   }
 
   // ============================================================================
@@ -236,7 +237,7 @@ class FocusState {
   async startNormal(
     memoId: string,
     taskTitle: string,
-    plannedEndTime: string,
+    plannedEndTime?: string,
   ): Promise<boolean> {
     if (this.activeSession) {
       console.warn("[Focus] Session already active, ignoring startNormal");
@@ -312,7 +313,7 @@ class FocusState {
   async startPomodoro(
     memoId: string,
     taskTitle: string,
-    plannedEndTime: string,
+    plannedEndTime?: string,
     workDuration = DEFAULT_WORK_DURATION,
     breakDuration = DEFAULT_BREAK_DURATION,
   ): Promise<boolean> {
@@ -748,7 +749,7 @@ class FocusState {
             memoId: serverSession.memoId,
             taskTitle: serverSession.taskTitle,
             startedAt: serverSession.startedAt,
-            plannedEndTime: serverSession.plannedEndTime,
+            plannedEndTime: serverSession.plannedEndTime ?? undefined,
             mode: serverSession.mode,
             pomodoroState: serverSession.pomodoroState ?? undefined,
           };
@@ -822,6 +823,9 @@ class FocusState {
    * Handles midnight crossing correctly
    */
   private isSessionExpired(session: FocusSession): boolean {
+    // Open-ended sessions don't expire (24h cap handles cleanup separately)
+    if (!session.plannedEndTime) return false;
+
     const startedAt = new Date(session.startedAt);
     const endTime = parseTimeToday(session.plannedEndTime);
 
@@ -840,14 +844,9 @@ class FocusState {
   private async completeExpiredSession(session: FocusSession): Promise<void> {
     // Calculate work duration from session data
     const startedAt = new Date(session.startedAt);
-    const endTime = parseTimeToday(session.plannedEndTime);
+    const now = new Date();
 
-    // Handle midnight crossing
-    if (endTime.getTime() < startedAt.getTime()) {
-      endTime.setDate(endTime.getDate() + 1);
-    }
-
-    // Calculate duration (capped at planned duration)
+    // Calculate duration (capped at planned duration when available)
     let duration: number;
     if (session.mode === "pomodoro" && session.pomodoroState) {
       // For Pomodoro, use accumulated work time + partial current phase
@@ -857,16 +856,30 @@ class FocusState {
       // Add time from current work phase if it was in progress
       if (pomo.phase === "work") {
         const phaseStarted = new Date(pomo.phaseStartedAt);
-        // Cap at phase duration
+        const capTime = session.plannedEndTime
+          ? (() => {
+              const et = parseTimeToday(session.plannedEndTime);
+              if (et.getTime() < startedAt.getTime())
+                et.setDate(et.getDate() + 1);
+              return et;
+            })()
+          : now;
         const phaseMinutes = Math.min(
           pomo.workDuration,
-          calculateElapsedMinutes(phaseStarted, endTime),
+          calculateElapsedMinutes(phaseStarted, capTime),
         );
         duration += phaseMinutes;
       }
-    } else {
-      // For normal mode, calculate elapsed time until end
+    } else if (session.plannedEndTime) {
+      // For normal mode with end time, calculate elapsed until end
+      const endTime = parseTimeToday(session.plannedEndTime);
+      if (endTime.getTime() < startedAt.getTime()) {
+        endTime.setDate(endTime.getDate() + 1);
+      }
       duration = calculateElapsedMinutes(startedAt, endTime);
+    } else {
+      // For normal mode without end time, use wall-clock elapsed time
+      duration = calculateElapsedMinutes(startedAt, now);
     }
 
     console.log("[Focus] Auto-completing expired session:", {
@@ -953,7 +966,7 @@ class FocusState {
         memoId: session.memoId,
         taskTitle: session.taskTitle,
         startedAt: session.startedAt,
-        plannedEndTime: session.plannedEndTime,
+        plannedEndTime: session.plannedEndTime ?? undefined,
         mode: session.mode,
         pomodoroState: session.pomodoroState ?? undefined,
       };
