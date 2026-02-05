@@ -112,8 +112,8 @@ describe("scheduleWithStateSearch", () => {
       // Test 3: Mix of task types
       const suggestions = [
         createSuggestion("Deadline", 0.8, 0.1, 40, 30, "期限付き"),
-        createSuggestion("Routine", 0.7, 0.1, 30, 30, "ルーティン"),
-        createSuggestion("Backlog", 0.55, 0.0, 30, 30, "バックログ"),
+        createSuggestion("Routine", 0.7, 0.1, 45, 30, "ルーティン"),
+        createSuggestion("Backlog", 0.55, 0.0, 45, 30, "バックログ"),
       ];
       const gaps = [createGap("gap1", "09:00", "10:30", 90)];
 
@@ -199,7 +199,7 @@ describe("scheduleWithStateSearch", () => {
     it("should respect routine's non-shrinkable constraint", () => {
       // Test 6: Routine can't shrink, deadline can
       const suggestions = [
-        createSuggestion("Routine", 0.8, 0.1, 45, 45, "ルーティン"), // Can't shrink
+        createSuggestion("Routine", 0.8, 0.1, 45, 30, "ルーティン"), // Can't shrink
         createSuggestion("Deadline", 0.75, 0.1, 60, 30, "期限付き"), // Can shrink
       ];
       const gaps = [createGap("gap1", "09:00", "10:00", 60)];
@@ -348,7 +348,7 @@ describe("scheduleWithStateSearch", () => {
 
     it("Test 4: Routine(90 fixed) vs Deadline(120→60) in 180min gap", () => {
       const suggestions = [
-        createSuggestion("Routine", 0.85, 0.1, 90, 90, "ルーティン"),
+        createSuggestion("Routine", 0.85, 0.1, 90, 60, "ルーティン"),
         createSuggestion("Deadline", 0.8, 0.1, 120, 60, "期限付き"),
       ];
       const gaps = [createGap("morning", "09:00", "12:00", 180)];
@@ -422,8 +422,8 @@ describe("scheduleWithStateSearch", () => {
       const suggestions = [
         createSuggestion("Deadline1", 1.0, 0.1, 120, 60, "期限付き"),
         createSuggestion("Deadline2", 0.85, 0.1, 90, 60, "期限付き"),
-        createSuggestion("Routine1", 0.8, 0.1, 60, 60, "ルーティン"),
-        createSuggestion("Backlog1", 0.6, 0.0, 60, 60, "バックログ"),
+        createSuggestion("Routine1", 0.8, 0.1, 60, 45, "ルーティン"),
+        createSuggestion("Backlog1", 0.6, 0.0, 60, 45, "バックログ"),
       ];
       const gaps = [createGap("day", "09:00", "14:00", 300)];
 
@@ -536,9 +536,9 @@ describe("scheduleWithStateSearch", () => {
 
     it("Test 14: Three routines (90+60+45 fixed) in 240min gap", () => {
       const suggestions = [
-        createSuggestion("R1", 0.85, 0.1, 90, 90, "ルーティン"),
-        createSuggestion("R2", 0.8, 0.1, 60, 60, "ルーティン"),
-        createSuggestion("R3", 0.7, 0.0, 45, 45, "ルーティン"),
+        createSuggestion("R1", 0.85, 0.1, 90, 60, "ルーティン"),
+        createSuggestion("R2", 0.8, 0.1, 60, 45, "ルーティン"),
+        createSuggestion("R3", 0.7, 0.0, 45, 30, "ルーティン"),
       ];
       const gaps = [createGap("morning", "08:00", "12:00", 240)];
 
@@ -671,7 +671,7 @@ describe("scheduleWithStateSearch", () => {
         createSuggestion("MeetingPrep", 1.0, 0.2, 60, 30, "期限付き"),
         createSuggestion("DeepWork", 0.9, 0.1, 120, 60, "期限付き"),
         createSuggestion("EmailReview", 0.7, 0.1, 45, 30, "ルーティン"),
-        createSuggestion("AdminTasks", 0.6, 0.0, 30, 30, "バックログ"),
+        createSuggestion("AdminTasks", 0.6, 0.0, 45, 30, "バックログ"),
       ];
       const gaps = [
         createGap("morning", "09:00", "12:00", 180),
