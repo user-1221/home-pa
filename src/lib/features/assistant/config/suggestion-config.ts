@@ -126,6 +126,85 @@ export const EXTENSION_TIERS = {
 } as const;
 
 // ============================================================================
+// STATE-SPACE SEARCH CONFIGURATION
+// ============================================================================
+
+/**
+ * Configuration for the state-space search scheduler algorithm.
+ *
+ * The algorithm uses concave utility with diminishing returns:
+ * - Early minutes of a task are most valuable
+ * - Value saturates near ideal duration
+ * - Extra time doesn't hurt (utility never decreases)
+ *
+ * Utility formula: U(t) = priority × (1 - e^(-α × t / ideal)) + β × priority × 𝟙[t ≥ ideal]
+ */
+export const SEARCH_CONFIG = {
+  // === Scoring Parameters ===
+
+  /**
+   * Front-loading factor (α).
+   * Higher = first minutes are more valuable, diminishing returns kick in faster.
+   * Typical range: 1.5 - 3.0
+   */
+  alpha: 2.0,
+
+  /**
+   * Finish bonus (β).
+   * Bonus for completing a task (reaching its ideal duration).
+   * Higher values prioritize giving tasks their ideal duration over adding more tasks.
+   * Set to 0.3 to ensure mandatory tasks get their ideal duration.
+   */
+  finishBonus: 0.3,
+
+  /**
+   * Context-switching penalty (λ_switch).
+   * Applied per additional task in a gap (numTasks - 1).
+   * Discourages fragmenting work into too many small sessions.
+   */
+  switchCost: 0.05,
+
+  /**
+   * Unused gap time penalty (λ_unused).
+   * Applied per minute of unused gap time.
+   * Set to 0 to prioritize task quality over gap utilization.
+   */
+  unusedCost: 0,
+
+  // === Search Parameters ===
+
+  /**
+   * Beam width (K).
+   * Number of top candidates to keep at each level of the search.
+   * Higher = better quality but slower.
+   */
+  beamWidth: 15,
+
+  /**
+   * Expansion levels as percentage of gap duration.
+   * For each anchored task, try these utilization levels (capped at ideal duration).
+   */
+  expansionLevels: [0.2, 0.4, 0.6, 0.8, 1.0] as const,
+
+  /**
+   * Maximum priority score for utility calculation.
+   * Caps (need + importance) to prevent extreme priority from dominating.
+   */
+  maxPriority: 1.2,
+
+  /**
+   * Duration-need bonus (δ).
+   * Multiplicative scaling per hour of ideal duration.
+   * Tasks with longer ideal durations get higher utility per unit of progress,
+   * ensuring they compete more strongly for gap time.
+   *
+   * Scale: 1 + δ × (idealDuration / 60)
+   * At δ=0.15: 30min→1.075, 60min→1.15, 120min→1.30, 180min→1.45
+   */
+  durationNeedBonus: 0.15,
+} as const;
+
+// ============================================================================
 // GAP CONFIGURATION
 // ============================================================================
 
@@ -185,3 +264,6 @@ export type DurationConfig = typeof DURATION_CONFIG;
 
 /** Type for gap config */
 export type GapConfig = typeof GAP_CONFIG;
+
+/** Type for state-space search config */
+export type SearchConfig = typeof SEARCH_CONFIG;

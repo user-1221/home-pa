@@ -12,13 +12,14 @@
  */
 
 import type { Gap, Suggestion, LocationLabel } from "$lib/types.ts";
-import { canFit } from "./location-matching.ts";
+import { canFit, isLocationCompatible } from "./location-matching.ts";
 import { MANDATORY_THRESHOLD } from "./suggestion-scoring.ts";
 import {
   EXTENSION_CONFIG,
   GAP_CONFIG,
   SHRINK_CONFIG,
   EXTENSION_TIERS,
+  SEARCH_CONFIG,
 } from "$lib/features/assistant/config/suggestion-config.ts";
 import type { MemoType } from "$lib/types.ts";
 
@@ -780,6 +781,701 @@ export function assignOrderToGaps(
 }
 
 // ============================================================================
+// STATE-SPACE SEARCH SCHEDULER
+// ============================================================================
+
+/**
+ * Allocation entry for a task in a gap
+ */
+interface TaskAllocation {
+  suggestionId: string;
+  memoId: string;
+  duration: number;
+}
+
+/**
+ * State of a single gap in the search
+ */
+interface GapState {
+  gapId: string;
+  start: string;
+  end: string;
+  totalDuration: number;
+  allocations: TaskAllocation[];
+  usedTime: number;
+  locationLabel?: LocationLabel;
+}
+
+/**
+ * Complete schedule state for search
+ */
+interface ScheduleState {
+  gaps: GapState[];
+  usedSuggestionIds: Set<string>;
+  score: number;
+}
+
+/**
+ * Calculate utility for a single task allocation using concave diminishing returns.
+ *
+ * Formula: U(t) = priority × (1 - e^(-α × t / ideal)) + β × priority × 𝟙[t ≥ ideal]
+ *
+ * @param allocatedTime - Time allocated to this task
+ * @param idealDuration - Task's ideal duration (calculatedDuration for deadline, 2x base for others)
+ * @param priority - Task priority (need + importance, capped)
+ * @returns Utility value for this allocation
+ */
+export function taskUtility(
+  allocatedTime: number,
+  idealDuration: number,
+  priority: number,
+): number {
+  if (allocatedTime <= 0 || idealDuration <= 0) return 0;
+
+  const { alpha, finishBonus, maxPriority, durationNeedBonus } = SEARCH_CONFIG;
+  const cappedPriority = Math.min(priority, maxPriority);
+
+  // Saturating exponential: fast early gains, diminishing returns
+  const saturation = 1 - Math.exp((-alpha * allocatedTime) / idealDuration);
+  let utility = cappedPriority * saturation;
+
+  // Small bonus for "completing" the task (reaching ideal duration)
+  if (allocatedTime >= idealDuration) {
+    utility += finishBonus * cappedPriority;
+  }
+
+  // Duration-need scaling: longer ideal = higher utility per progress unit
+  const durationScale = 1 + durationNeedBonus * (idealDuration / 60);
+  utility *= durationScale;
+
+  return utility;
+}
+
+/**
+ * Get the ideal (max) duration for a suggestion based on type.
+ * For all types, `suggestion.duration` is the intended session length:
+ * - Deadline: regression-predicted ideal duration
+ * - Routine/Backlog: same as baseDuration (no extension beyond ideal)
+ */
+function getIdealDuration(suggestion: Suggestion): number {
+  return suggestion.duration;
+}
+
+/**
+ * Calculate the score for a complete schedule state.
+ *
+ * Score = Σ taskUtility - switchPenalty - unusedPenalty
+ */
+function scoreScheduleState(
+  state: ScheduleState,
+  suggestions: Suggestion[],
+): number {
+  const { switchCost, unusedCost } = SEARCH_CONFIG;
+  const suggestionMap = new Map(suggestions.map((s) => [s.id, s]));
+
+  let totalUtility = 0;
+  let totalSwitchPenalty = 0;
+  let totalUnusedPenalty = 0;
+
+  for (const gap of state.gaps) {
+    // Calculate utility for each task in this gap
+    for (const alloc of gap.allocations) {
+      const suggestion = suggestionMap.get(alloc.suggestionId);
+      if (!suggestion) continue;
+
+      const priority = suggestion.need + suggestion.importance;
+      const idealDuration = getIdealDuration(suggestion);
+      totalUtility += taskUtility(alloc.duration, idealDuration, priority);
+    }
+
+    // Context-switching penalty
+    if (gap.allocations.length > 1) {
+      totalSwitchPenalty += switchCost * (gap.allocations.length - 1);
+    }
+
+    // Unused time penalty
+    const unusedTime = gap.totalDuration - gap.usedTime;
+    if (unusedTime > 0) {
+      totalUnusedPenalty += unusedCost * unusedTime;
+    }
+  }
+
+  return totalUtility - totalSwitchPenalty - totalUnusedPenalty;
+}
+
+/**
+ * Create initial empty state from gaps
+ */
+function createEmptyState(gaps: Gap[]): ScheduleState {
+  return {
+    gaps: gaps.map((g) => ({
+      gapId: g.gapId,
+      start: g.start,
+      end: g.end,
+      totalDuration: g.duration,
+      allocations: [],
+      usedTime: 0,
+      locationLabel: g.locationLabel,
+    })),
+    usedSuggestionIds: new Set(),
+    score: 0,
+  };
+}
+
+/**
+ * Clone a schedule state (immutable update helper)
+ * IMPORTANT: Deep copies allocations to prevent mutation across branches
+ */
+function cloneState(state: ScheduleState): ScheduleState {
+  return {
+    gaps: state.gaps.map((g) => ({
+      ...g,
+      // Deep copy each allocation object to prevent shared mutation
+      allocations: g.allocations.map((a) => ({ ...a })),
+    })),
+    usedSuggestionIds: new Set(state.usedSuggestionIds),
+    score: state.score,
+  };
+}
+
+/**
+ * Get expansion levels for a task in a gap.
+ * Tries 20%, 40%, 60%, 80%, 100% of gap (capped at ideal duration).
+ */
+function getTaskExpansionLevels(
+  gapRemaining: number,
+  baseDuration: number,
+  idealDuration: number,
+): number[] {
+  const { expansionLevels } = SEARCH_CONFIG;
+  const stepMinutes = SHRINK_CONFIG.stepMinutes;
+
+  // Generate levels as percentages of gap
+  const levels: number[] = [];
+  for (const pct of expansionLevels) {
+    let duration = Math.floor(gapRemaining * pct);
+    // Snap to step grid
+    duration = Math.floor(duration / stepMinutes) * stepMinutes;
+    // Cap at ideal duration
+    duration = Math.min(duration, idealDuration);
+    // Must be at least base duration
+    if (duration >= baseDuration) {
+      levels.push(duration);
+    }
+  }
+
+  // Remove duplicates and sort
+  return [...new Set(levels)].sort((a, b) => a - b);
+}
+
+/**
+ * Get valid gap indices for a suggestion (gaps where it can fit by baseDuration).
+ * Note: We only use location matching here, not duration, because:
+ * - Duration check is done manually with effectiveBase (baseDuration for shrinkable tasks)
+ * - canFit() uses suggestion.duration which is the ideal/calculated duration, not base
+ */
+function getValidGapIndices(
+  suggestion: Suggestion,
+  gaps: Gap[],
+  currentUsedTime: number[],
+): number[] {
+  const effectiveBase = canShrink(suggestion.type)
+    ? suggestion.baseDuration
+    : suggestion.duration;
+
+  const validIndices: number[] = [];
+  for (let i = 0; i < gaps.length; i++) {
+    const remaining = gaps[i].duration - currentUsedTime[i];
+    // Duration check: does effectiveBase fit in remaining space?
+    if (remaining >= effectiveBase) {
+      // Location check only (not duration - we handle that above)
+      if (
+        isLocationCompatible(
+          suggestion.locationPreference,
+          gaps[i].locationLabel,
+        )
+      ) {
+        validIndices.push(i);
+      }
+    }
+  }
+  return validIndices;
+}
+
+/**
+ * Recursively generate all valid placement combinations for mandatory tasks.
+ * Each task can go to any valid gap (where it fits by baseDuration).
+ * Multiple tasks can share the same gap if they fit together.
+ */
+function generatePlacementCombinations(
+  mandatory: Suggestion[],
+  gaps: Gap[],
+  taskIndex: number,
+  currentUsedTime: number[],
+  currentPlacements: Array<{ suggestionId: string; gapIndex: number }>,
+): Array<Array<{ suggestionId: string; gapIndex: number }>> {
+  // Base case: all tasks placed
+  if (taskIndex >= mandatory.length) {
+    return [currentPlacements];
+  }
+
+  const task = mandatory[taskIndex];
+  const effectiveBase = canShrink(task.type)
+    ? task.baseDuration
+    : task.duration;
+
+  // Get valid gaps for this task
+  const validGapIndices = getValidGapIndices(task, gaps, currentUsedTime);
+
+  // If no valid gaps, this task can't be placed - return current placements without it
+  if (validGapIndices.length === 0) {
+    return generatePlacementCombinations(
+      mandatory,
+      gaps,
+      taskIndex + 1,
+      currentUsedTime,
+      currentPlacements,
+    );
+  }
+
+  const allCombinations: Array<
+    Array<{ suggestionId: string; gapIndex: number }>
+  > = [];
+
+  // Try placing task in each valid gap
+  for (const gapIndex of validGapIndices) {
+    const newUsedTime = [...currentUsedTime];
+    newUsedTime[gapIndex] += effectiveBase;
+
+    const newPlacements = [
+      ...currentPlacements,
+      { suggestionId: task.id, gapIndex },
+    ];
+
+    const combinations = generatePlacementCombinations(
+      mandatory,
+      gaps,
+      taskIndex + 1,
+      newUsedTime,
+      newPlacements,
+    );
+    allCombinations.push(...combinations);
+  }
+
+  return allCombinations;
+}
+
+/**
+ * Generate all valid anchor placement states.
+ * Instead of fixed one-per-gap, this tries all valid combinations.
+ *
+ * Limits:
+ * - Max 64 combinations (to prevent explosion with many mandatory tasks/gaps)
+ * - Falls back to greedy placement if over limit
+ */
+function generateAnchorPlacements(
+  suggestions: Suggestion[],
+  gaps: Gap[],
+): {
+  states: ScheduleState[];
+  remainingSuggestions: Suggestion[];
+} {
+  const sorted = sortByPriority(suggestions);
+  const mandatory = sorted.filter((s) => s.need >= MANDATORY_THRESHOLD);
+
+  // No mandatory tasks - just return empty state
+  if (mandatory.length === 0) {
+    return {
+      states: [createEmptyState(gaps)],
+      remainingSuggestions: suggestions,
+    };
+  }
+
+  // Generate all placement combinations
+  const initialUsedTime = gaps.map(() => 0);
+  const allCombinations = generatePlacementCombinations(
+    mandatory,
+    gaps,
+    0,
+    initialUsedTime,
+    [],
+  );
+
+  // Limit combinations to prevent explosion
+  const MAX_COMBINATIONS = 64;
+  const limitedCombinations =
+    allCombinations.length > MAX_COMBINATIONS
+      ? allCombinations.slice(0, MAX_COMBINATIONS)
+      : allCombinations;
+
+  // Convert combinations to states
+  const states: ScheduleState[] = [];
+
+  for (const placements of limitedCombinations) {
+    const state = createEmptyState(gaps);
+
+    for (const { suggestionId, gapIndex } of placements) {
+      const suggestion = mandatory.find((s) => s.id === suggestionId);
+      if (!suggestion) continue;
+
+      const effectiveBase = canShrink(suggestion.type)
+        ? suggestion.baseDuration
+        : suggestion.duration;
+
+      state.gaps[gapIndex].allocations.push({
+        suggestionId: suggestion.id,
+        memoId: suggestion.memoId,
+        duration: effectiveBase,
+      });
+      state.gaps[gapIndex].usedTime += effectiveBase;
+      state.usedSuggestionIds.add(suggestion.id);
+    }
+
+    states.push(state);
+  }
+
+  // If no valid combinations found, return empty state
+  if (states.length === 0) {
+    states.push(createEmptyState(gaps));
+  }
+
+  // Remaining suggestions (including unplaced mandatory)
+  const placedIds = new Set(
+    limitedCombinations.flatMap((c) => c.map((p) => p.suggestionId)),
+  );
+  const remaining = suggestions.filter((s) => !placedIds.has(s.id));
+
+  return { states, remainingSuggestions: remaining };
+}
+
+/**
+ * Generate all expansion branches for anchored tasks in a gap.
+ * Each anchor can stay at base or expand to various levels.
+ */
+function generateExpandBranches(
+  state: ScheduleState,
+  gapIndex: number,
+  suggestions: Suggestion[],
+): ScheduleState[] {
+  const gap = state.gaps[gapIndex];
+  if (gap.allocations.length === 0) {
+    return [state]; // No anchors, return unchanged
+  }
+
+  const suggestionMap = new Map(suggestions.map((s) => [s.id, s]));
+  let currentBranches: ScheduleState[] = [state];
+
+  // For each anchor, branch on expansion levels
+  for (let i = 0; i < gap.allocations.length; i++) {
+    const nextBranches: ScheduleState[] = [];
+    const alloc = gap.allocations[i];
+    const suggestion = suggestionMap.get(alloc.suggestionId);
+    if (!suggestion) {
+      nextBranches.push(...currentBranches);
+      continue;
+    }
+
+    const baseDuration = canShrink(suggestion.type)
+      ? suggestion.baseDuration
+      : suggestion.duration;
+    const idealDuration = getIdealDuration(suggestion);
+
+    for (const branch of currentBranches) {
+      const branchGap = branch.gaps[gapIndex];
+      const otherAllocTime = branchGap.allocations
+        .filter((a) => a.suggestionId !== alloc.suggestionId)
+        .reduce((sum, a) => sum + a.duration, 0);
+      const gapRemaining = branchGap.totalDuration - otherAllocTime;
+
+      const levels = getTaskExpansionLevels(
+        gapRemaining,
+        baseDuration,
+        idealDuration,
+      );
+
+      // If no valid levels, keep current duration
+      if (levels.length === 0) {
+        nextBranches.push(branch);
+        continue;
+      }
+
+      // Create a branch for each expansion level
+      for (const duration of levels) {
+        const newState = cloneState(branch);
+        const newAlloc = newState.gaps[gapIndex].allocations.find(
+          (a) => a.suggestionId === alloc.suggestionId,
+        );
+        if (newAlloc) {
+          const oldDuration = newAlloc.duration;
+          newAlloc.duration = duration;
+          newState.gaps[gapIndex].usedTime += duration - oldDuration;
+        }
+        nextBranches.push(newState);
+      }
+    }
+
+    currentBranches = nextBranches;
+  }
+
+  return currentBranches;
+}
+
+/**
+ * Generate fill branches: add more tasks or leave gap as-is.
+ * Recursively adds tasks until gap is full or no more tasks fit.
+ */
+function generateFillBranches(
+  state: ScheduleState,
+  gapIndex: number,
+  availableSuggestions: Suggestion[],
+  maxDepth: number = 10, // Prevent infinite recursion
+): ScheduleState[] {
+  if (maxDepth <= 0) return [state];
+
+  const gap = state.gaps[gapIndex];
+  const remaining = gap.totalDuration - gap.usedTime;
+
+  // Filter to suggestions that can fit
+  // Note: We check effectiveBase (baseDuration for shrinkable tasks) instead of
+  // suggestion.duration, because shrinkable tasks can fit in smaller spaces.
+  const candidates = availableSuggestions.filter((s) => {
+    if (state.usedSuggestionIds.has(s.id)) return false;
+
+    const effectiveBase = canShrink(s.type) ? s.baseDuration : s.duration;
+    if (remaining < effectiveBase) return false;
+
+    // Location check only (duration is handled above with effectiveBase)
+    return isLocationCompatible(s.locationPreference, gap.locationLabel);
+  });
+
+  if (candidates.length === 0) {
+    return [state]; // No more tasks can fit
+  }
+
+  const branches: ScheduleState[] = [state]; // Always include "skip" option
+
+  // Try adding each candidate
+  for (const candidate of candidates) {
+    const baseDuration = canShrink(candidate.type)
+      ? candidate.baseDuration
+      : candidate.duration;
+    const idealDuration = getIdealDuration(candidate);
+    const levels = getTaskExpansionLevels(
+      remaining,
+      baseDuration,
+      idealDuration,
+    );
+
+    for (const duration of levels) {
+      const newState = cloneState(state);
+      newState.gaps[gapIndex].allocations.push({
+        suggestionId: candidate.id,
+        memoId: candidate.memoId,
+        duration,
+      });
+      newState.gaps[gapIndex].usedTime += duration;
+      newState.usedSuggestionIds.add(candidate.id);
+
+      // Recursively try to fill more
+      const remainingCandidates = candidates.filter(
+        (c) => c.id !== candidate.id,
+      );
+      const recursiveBranches = generateFillBranches(
+        newState,
+        gapIndex,
+        remainingCandidates,
+        maxDepth - 1,
+      );
+      branches.push(...recursiveBranches);
+    }
+  }
+
+  return branches;
+}
+
+/**
+ * Prune candidates to top-K by score (beam search).
+ */
+function pruneToTopK(
+  states: ScheduleState[],
+  suggestions: Suggestion[],
+  k: number,
+): ScheduleState[] {
+  // Score all states
+  for (const state of states) {
+    state.score = scoreScheduleState(state, suggestions);
+  }
+
+  // Sort by score descending and keep top-K
+  states.sort((a, b) => b.score - a.score);
+  return states.slice(0, k);
+}
+
+/**
+ * Convert a schedule state to scheduled blocks.
+ * Validates that total duration doesn't exceed gap bounds.
+ */
+function stateToBlocks(
+  state: ScheduleState,
+  originalGaps?: Gap[],
+): ScheduledBlock[] {
+  const blocks: ScheduledBlock[] = [];
+  const gapMap = originalGaps
+    ? new Map(originalGaps.map((g) => [g.gapId, g]))
+    : null;
+
+  for (const gap of state.gaps) {
+    let currentTime = gap.start;
+    const gapEndMinutes = timeToMinutes(gap.end);
+
+    for (const alloc of gap.allocations) {
+      const startMinutes = timeToMinutes(currentTime);
+      let duration = alloc.duration;
+
+      // Validate: don't exceed gap end time
+      if (startMinutes + duration > gapEndMinutes) {
+        // Cap duration to fit within gap
+        duration = Math.max(0, gapEndMinutes - startMinutes);
+        if (duration <= 0) continue; // Skip if no time left
+      }
+
+      const endTime = addMinutesToTime(currentTime, duration);
+      blocks.push({
+        suggestionId: alloc.suggestionId,
+        memoId: alloc.memoId,
+        gapId: gap.gapId,
+        startTime: currentTime,
+        endTime,
+        duration,
+      });
+      currentTime = endTime;
+    }
+  }
+
+  return blocks;
+}
+
+/**
+ * Main state-space search scheduler.
+ *
+ * Algorithm:
+ * 1. Generate all valid anchor placements (mandatory tasks across gaps)
+ * 2. For each placement, run state-space search:
+ *    a. Generate expand branches (anchor duration options)
+ *    b. Generate fill branches (add more tasks)
+ *    c. Prune to top-K candidates (beam search)
+ * 3. Combine results from all placements, pick best overall
+ */
+export function scheduleWithStateSearch(
+  suggestions: Suggestion[],
+  gaps: Gap[],
+): ScheduleResult {
+  const { beamWidth } = SEARCH_CONFIG;
+
+  // Initialize result
+  const result: ScheduleResult = {
+    scheduled: [],
+    dropped: [],
+    totalScheduledMinutes: 0,
+    totalDroppedMinutes: 0,
+    permutationsEvaluated: 0, // Not used in state search
+    mandatoryDropped: [],
+  };
+
+  // Handle empty inputs
+  if (gaps.length === 0 || suggestions.length === 0) {
+    result.dropped = [...suggestions];
+    result.totalDroppedMinutes = suggestions.reduce(
+      (sum, s) => sum + s.duration,
+      0,
+    );
+    result.mandatoryDropped = suggestions.filter(
+      (s) => s.need >= MANDATORY_THRESHOLD - TOLERANCE,
+    );
+    return result;
+  }
+
+  // Phase 1: Generate all valid anchor placements
+  const { states: anchorStates, remainingSuggestions } =
+    generateAnchorPlacements(suggestions, gaps);
+
+  // Phase 2: State-space search starting from each anchor placement
+  let candidates: ScheduleState[] = [...anchorStates];
+
+  for (let gapIndex = 0; gapIndex < gaps.length; gapIndex++) {
+    const nextCandidates: ScheduleState[] = [];
+
+    for (const state of candidates) {
+      // Generate expansion branches for anchored tasks
+      const expandBranches = generateExpandBranches(
+        state,
+        gapIndex,
+        suggestions,
+      );
+
+      // Generate fill branches for each expansion
+      for (const branch of expandBranches) {
+        const fillBranches = generateFillBranches(
+          branch,
+          gapIndex,
+          remainingSuggestions,
+        );
+        nextCandidates.push(...fillBranches);
+      }
+    }
+
+    // Prune to top-K (beam search)
+    candidates = pruneToTopK(nextCandidates, suggestions, beamWidth);
+  }
+
+  // Pick best final state
+  if (candidates.length === 0) {
+    result.dropped = [...suggestions];
+    result.totalDroppedMinutes = suggestions.reduce(
+      (sum, s) => sum + s.duration,
+      0,
+    );
+    result.mandatoryDropped = suggestions.filter(
+      (s) => s.need >= MANDATORY_THRESHOLD - TOLERANCE,
+    );
+    return result;
+  }
+
+  // Final scoring and selection
+  candidates = pruneToTopK(candidates, suggestions, 1);
+  const bestState = candidates[0];
+
+  // Convert to blocks (with duration validation)
+  result.scheduled = stateToBlocks(bestState, gaps);
+
+  // Calculate dropped
+  const scheduledIds = new Set(result.scheduled.map((b) => b.suggestionId));
+  result.dropped = suggestions.filter((s) => !scheduledIds.has(s.id));
+  result.mandatoryDropped = result.dropped.filter(
+    (s) => s.need >= MANDATORY_THRESHOLD - TOLERANCE,
+  );
+
+  // Calculate totals
+  result.totalScheduledMinutes = result.scheduled.reduce(
+    (sum, b) => sum + b.duration,
+    0,
+  );
+  result.totalDroppedMinutes = result.dropped.reduce(
+    (sum, s) => sum + s.duration,
+    0,
+  );
+
+  // Sort by time
+  result.scheduled.sort((a, b) => {
+    const gapCompare = a.gapId.localeCompare(b.gapId);
+    if (gapCompare !== 0) return gapCompare;
+    return timeToMinutes(a.startTime) - timeToMinutes(b.startTime);
+  });
+
+  return result;
+}
+
+// ============================================================================
 // MAIN SCHEDULER
 // ============================================================================
 
@@ -791,6 +1487,12 @@ export interface SchedulerOptions {
   resolutionMinutes?: number;
   /** Duration extension config (extend sessions when extra gap time available) */
   durationExtension?: Partial<DurationExtensionConfig>;
+  /**
+   * Use the new state-space search algorithm instead of greedy permutation.
+   * The state-space algorithm uses concave utility scoring and beam search
+   * to find a more optimal schedule. Default: true (new algorithm enabled).
+   */
+  useStateSearch?: boolean;
 }
 
 /**
@@ -817,8 +1519,15 @@ export function scheduleSuggestions(
     permutationLimit = DEFAULT_PERMUTATION_LIMIT,
     resolutionMinutes = 1.0,
     durationExtension = {},
+    useStateSearch = true, // New algorithm enabled by default
   } = options;
 
+  // Use new state-space search algorithm if enabled
+  if (useStateSearch) {
+    return scheduleWithStateSearch(suggestions, gaps);
+  }
+
+  // Legacy greedy algorithm below
   // Merge extension config with defaults
   const extensionConfig: DurationExtensionConfig = {
     ...DEFAULT_EXTENSION_CONFIG,
