@@ -129,8 +129,11 @@
     // First, filter events by calendar visibility
     const visibleEvents = calendarState.events.filter((e) => {
       if (e.calendarId) {
-        // Google synced event - show if NOT in hidden set
-        return !hiddenCalendars.has(e.calendarId);
+        // Google synced event - check BOTH:
+        // 1. Calendar is enabled in GoogleSyncState (syncEnabled: true)
+        // 2. User hasn't hidden it (not in hiddenCalendars)
+        const isEnabled = googleSyncState.isCalendarEnabled(e.calendarId);
+        return isEnabled && !hiddenCalendars.has(e.calendarId);
       } else {
         // Local event - use local events toggle
         return showLocalEvents;
@@ -346,8 +349,8 @@
         Local
       </button>
 
-      <!-- Google Calendar toggles -->
-      {#each googleSyncState.allCalendars as calendar (calendar.id)}
+      <!-- Google Calendar toggles (only enabled calendars) -->
+      {#each googleSyncState.enabledCalendars as calendar (calendar.id)}
         <button
           class="btn shrink-0 btn-sm md:btn-xs {hiddenCalendars.has(calendar.id)
             ? 'opacity-50 btn-ghost'
@@ -364,7 +367,7 @@
         </button>
       {/each}
 
-      {#if googleSyncState.allCalendars.length === 0 && googleSyncState.isConnected}
+      {#if googleSyncState.enabledCalendars.length === 0 && googleSyncState.isConnected}
         <span class="text-xs text-base-content/50">No calendars synced</span>
       {/if}
     </div>

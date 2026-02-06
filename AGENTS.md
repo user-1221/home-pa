@@ -229,6 +229,7 @@ Every `.remote.ts` file MUST have at least one **static import** somewhere in th
 - **After substantial UI changes**: Run `/web-design-guidelines` to review against best practices.
 - **Cron/background jobs**: Refer to `docs/cron-system.md`
 - **Google auth/calendar sync**: Refer to `docs/google-calendar-sync.md`
+- **Security**: When handling sensitive data (tokens, credentials, user data, external APIs), always check `docs/security-principles.md`. If you implement a security solution not yet documented, add the solution pattern to the document (document solutions, not problems).
 
 ## TypeScript Debugger
 

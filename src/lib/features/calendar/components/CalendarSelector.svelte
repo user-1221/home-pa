@@ -30,11 +30,13 @@
   let isSaving = $state(false);
 
   // Initialize selected calendars from current sync state for this account
+  // Only include calendars with syncEnabled: true
   const currentlySyncedIds = $derived(
     new Set(
       googleSyncState.accounts
         .find((a) => a.id === accountId)
-        ?.calendars.map((c) => c.googleCalendarId) ?? [],
+        ?.calendars.filter((c) => c.syncEnabled)
+        .map((c) => c.googleCalendarId) ?? [],
     ),
   );
 

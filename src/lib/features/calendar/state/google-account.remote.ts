@@ -7,7 +7,7 @@
 import { query, command, getRequestEvent } from "$app/server";
 import * as v from "valibot";
 import { prisma } from "$lib/server/prisma";
-import { dev } from "$app/environment";
+import { createOAuthState } from "$lib/server/oauth-state.ts";
 
 // ============================================================================
 // HELPER - Get authenticated user
@@ -35,10 +35,11 @@ async function getGoogle() {
 }
 
 function getBaseUrl(): string {
-  if (dev) {
-    return "http://localhost:5173";
-  }
-  return process.env.BETTER_AUTH_URL ?? "http://localhost:5173";
+  return (
+    process.env.BETTER_AUTH_URL ??
+    process.env.BASE_URL ??
+    "http://localhost:5173"
+  );
 }
 
 // ============================================================================
@@ -81,6 +82,9 @@ export const initiateGoogleConnect = command(
       `${getBaseUrl()}/api/google-calendar/callback`,
     );
 
+    // Generate cryptographically random state for CSRF protection
+    const state = createOAuthState(userId);
+
     const authUrl = oauth2Client.generateAuthUrl({
       access_type: "offline",
       prompt: "consent",
@@ -90,7 +94,7 @@ export const initiateGoogleConnect = command(
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
       ],
-      state: userId,
+      state,
     });
 
     return { authUrl };

@@ -68,6 +68,24 @@ export class GoogleSyncState {
   }
 
   /**
+   * Only calendars with syncEnabled: true across all connected accounts.
+   * Use this for dropdown displays and event filtering.
+   */
+  get enabledCalendars(): SyncedCalendar[] {
+    return this.accounts.flatMap((a) =>
+      a.calendars.filter((c) => c.syncEnabled),
+    );
+  }
+
+  /**
+   * Check if a specific calendar ID is enabled for sync.
+   * @param calendarId - The sync config ID (stored on events as calendarId)
+   */
+  isCalendarEnabled(calendarId: string): boolean {
+    return this.enabledCalendars.some((c) => c.id === calendarId);
+  }
+
+  /**
    * Check all connected Google accounts and their synced calendars.
    */
   async checkConnection(): Promise<void> {

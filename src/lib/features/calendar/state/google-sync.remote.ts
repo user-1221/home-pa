@@ -8,6 +8,7 @@
 import { query, command, getRequestEvent } from "$app/server";
 import * as v from "valibot";
 import { prisma } from "$lib/server/prisma";
+import { decryptToken, encryptToken } from "$lib/server/crypto.ts";
 
 // ============================================================================
 // HELPER - Get authenticated user
@@ -48,6 +49,10 @@ async function getValidAccessToken(googleAccountId: string): Promise<string> {
     );
   }
 
+  // Decrypt tokens (handles both encrypted and legacy plaintext tokens)
+  const accessToken = decryptToken(account.accessToken);
+  const refreshToken = decryptToken(account.refreshToken);
+
   // Check if token expires within 5 minutes (buffer for API call duration)
   const now = new Date();
   const expiresAt = account.accessTokenExpiresAt;
@@ -56,7 +61,7 @@ async function getValidAccessToken(googleAccountId: string): Promise<string> {
     !expiresAt || expiresAt.getTime() - now.getTime() < bufferMs;
 
   if (!isExpired) {
-    return account.accessToken;
+    return accessToken;
   }
 
   // Refresh the token using googleapis
@@ -65,7 +70,7 @@ async function getValidAccessToken(googleAccountId: string): Promise<string> {
     process.env.GOOGLE_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET,
   );
-  oauth2Client.setCredentials({ refresh_token: account.refreshToken });
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
 
   try {
     const { credentials } = await oauth2Client.refreshAccessToken();
@@ -74,11 +79,11 @@ async function getValidAccessToken(googleAccountId: string): Promise<string> {
       throw new Error("No access token in refresh response");
     }
 
-    // Update tokens in database
+    // Encrypt and update tokens in database
     await prisma.googleCalendarAccount.update({
       where: { id: googleAccountId },
       data: {
-        accessToken: credentials.access_token,
+        accessToken: encryptToken(credentials.access_token),
         accessTokenExpiresAt: credentials.expiry_date
           ? new Date(credentials.expiry_date)
           : null,
@@ -275,6 +280,18 @@ export const enableCalendarSync = command(
         },
       });
     }
+
+    // Disable calendars that are no longer selected
+    await prisma.googleCalendarSync.updateMany({
+      where: {
+        userId,
+        googleAccountId: input.accountId,
+        googleCalendarId: { notIn: input.calendarIds },
+      },
+      data: {
+        syncEnabled: false,
+      },
+    });
 
     return { success: true };
   },

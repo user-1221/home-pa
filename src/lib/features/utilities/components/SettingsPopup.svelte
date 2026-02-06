@@ -82,6 +82,22 @@
     }
   }
 
+  async function handleRemoveAccount(accountId: string) {
+    if (
+      !confirm(
+        "このGoogleアカウントを削除しますか？同期したイベントはそのまま残ります。",
+      )
+    ) {
+      return;
+    }
+    try {
+      await googleSyncState.removeAccount(accountId);
+    } catch (err) {
+      syncError =
+        err instanceof Error ? err.message : "Failed to remove account";
+    }
+  }
+
   async function handleFileSelect(event: Event) {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
@@ -260,75 +276,160 @@
                   </p>
                 {:else if googleSyncState.isConnected}
                   <!-- Connected State -->
-                  <div class="flex items-center gap-2 text-sm text-success">
-                    <svg
-                      class="h-4 w-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                      stroke-width="2"
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-sm text-success">
+                      <svg
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      <span
+                        >連携済み ({googleSyncState.accounts
+                          .length}アカウント)</span
+                      >
+                    </div>
+                    <!-- Add New Account button -->
+                    <button
+                      class="btn gap-1 btn-ghost btn-xs"
+                      onclick={connectGoogle}
+                      title="別のGoogleアカウントを追加"
                     >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <span>連携済み</span>
+                      <svg
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M12 4v16m8-8H4"
+                        />
+                      </svg>
+                      追加
+                    </button>
                   </div>
 
-                  {#if googleSyncState.allCalendars.length > 0}
-                    <div class="space-y-1.5">
-                      {#each googleSyncState.allCalendars as calendar (calendar.id)}
-                        <div class="flex items-center gap-2 text-sm">
-                          {#if calendar.calendarColor}
-                            <span
-                              class="h-3 w-3 flex-shrink-0 rounded-full"
-                              style="background-color: {calendar.calendarColor}"
-                            ></span>
-                          {/if}
-                          <span class="truncate text-base-content/80"
-                            >{calendar.calendarName}</span
+                  <!-- Accounts grouped view -->
+                  {#each googleSyncState.accounts as account (account.id)}
+                    <div class="rounded-lg border border-base-200 p-3">
+                      <!-- Account Header -->
+                      <div class="mb-2 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                          <span
+                            class="max-w-[180px] truncate text-sm font-medium text-base-content/80"
                           >
+                            {account.email}
+                          </span>
+                          {#if !account.isValid}
+                            <span class="badge badge-xs badge-error"
+                              >要再認証</span
+                            >
+                          {/if}
                         </div>
-                      {/each}
+                        <!-- Account actions dropdown -->
+                        <div class="dropdown dropdown-end">
+                          <button class="btn btn-ghost btn-xs" tabindex="0">
+                            <svg
+                              class="h-4 w-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              stroke-width="2"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
+                              />
+                            </svg>
+                          </button>
+                          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                          <ul
+                            class="dropdown-content menu z-10 w-40 rounded-box bg-base-100 p-1 shadow-lg"
+                            tabindex="0"
+                          >
+                            <li>
+                              <button
+                                onclick={() =>
+                                  (calendarSelectorAccount = {
+                                    id: account.id,
+                                    email: account.email,
+                                  })}
+                              >
+                                カレンダー管理
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                class="text-error"
+                                onclick={() => handleRemoveAccount(account.id)}
+                              >
+                                削除
+                              </button>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+
+                      <!-- Calendars for this account -->
+                      {#if account.calendars.length > 0}
+                        <div class="space-y-1">
+                          {#each account.calendars as calendar (calendar.id)}
+                            <div class="flex items-center gap-2 text-sm">
+                              {#if calendar.calendarColor}
+                                <span
+                                  class="h-3 w-3 flex-shrink-0 rounded-full {!calendar.syncEnabled
+                                    ? 'opacity-40'
+                                    : ''}"
+                                  style="background-color: {calendar.calendarColor}"
+                                ></span>
+                              {/if}
+                              <span
+                                class="flex-1 truncate text-base-content/80 {!calendar.syncEnabled
+                                  ? 'line-through opacity-50'
+                                  : ''}"
+                              >
+                                {calendar.calendarName}
+                              </span>
+                              {#if !calendar.syncEnabled}
+                                <span class="text-xs text-base-content/50"
+                                  >無効</span
+                                >
+                              {/if}
+                            </div>
+                          {/each}
+                        </div>
+                      {:else}
+                        <button
+                          class="text-xs text-[var(--color-primary)] hover:underline"
+                          onclick={() =>
+                            (calendarSelectorAccount = {
+                              id: account.id,
+                              email: account.email,
+                            })}
+                        >
+                          カレンダーを選択
+                        </button>
+                      {/if}
                     </div>
-                    <button
-                      class="text-left text-xs text-[var(--color-primary)] hover:underline"
-                      onclick={() => {
-                        const first = googleSyncState.accounts[0];
-                        if (first)
-                          calendarSelectorAccount = {
-                            id: first.id,
-                            email: first.email,
-                          };
-                      }}
-                    >
-                      カレンダーを管理
-                    </button>
-                  {:else}
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onclick={() => {
-                        const first = googleSyncState.accounts[0];
-                        if (first)
-                          calendarSelectorAccount = {
-                            id: first.id,
-                            email: first.email,
-                          };
-                      }}
-                    >
-                      カレンダーを選択
-                    </Button>
-                  {/if}
+                  {/each}
 
                   <Button
                     variant="secondary"
                     fullWidth
                     onclick={handleSync}
                     disabled={isSyncing ||
-                      googleSyncState.allCalendars.length === 0}
+                      googleSyncState.enabledCalendars.length === 0}
                     loading={isSyncing}
                   >
                     <svg
@@ -578,6 +679,9 @@
   <CalendarSelector
     accountId={calendarSelectorAccount.id}
     accountEmail={calendarSelectorAccount.email}
-    onClose={() => (calendarSelectorAccount = null)}
+    onClose={() => {
+      calendarSelectorAccount = null;
+      onClose();
+    }}
   />
 {/if}

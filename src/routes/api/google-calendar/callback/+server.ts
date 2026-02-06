@@ -10,13 +10,15 @@
  */
 import { redirect, type RequestHandler } from "@sveltejs/kit";
 import { prisma } from "$lib/server/prisma";
-import { dev } from "$app/environment";
+import { encryptToken } from "$lib/server/crypto.ts";
+import { validateAndConsumeOAuthState } from "$lib/server/oauth-state.ts";
 
 function getBaseUrl(): string {
-  if (dev) {
-    return "http://localhost:5173";
-  }
-  return process.env.BETTER_AUTH_URL ?? "http://localhost:5173";
+  return (
+    process.env.BETTER_AUTH_URL ??
+    process.env.BASE_URL ??
+    "http://localhost:5173"
+  );
 }
 
 export const GET: RequestHandler = async ({ url, locals }) => {
@@ -33,23 +35,31 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   // Handle user denial or errors from Google
   if (error) {
     console.error("[google-calendar/callback] OAuth error:", error);
-    throw redirect(302, "/calendar/settings?google_error=denied");
+    throw redirect(302, "/calendar?google_error=denied");
   }
 
   if (!code) {
     console.error("[google-calendar/callback] Missing authorization code");
-    throw redirect(302, "/calendar/settings?google_error=missing_code");
+    throw redirect(302, "/calendar?google_error=missing_code");
   }
 
-  // 2. Verify state matches the authenticated user (CSRF protection)
-  if (state !== user.id) {
-    console.error(
-      "[google-calendar/callback] State mismatch: expected",
-      user.id,
-      "got",
-      state,
-    );
-    throw redirect(302, "/calendar/settings?google_error=state_mismatch");
+  // 2. Verify state using cryptographically secure validation (CSRF protection)
+  // State must be a valid, non-expired token that was created for this user
+  if (!state) {
+    console.error("[google-calendar/callback] Missing state parameter");
+    throw redirect(302, "/calendar?google_error=state_mismatch");
+  }
+
+  const stateUserId = validateAndConsumeOAuthState(state);
+  if (!stateUserId) {
+    console.error("[google-calendar/callback] Invalid or expired state token");
+    throw redirect(302, "/calendar?google_error=state_mismatch");
+  }
+
+  // Verify the state was created for the currently authenticated user
+  if (stateUserId !== user.id) {
+    console.error("[google-calendar/callback] State belongs to different user");
+    throw redirect(302, "/calendar?google_error=state_mismatch");
   }
 
   try {
@@ -68,7 +78,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
         "[google-calendar/callback] Missing tokens in response",
         Object.keys(tokens),
       );
-      throw redirect(302, "/calendar/settings?google_error=missing_tokens");
+      throw redirect(302, "/calendar?google_error=missing_tokens");
     }
 
     // 4. Get Google user info from id_token or userinfo endpoint
@@ -96,7 +106,11 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       googleEmail = userInfo.data.email;
     }
 
-    // 5. Upsert GoogleCalendarAccount
+    // 5. Encrypt tokens before storing
+    const encryptedAccessToken = encryptToken(tokens.access_token);
+    const encryptedRefreshToken = encryptToken(tokens.refresh_token);
+
+    // 6. Upsert GoogleCalendarAccount
     await prisma.googleCalendarAccount.upsert({
       where: {
         userId_googleAccountId: {
@@ -108,8 +122,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
         userId: user.id,
         googleAccountId: googleSub,
         email: googleEmail,
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
         accessTokenExpiresAt: tokens.expiry_date
           ? new Date(tokens.expiry_date)
           : null,
@@ -119,8 +133,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       },
       update: {
         email: googleEmail,
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
+        accessToken: encryptedAccessToken,
+        refreshToken: encryptedRefreshToken,
         accessTokenExpiresAt: tokens.expiry_date
           ? new Date(tokens.expiry_date)
           : null,
@@ -134,8 +148,8 @@ export const GET: RequestHandler = async ({ url, locals }) => {
       `[google-calendar/callback] Connected Google account ${googleEmail} for user ${user.id}`,
     );
 
-    // 6. Redirect back to settings
-    throw redirect(302, "/calendar/settings?google_connected=1");
+    // 7. Redirect back to settings
+    throw redirect(302, "/calendar?google_connected=1");
   } catch (err) {
     // Re-throw redirects
     if (err && typeof err === "object" && "status" in err) {
@@ -143,6 +157,6 @@ export const GET: RequestHandler = async ({ url, locals }) => {
     }
 
     console.error("[google-calendar/callback] Error:", err);
-    throw redirect(302, "/calendar/settings?google_error=exchange_failed");
+    throw redirect(302, "/calendar?google_error=exchange_failed");
   }
 };

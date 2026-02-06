@@ -11,7 +11,6 @@
 
   import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
   import { calendarState } from "$lib/bootstrap/index.svelte.ts";
-  import { goto } from "$app/navigation";
 
   let isConnecting = $state(false);
 
@@ -49,8 +48,7 @@
   async function handleConnect() {
     isConnecting = true;
     try {
-      // Redirect to settings page where user can add Google accounts
-      await goto("/calendar/settings");
+      await googleSyncState.connectNewAccount();
     } catch {
       isConnecting = false;
     }
