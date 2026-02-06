@@ -112,6 +112,7 @@
   }
   // Recurrence state
   let isRecurring = $state(false);
+  let recurrenceSectionReady = $state(false); // Delays render until modal animation completes
   let recurrenceFrequency = $state<"DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY">(
     "WEEKLY",
   );
@@ -128,6 +129,25 @@
   ]);
   let monthlyType = $state<"dayOfMonth" | "nthWeekday">("nthWeekday");
   let isDeleting = $state(false);
+
+  // Helper to get day of week from eventStartDate (0=Sun, 6=Sat)
+  function getStartDateDayOfWeek(): number {
+    if (!eventStartDate) return -1;
+    return new Date(eventStartDate + "T00:00").getDay();
+  }
+
+  // Auto-select weekday based on event start date when enabling recurrence
+  $effect(() => {
+    if (isRecurring && recurrenceFrequency === "WEEKLY") {
+      const hasAnyDaySelected = weeklyDays.some(Boolean);
+      if (!hasAnyDaySelected) {
+        const dayIndex = getStartDateDayOfWeek();
+        if (dayIndex >= 0) {
+          weeklyDays[dayIndex] = true;
+        }
+      }
+    }
+  });
 
   // Calendar picker state
   type ActiveDatePicker = "start" | "end" | "recurrence-end" | null;
@@ -619,6 +639,10 @@
   onMount(async () => {
     if (browser) {
       await import("cally");
+      // Delay recurrence section until modal animation completes (300ms)
+      setTimeout(() => {
+        recurrenceSectionReady = true;
+      }, 300);
     }
   });
 
@@ -1231,7 +1255,7 @@
       </label>
     </div>
 
-    {#if isRecurring}
+    {#if isRecurring && recurrenceSectionReady}
       <div
         bind:this={recurrenceSectionRef}
         class="card flex flex-col gap-4 p-4"
