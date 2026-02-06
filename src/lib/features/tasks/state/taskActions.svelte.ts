@@ -623,7 +623,16 @@ class TaskState {
           original.deadlineState?.rejectedToday !==
             reset.deadlineState?.rejectedToday;
 
-        if (routineStateReset || backlogStateReset || deadlineStateReset) {
+        // Check if status was reset (timeSpentToday)
+        const statusReset =
+          original.status.timeSpentToday !== reset.status.timeSpentToday;
+
+        if (
+          routineStateReset ||
+          backlogStateReset ||
+          deadlineStateReset ||
+          statusReset
+        ) {
           // Build update object matching MemoUpdateSchema
           const updateData: {
             routineState?: {
@@ -663,6 +672,11 @@ class TaskState {
               lastCompletedDay: string | null;
               previousLastCompletedDay: string | null;
             };
+            status?: {
+              timeSpentMinutes: number;
+              timeSpentToday: number;
+              completionState: "not_started" | "in_progress" | "completed";
+            };
           } = {};
 
           if (routineStateReset && reset.routineState) {
@@ -700,6 +714,14 @@ class TaskState {
               previousLastCompletedDay:
                 reset.deadlineState.previousLastCompletedDay?.toISOString() ??
                 null,
+            };
+          }
+
+          if (statusReset) {
+            updateData.status = {
+              timeSpentMinutes: reset.status.timeSpentMinutes,
+              timeSpentToday: reset.status.timeSpentToday,
+              completionState: reset.status.completionState,
             };
           }
 
