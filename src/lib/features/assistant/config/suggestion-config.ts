@@ -97,12 +97,12 @@ export const EXTENSION_CONFIG = {
 /**
  * Configuration for duration shrinking when gaps are smaller than calculated duration.
  *
- * Shrinking: Deadline tasks can shrink down to their baseDuration (original sessionDuration).
- * Routine and backlog tasks cannot shrink - they use full duration or are skipped.
+ * Shrinking: All task types can shrink down to their baseDuration (original sessionDuration).
+ * The state-space search places tasks at baseDuration and explores extensions.
  */
 export const SHRINK_CONFIG = {
-  /** Task types that allow shrinking (only deadline tasks) */
-  allowedTypes: ["期限付き"] as const,
+  /** Task types that allow shrinking to baseDuration */
+  allowedTypes: ["期限付き", "ルーティン", "バックログ"] as const,
 
   /** Shrink/extension step size in minutes (snap to grid) */
   stepMinutes: 10,

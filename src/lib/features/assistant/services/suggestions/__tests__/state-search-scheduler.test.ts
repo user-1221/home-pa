@@ -196,27 +196,25 @@ describe("scheduleWithStateSearch", () => {
       expect(totalScheduled).toBeLessThanOrEqual(60);
     });
 
-    it("should respect routine's non-shrinkable constraint", () => {
-      // Test 6: Routine can't shrink, deadline can
+    it("should shrink routine tasks to baseDuration when needed", () => {
+      // All task types can shrink to baseDuration
       const suggestions = [
-        createSuggestion("Routine", 0.8, 0.1, 45, 30, "ルーティン"), // Can't shrink
-        createSuggestion("Deadline", 0.75, 0.1, 60, 30, "期限付き"), // Can shrink
+        createSuggestion("Routine", 0.8, 0.1, 45, 30, "ルーティン"),
+        createSuggestion("Deadline", 0.75, 0.1, 60, 30, "期限付き"),
       ];
       const gaps = [createGap("gap1", "09:00", "10:00", 60)];
 
       const result = scheduleWithStateSearch(suggestions, gaps);
 
-      // Routine should be scheduled because it has higher need
-      // Deadline may or may not fit depending on Routine's size
-      expect(result.scheduled.length).toBeGreaterThanOrEqual(1);
+      // Both should fit: base 30 + 30 = 60 = gap
+      expect(result.scheduled.length).toBe(2);
 
-      // If both scheduled, check Routine keeps its full duration
       const routineBlock = result.scheduled.find(
         (b) => b.suggestionId === "Routine",
       );
-      if (routineBlock) {
-        expect(routineBlock.duration).toBe(45);
-      }
+      expect(routineBlock).toBeDefined();
+      // Routine can shrink to baseDuration (30)
+      expect(routineBlock!.duration).toBeGreaterThanOrEqual(30);
     });
   });
 
