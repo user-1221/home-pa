@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { slide } from "svelte/transition";
-  import { SvelteMap } from "svelte/reactivity";
+  import { SvelteMap, SvelteSet } from "svelte/reactivity";
   import type { Event } from "$lib/types.ts";
   import {
     calendarState,
@@ -35,7 +35,7 @@
 
   // Calendar visibility state (for filtering events by source)
   // hiddenCalendars tracks which calendars are hidden (empty = all visible)
-  let hiddenCalendars = $state<Set<string>>(new Set());
+  let hiddenCalendars = new SvelteSet<string>();
   let showLocalEvents = $state(true);
 
   // Timetable events for the selected date (pre-loaded for TimelinePopup)
@@ -288,13 +288,11 @@
   }
 
   function toggleCalendarVisibility(calendarId: string) {
-    const newSet = new Set(hiddenCalendars);
-    if (newSet.has(calendarId)) {
-      newSet.delete(calendarId); // Remove from hidden = show
+    if (hiddenCalendars.has(calendarId)) {
+      hiddenCalendars.delete(calendarId); // Remove from hidden = show
     } else {
-      newSet.add(calendarId); // Add to hidden = hide
+      hiddenCalendars.add(calendarId); // Add to hidden = hide
     }
-    hiddenCalendars = newSet;
   }
 </script>
 

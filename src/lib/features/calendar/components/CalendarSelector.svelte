@@ -6,6 +6,7 @@
    * Scoped to a specific Google account via accountId prop.
    */
 
+  import { SvelteSet } from "svelte/reactivity";
   import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
   import { onMount } from "svelte";
 
@@ -26,7 +27,7 @@
   let isLoading = $state(true);
   let error = $state<string | null>(null);
   let availableCalendars = $state<AvailableCalendar[]>([]);
-  let selectedIds = $state<Set<string>>(new Set());
+  let selectedIds = new SvelteSet<string>();
   let isSaving = $state(false);
 
   // Initialize selected calendars from current sync state for this account
@@ -42,7 +43,10 @@
 
   onMount(async () => {
     // Pre-select currently synced calendars
-    selectedIds = new Set(currentlySyncedIds);
+    selectedIds.clear();
+    for (const id of currentlySyncedIds) {
+      selectedIds.add(id);
+    }
 
     try {
       availableCalendars =
@@ -55,13 +59,11 @@
   });
 
   function toggleCalendar(calendarId: string) {
-    const newSet = new Set(selectedIds);
-    if (newSet.has(calendarId)) {
-      newSet.delete(calendarId);
+    if (selectedIds.has(calendarId)) {
+      selectedIds.delete(calendarId);
     } else {
-      newSet.add(calendarId);
+      selectedIds.add(calendarId);
     }
-    selectedIds = newSet;
   }
 
   async function handleSave() {

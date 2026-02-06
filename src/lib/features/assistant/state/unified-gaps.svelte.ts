@@ -26,6 +26,7 @@
  */
 
 import { getContext, setContext } from "svelte";
+import { SvelteMap } from "svelte/reactivity";
 
 import { dataState } from "$lib/bootstrap/data.svelte.ts";
 import { settingsState } from "$lib/bootstrap/settings.svelte.ts";
@@ -342,7 +343,7 @@ export class UnifiedGapState {
    * Accepted memos that block time slots
    * Updated via setBlockers() from schedule.ts
    */
-  private _acceptedBlockers = $state<Map<string, TimeBlocker>>(new Map());
+  private _acceptedBlockers = new SvelteMap<string, TimeBlocker>();
 
   /**
    * Moved suggestions that block time slots
@@ -681,7 +682,11 @@ export class UnifiedGapState {
    * @param moved - Array of moved suggestion time blockers
    */
   setBlockers(accepted: Map<string, TimeBlocker>, moved: TimeBlocker[]): void {
-    this._acceptedBlockers = accepted;
+    // Clear and repopulate to maintain SvelteMap reactivity
+    this._acceptedBlockers.clear();
+    for (const [key, value] of accepted) {
+      this._acceptedBlockers.set(key, value);
+    }
     this._movedBlockers = moved;
   }
 

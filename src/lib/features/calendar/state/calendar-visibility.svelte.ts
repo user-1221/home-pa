@@ -1,3 +1,5 @@
+import { SvelteSet } from "svelte/reactivity";
+
 /**
  * CalendarVisibilityState manages which calendars are visible in the app.
  * Controls filtering for both timeline displays and gap calculations (affecting suggestions).
@@ -8,7 +10,7 @@
  */
 export class CalendarVisibilityState {
   /** Set of hidden Google Calendar IDs (empty = all visible) */
-  hiddenCalendars = $state<Set<string>>(new Set());
+  hiddenCalendars = new SvelteSet<string>();
 
   /** Whether local (non-Google) events are visible */
   showLocalEvents = $state(true);
@@ -17,13 +19,11 @@ export class CalendarVisibilityState {
    * Toggle visibility for a specific Google Calendar
    */
   toggleCalendar(calendarId: string): void {
-    const newSet = new Set(this.hiddenCalendars);
-    if (newSet.has(calendarId)) {
-      newSet.delete(calendarId); // Show
+    if (this.hiddenCalendars.has(calendarId)) {
+      this.hiddenCalendars.delete(calendarId); // Show
     } else {
-      newSet.add(calendarId); // Hide
+      this.hiddenCalendars.add(calendarId); // Hide
     }
-    this.hiddenCalendars = newSet;
   }
 
   /**
@@ -50,7 +50,7 @@ export class CalendarVisibilityState {
    * Show all calendars (reset to default)
    */
   showAll(): void {
-    this.hiddenCalendars = new Set();
+    this.hiddenCalendars.clear();
     this.showLocalEvents = true;
   }
 }

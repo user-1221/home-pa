@@ -78,6 +78,7 @@
  * Migrated from writable stores to Svelte 5 reactive class ($state).
  */
 
+import { SvelteMap, SvelteSet } from "svelte/reactivity";
 import type { Memo, Gap, Suggestion } from "../../../types.ts";
 import type {
   ScheduleResult,
@@ -233,10 +234,10 @@ class ScheduleState {
   lastScheduleTime = $state<Date | null>(null);
 
   /** Accepted memos with their time slot info */
-  acceptedMemos = $state<Map<string, AcceptedMemoInfo>>(new Map());
+  acceptedMemos = new SvelteMap<string, AcceptedMemoInfo>();
 
   /** Set of memo IDs that have been rejected (skipped) */
-  rejectedMemoIds = $state<Set<string>>(new Set());
+  rejectedMemoIds = new SvelteSet<string>();
 
   /** Manually moved/dragged suggestions that should persist */
   movedSuggestions = $state<MovedSuggestion[]>([]);
@@ -412,8 +413,8 @@ class ScheduleState {
       console.log(
         `[Schedule] Day boundary crossed (${this.lastSyncDate} → ${today}), clearing synced stores`,
       );
-      this.acceptedMemos = new Map();
-      this.rejectedMemoIds = new Set();
+      this.acceptedMemos.clear();
+      this.rejectedMemoIds.clear();
       this.movedSuggestions = [];
       // Note: We don't clear server data here since loadSyncData() handles that cleanup
       // The server-side cleanup happens on next app restart
@@ -724,10 +725,8 @@ class ScheduleState {
       isProgressLogged: false,
     };
 
-    const newMap = new Map(this.acceptedMemos);
     const slotKey = makeSlotKey(block.memoId, block.startTime);
-    newMap.set(slotKey, acceptedInfo);
-    this.acceptedMemos = newMap;
+    this.acceptedMemos.set(slotKey, acceptedInfo);
 
     console.log(
       "[Schedule] Accepted suggestion:",
@@ -774,9 +773,7 @@ class ScheduleState {
     }
 
     // Add memoId to rejected set
-    const newSet = new Set(this.rejectedMemoIds);
-    newSet.add(memoId);
-    this.rejectedMemoIds = newSet;
+    this.rejectedMemoIds.add(memoId);
 
     // Remove from movedSuggestions if it was there
     if (currentMoved.some((m) => m.suggestionId === suggestionId)) {
@@ -1170,13 +1167,11 @@ class ScheduleState {
     );
 
     // Update the accepted memo info locally
-    const newMap = new Map(this.acceptedMemos);
-    newMap.set(key, {
+    this.acceptedMemos.set(key, {
       ...info,
       duration: newDuration,
       endTime: newEndTime,
     });
-    this.acceptedMemos = newMap;
 
     // Persist the duration change to the database
     const { taskState } = await import(
@@ -1216,9 +1211,7 @@ class ScheduleState {
     }
 
     // Remove from accepted memos store
-    const newMap = new Map(this.acceptedMemos);
-    newMap.delete(slot.key);
-    this.acceptedMemos = newMap;
+    this.acceptedMemos.delete(slot.key);
 
     console.log("[Schedule] Deleted accepted memo:", memoId, startTime);
 
@@ -1262,13 +1255,11 @@ class ScheduleState {
         endTimeToUse = info.endTime;
       }
 
-      const newMap = new Map(this.acceptedMemos);
-      newMap.set(key, {
+      this.acceptedMemos.set(key, {
         ...info,
         isProgressLogged: true,
         actualEndTime: endTimeToUse,
       });
-      this.acceptedMemos = newMap;
     }
 
     console.log("[Schedule] Completed suggestion:", {
@@ -1302,9 +1293,7 @@ class ScheduleState {
     }
 
     // Remove from accepted memos store
-    const newMap = new Map(this.acceptedMemos);
-    newMap.delete(slot.key);
-    this.acceptedMemos = newMap;
+    this.acceptedMemos.delete(slot.key);
 
     console.log("[Schedule] Missed suggestion:", memoId, startTime);
 
@@ -1327,8 +1316,8 @@ class ScheduleState {
     this.result = null;
     this.error = null;
     this.lastPipelineSummary = null;
-    this.acceptedMemos = new Map();
-    this.rejectedMemoIds = new Set();
+    this.acceptedMemos.clear();
+    this.rejectedMemoIds.clear();
     this.movedSuggestions = [];
     this.syncBlockersToGapState();
   }
@@ -1338,8 +1327,8 @@ class ScheduleState {
    * Useful for daily reset
    */
   clearAcceptedAndSkipped(): void {
-    this.acceptedMemos = new Map();
-    this.rejectedMemoIds = new Set();
+    this.acceptedMemos.clear();
+    this.rejectedMemoIds.clear();
     this.movedSuggestions = [];
     this.syncBlockersToGapState();
   }
@@ -1356,12 +1345,11 @@ class ScheduleState {
    * @param validMemoIds - Set of memo IDs that currently exist in taskState
    */
   cleanupOrphanedSlots(validMemoIds: Set<string>): void {
-    const newMap = new Map(this.acceptedMemos);
     let removed = false;
 
-    for (const [key, info] of newMap) {
+    for (const [key, info] of this.acceptedMemos) {
       if (!validMemoIds.has(info.memoId)) {
-        newMap.delete(key);
+        this.acceptedMemos.delete(key);
         removed = true;
         console.log(
           `[Schedule] Removed orphaned accepted slot for deleted task: ${info.memoId}`,
@@ -1370,7 +1358,6 @@ class ScheduleState {
     }
 
     if (removed) {
-      this.acceptedMemos = newMap;
       this.syncBlockersToGapState(); // Update gap calculation
     }
   }
@@ -1420,8 +1407,9 @@ class ScheduleState {
    * - Backlog tasks: Uses single acceptedSlot and rejectedToday
    */
   rebuildAcceptedMemosFromState(memos: Memo[]): void {
-    const newMap = new Map<string, AcceptedMemoInfo>();
-    const rejectedSet = new Set<string>();
+    // Clear existing state before rebuilding
+    this.acceptedMemos.clear();
+    this.rejectedMemoIds.clear();
 
     for (const memo of memos) {
       // Deadline tasks - can have multiple accepted slots
@@ -1435,7 +1423,7 @@ class ScheduleState {
           const slotKey = makeSlotKey(memo.id, slot.startTime);
           const isProgressLogged = slot.logged === true;
 
-          newMap.set(slotKey, {
+          this.acceptedMemos.set(slotKey, {
             memoId: memo.id,
             startTime: slot.startTime,
             endTime: slot.endTime,
@@ -1451,7 +1439,7 @@ class ScheduleState {
         const slotKey = makeSlotKey(memo.id, slot.startTime);
         const isProgressLogged = slot.logged === true;
 
-        newMap.set(slotKey, {
+        this.acceptedMemos.set(slotKey, {
           memoId: memo.id,
           startTime: slot.startTime,
           endTime: slot.endTime,
@@ -1466,7 +1454,7 @@ class ScheduleState {
         const slotKey = makeSlotKey(memo.id, slot.startTime);
         const isProgressLogged = slot.logged === true;
 
-        newMap.set(slotKey, {
+        this.acceptedMemos.set(slotKey, {
           memoId: memo.id,
           startTime: slot.startTime,
           endTime: slot.endTime,
@@ -1482,12 +1470,10 @@ class ScheduleState {
         memo.deadlineState?.rejectedToday;
 
       if (isRejected) {
-        rejectedSet.add(memo.id);
+        this.rejectedMemoIds.add(memo.id);
       }
     }
 
-    this.acceptedMemos = newMap;
-    this.rejectedMemoIds = rejectedSet;
     this.syncBlockersToGapState();
   }
 

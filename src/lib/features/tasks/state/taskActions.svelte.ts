@@ -12,6 +12,7 @@
  * @cleanup none - State persists across navigation
  */
 
+import { SvelteSet } from "svelte/reactivity";
 import type {
   Memo,
   ImportanceLevel,
@@ -555,7 +556,7 @@ class TaskState {
   isLoading = $state(false);
 
   /** Set of task IDs currently being enriched by LLM */
-  enrichingIds = $state<Set<string>>(new Set());
+  enrichingIds = new SvelteSet<string>();
 
   // ============================================================================
   // Derived State (getters)
@@ -1709,9 +1710,7 @@ class TaskState {
    */
   private async enrichInBackground(taskId: string): Promise<void> {
     // Mark as enriching
-    const newSet = new Set(this.enrichingIds);
-    newSet.add(taskId);
-    this.enrichingIds = newSet;
+    this.enrichingIds.add(taskId);
 
     try {
       // Get the task from store (get fresh copy to ensure we have latest values)
@@ -1799,9 +1798,7 @@ class TaskState {
       );
     } finally {
       // Remove from enriching set
-      const newSet = new Set(this.enrichingIds);
-      newSet.delete(taskId);
-      this.enrichingIds = newSet;
+      this.enrichingIds.delete(taskId);
     }
   }
 
