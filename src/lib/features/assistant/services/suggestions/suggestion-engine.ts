@@ -119,12 +119,6 @@ export interface EngineConfig {
   /** LLM enrichment config (optional - falls back to defaults) */
   llm?: Partial<LLMEnrichmentConfig>;
 
-  /** Scheduler config (optional) */
-  scheduler?: {
-    permutationLimit?: number;
-    resolutionMinutes?: number;
-  };
-
   /**
    * Duration extension config (optional)
    * Controls how suggestion durations are extended when extra gap time is available
@@ -221,7 +215,6 @@ export interface PipelineSummary {
 
 const DEFAULT_ENGINE_CONFIG: Required<EngineConfig> = {
   llm: {},
-  scheduler: {},
   durationExtension: DEFAULT_EXTENSION_CONFIG,
   enableLLMEnrichment: true,
   getCurrentTime: () => new Date(),
@@ -465,7 +458,6 @@ export class SuggestionEngine {
 
     // Step 8: Schedule suggestions into gaps
     const schedule = scheduleSuggestions(suggestions, enrichedGaps, {
-      ...this.config.scheduler,
       durationExtension: this.config.durationExtension,
     });
 
@@ -681,7 +673,6 @@ export class SuggestionEngine {
  * // Custom configuration
  * const engine = createEngine({
  *   enableLLMEnrichment: false,
- *   scheduler: { permutationLimit: 100 }
  * });
  * ```
  *

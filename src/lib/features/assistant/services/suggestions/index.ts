@@ -75,9 +75,6 @@ export type { CompatibilityResult } from "./location-matching.ts";
 export {
   partitionSuggestions,
   sortByPriority,
-  knapsackSelect,
-  enumerateBestOrder,
-  assignOrderToGaps,
   scheduleSuggestions,
   calculateScore,
   timeToMinutes,

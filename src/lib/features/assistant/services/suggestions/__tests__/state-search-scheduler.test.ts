@@ -280,17 +280,6 @@ describe("scheduleWithStateSearch", () => {
 
       expect(result.scheduled.length).toBe(1);
     });
-
-    it("should fall back to legacy when useStateSearch=false", () => {
-      const suggestions = [createSuggestion("A", 0.8, 0.1, 30, 30, "期限付き")];
-      const gaps = [createGap("gap1", "09:00", "10:00", 60)];
-
-      const result = scheduleSuggestions(suggestions, gaps, {
-        useStateSearch: false,
-      });
-
-      expect(result.scheduled.length).toBe(1);
-    });
   });
 
   // ===========================================================================
