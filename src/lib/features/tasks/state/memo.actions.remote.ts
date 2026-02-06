@@ -267,6 +267,8 @@ export const markMemoAccepted = command(
         updateData.routinePreviousLastCompletedDay =
           existing.routineLastCompletedDay;
         updateData.routineLastCompletedDay = now; // Treat as completed for scoring
+        // Capture duration for adaptive ideal calculation
+        updateData.routineLastAcceptedDuration = input.slot?.duration ?? null;
       } else if (existing.type === "バックログ") {
         updateData.backlogAcceptedToday = true;
         updateData.backlogAcceptedSlot = input.slot ?? null;
@@ -275,6 +277,8 @@ export const markMemoAccepted = command(
         updateData.backlogPreviousLastCompletedDay =
           existing.backlogLastCompletedDay;
         updateData.backlogLastCompletedDay = now; // Treat as completed for scoring
+        // Capture duration for adaptive ideal calculation
+        updateData.backlogLastAcceptedDuration = input.slot?.duration ?? null;
       }
       // Deadline tasks don't have acceptedToday - they use a different mechanism
 
@@ -311,6 +315,8 @@ export const markMemoAccepted = command(
                     endTime: string;
                     duration: number;
                   } | null) ?? null,
+                lastAcceptedDuration:
+                  updated.routineLastAcceptedDuration ?? null,
               }
             : undefined,
         backlogState:
@@ -329,6 +335,8 @@ export const markMemoAccepted = command(
                     endTime: string;
                     duration: number;
                   } | null) ?? null,
+                lastAcceptedDuration:
+                  updated.backlogLastAcceptedDuration ?? null,
               }
             : undefined,
       };

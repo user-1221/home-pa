@@ -295,6 +295,7 @@ describe("Suggestion Engine - Integration Tests", () => {
           periodStartDate: null,
           rejectedToday: false,
           acceptedSlot: null,
+          lastAcceptedDuration: null,
         },
       }),
     ];
@@ -742,6 +743,7 @@ describe("Edge Cases - Scheduling Scenarios", () => {
         periodStartDate: new Date(),
         rejectedToday: false,
         acceptedSlot: null,
+        lastAcceptedDuration: null,
       },
     });
     const gaps: Gap[] = [createTestGap("09:00", "10:00")];
@@ -805,6 +807,7 @@ describe("Edge Cases - markSessionComplete", () => {
         periodStartDate: new Date(),
         rejectedToday: false,
         acceptedSlot: null,
+        lastAcceptedDuration: null,
       },
     });
 

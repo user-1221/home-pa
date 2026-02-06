@@ -169,6 +169,7 @@ model Memo {
   routineWeekStartDate      DateTime?  // Start of current tracking period
   routineRejectedToday      Boolean?   // If true, task cannot be regenerated today
   routineAcceptedSlot       Json?      // Single slot: {startTime, endTime, duration}
+  routineLastAcceptedDuration Int?     // Duration from last accepted suggestion (for adaptive ideal)
 
   // Backlog state (バックログ type)
   backlogAcceptedToday      Boolean?   // If true, task treated as done for day
@@ -176,6 +177,7 @@ model Memo {
   backlogPreviousLastCompletedDay DateTime?  // Saved value before acceptance (for undo)
   backlogRejectedToday      Boolean?   // If true, task cannot be regenerated today
   backlogAcceptedSlot       Json?      // Single slot: {startTime, endTime, duration}
+  backlogLastAcceptedDuration Int?     // Duration from last accepted suggestion (for adaptive ideal)
 
   // Deadline state (期限付き type)
   deadlineRejectedToday     Boolean?   // If true, task cannot be regenerated today

@@ -91,6 +91,7 @@ export interface RoutineState {
   periodStartDate: Date | null; // Start of current tracking period
   rejectedToday: boolean; // If true, task cannot be regenerated today
   acceptedSlot: AcceptedSlot | null; // Time slot info for today's accepted suggestion
+  lastAcceptedDuration: number | null; // Duration from last accepted suggestion (for adaptive ideal)
 }
 
 /**
@@ -137,6 +138,7 @@ export interface BacklogState {
   previousLastCompletedDay: Date | null; // Saved value before acceptance (for undo)
   rejectedToday: boolean; // If true, task cannot be regenerated today
   acceptedSlot: AcceptedSlot | null; // Time slot info for today's accepted suggestion
+  lastAcceptedDuration: number | null; // Duration from last accepted suggestion (for adaptive ideal)
 }
 
 /**

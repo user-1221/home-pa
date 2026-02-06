@@ -190,6 +190,7 @@ export function initializeRoutineState(
     ),
     rejectedToday: false,
     acceptedSlot: null,
+    lastAcceptedDuration: null,
   };
 }
 
@@ -543,6 +544,7 @@ export function initializeBacklogState(memo: Memo): BacklogState {
       previousLastCompletedDay: null,
       rejectedToday: false,
       acceptedSlot: null,
+      lastAcceptedDuration: null,
     }
   );
 }
@@ -636,16 +638,37 @@ export function clamp(value: number, min: number, max: number): number {
 
 /**
  * Select session duration for a memo
- * Returns the duration in minutes (no shrinking - duration is both ideal and minimum)
+ * Returns the duration in minutes
+ *
+ * - Deadline: regression-predicted duration (adaptive based on time remaining)
+ * - Routine/Backlog: 2x baseDuration by default, or lastAcceptedDuration if available
  */
 export function selectDuration(memo: Memo, currentTime: Date): number {
-  // Deadline tasks use adaptive duration
+  const baseDuration = memo.sessionDuration ?? DEFAULT_SESSION_DURATION;
+
+  // Deadline tasks use adaptive regression-based duration
   if (memo.type === "期限付き") {
     return calculateDeadlineDuration(memo, currentTime);
   }
 
-  // Other types use sessionDuration or defaults
-  return memo.sessionDuration ?? DEFAULT_SESSION_DURATION;
+  // Routine tasks: use lastAcceptedDuration if valid, else 2x base
+  if (memo.type === "ルーティン") {
+    const lastAccepted = memo.routineState?.lastAcceptedDuration;
+    return lastAccepted && lastAccepted >= baseDuration
+      ? lastAccepted
+      : baseDuration * 2;
+  }
+
+  // Backlog tasks: use lastAcceptedDuration if valid, else 2x base
+  if (memo.type === "バックログ") {
+    const lastAccepted = memo.backlogState?.lastAcceptedDuration;
+    return lastAccepted && lastAccepted >= baseDuration
+      ? lastAccepted
+      : baseDuration * 2;
+  }
+
+  // Fallback (shouldn't reach here)
+  return baseDuration;
 }
 
 // ============================================================================

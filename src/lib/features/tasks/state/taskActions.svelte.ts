@@ -109,6 +109,7 @@ function jsonToMemo(json: {
       duration: number;
       logged?: boolean;
     } | null;
+    lastAcceptedDuration?: number | null;
   };
   backlogState?: {
     acceptedToday: boolean;
@@ -121,6 +122,7 @@ function jsonToMemo(json: {
       duration: number;
       logged?: boolean;
     } | null;
+    lastAcceptedDuration?: number | null;
   };
   deadlineState?: {
     rejectedToday: boolean;
@@ -181,6 +183,7 @@ function jsonToMemo(json: {
             : null,
           rejectedToday: json.routineState.rejectedToday ?? false,
           acceptedSlot: json.routineState.acceptedSlot ?? null,
+          lastAcceptedDuration: json.routineState.lastAcceptedDuration ?? null,
         }
       : undefined,
     backlogState: json.backlogState
@@ -194,6 +197,7 @@ function jsonToMemo(json: {
             : null,
           rejectedToday: json.backlogState.rejectedToday ?? false,
           acceptedSlot: json.backlogState.acceptedSlot ?? null,
+          lastAcceptedDuration: json.backlogState.lastAcceptedDuration ?? null,
         }
       : undefined,
     deadlineState: json.deadlineState
@@ -1052,6 +1056,8 @@ class TaskState {
                       : null,
                     rejectedToday: task.routineState?.rejectedToday ?? false,
                     acceptedSlot: task.routineState?.acceptedSlot ?? null,
+                    lastAcceptedDuration:
+                      task.routineState?.lastAcceptedDuration ?? null,
                   }
                 : task.routineState,
             };
@@ -1223,6 +1229,8 @@ class TaskState {
                 acceptedSlot: task.routineState?.acceptedSlot
                   ? { ...task.routineState.acceptedSlot, logged: true }
                   : null,
+                lastAcceptedDuration:
+                  task.routineState?.lastAcceptedDuration ?? null,
               }
             : task.routineState,
           backlogState: result.backlogState
@@ -1238,6 +1246,8 @@ class TaskState {
                 acceptedSlot: task.backlogState?.acceptedSlot
                   ? { ...task.backlogState.acceptedSlot, logged: true }
                   : null,
+                lastAcceptedDuration:
+                  task.backlogState?.lastAcceptedDuration ?? null,
               }
             : task.backlogState,
           // Keep deadline acceptedSlots - task stays "accepted" until user marks missed/deletes
@@ -1302,6 +1312,8 @@ class TaskState {
                   : null,
                 rejectedToday: task.routineState?.rejectedToday ?? false,
                 acceptedSlot: result.routineState.acceptedSlot ?? null,
+                lastAcceptedDuration:
+                  result.routineState.lastAcceptedDuration ?? null,
               }
             : task.routineState,
           backlogState: result.backlogState
@@ -1317,6 +1329,8 @@ class TaskState {
                   : null,
                 rejectedToday: task.backlogState?.rejectedToday ?? false,
                 acceptedSlot: result.backlogState.acceptedSlot ?? null,
+                lastAcceptedDuration:
+                  result.backlogState.lastAcceptedDuration ?? null,
               }
             : task.backlogState,
         };

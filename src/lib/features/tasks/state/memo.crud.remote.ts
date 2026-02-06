@@ -79,6 +79,7 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
                   endTime: string;
                   duration: number;
                 } | null) ?? null,
+              lastAcceptedDuration: memo.routineLastAcceptedDuration ?? null,
             }
           : undefined,
       backlogState:
@@ -96,6 +97,7 @@ export const fetchMemos = query(v.optional(v.object({})), async () => {
                   endTime: string;
                   duration: number;
                 } | null) ?? null,
+              lastAcceptedDuration: memo.backlogLastAcceptedDuration ?? null,
             }
           : undefined,
       deadlineState:
@@ -268,6 +270,7 @@ export const createMemo = command(MemoInputSchema, async (input) => {
                   endTime: string;
                   duration: number;
                 } | null) ?? null,
+              lastAcceptedDuration: created.routineLastAcceptedDuration ?? null,
             }
           : undefined,
       backlogState:
@@ -283,6 +286,7 @@ export const createMemo = command(MemoInputSchema, async (input) => {
                   endTime: string;
                   duration: number;
                 } | null) ?? null,
+              lastAcceptedDuration: created.backlogLastAcceptedDuration ?? null,
             }
           : undefined,
       // Deadline state
@@ -481,6 +485,7 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
                   endTime: string;
                   duration: number;
                 } | null) ?? null,
+              lastAcceptedDuration: updated.routineLastAcceptedDuration ?? null,
             }
           : undefined,
       backlogState:
@@ -496,6 +501,7 @@ export const updateMemo = command(MemoUpdateSchema, async (input) => {
                   endTime: string;
                   duration: number;
                 } | null) ?? null,
+              lastAcceptedDuration: updated.backlogLastAcceptedDuration ?? null,
             }
           : undefined,
       // Deadline state
