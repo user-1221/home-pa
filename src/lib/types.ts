@@ -18,13 +18,13 @@ export interface Event {
   id: string;
   title: string;
   // For timed events: actual start/end times
-  // For all-day/some-timing events: date only (start = end = date at 00:00 UTC)
+  // For all-day events: date only (start = end = date at 00:00 UTC)
   start: Date;
   end: Date;
   description?: string;
   address?: string;
   importance?: ImportanceLevel;
-  timeLabel?: "all-day" | "some-timing" | "timed"; // Event timing type
+  timeLabel?: "all-day" | "timed"; // Event timing type
   tzid?: string; // IANA timezone, defaults to system timezone
   recurrence?: Recurrence;
   rdateUtc?: Date[]; // Additional occurrence dates

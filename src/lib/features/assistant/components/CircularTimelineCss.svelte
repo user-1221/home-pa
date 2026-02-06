@@ -173,7 +173,7 @@
         description: o.description,
         address: o.location,
         importance: o.importance,
-        timeLabel: o.timeLabel as "all-day" | "timed" | "some-timing",
+        timeLabel: o.timeLabel as "all-day" | "timed",
         // Inherit calendarId from master event for visibility filtering
         calendarId: masterEvents.find((e) => e.id === o.masterEventId)
           ?.calendarId,

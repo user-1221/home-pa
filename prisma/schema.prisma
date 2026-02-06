@@ -28,6 +28,7 @@ model User {
   calendarEvents         CalendarEvent[]
   memos                  Memo[]
   googleCalendarAccounts GoogleCalendarAccount[]
+  someTimingItems        SomeTimingItem[]
 
   @@unique([email])
   @@map("user")
@@ -297,7 +298,7 @@ model EventTemplate {
   // Template data to pre-fill
   color           String?  // User-selected color
   address         String?  // Default location
-  timeLabel       String   // all-day | some-timing | timed
+  timeLabel       String   // all-day | timed
   defaultStartTime String? // For timed events: default start time (HH:mm)
   defaultEndTime   String? // For timed events: default end time (HH:mm)
   defaultDuration  Int?    // Duration in minutes (alternative to end time)
@@ -478,4 +479,39 @@ model UserSettings {
   updatedAt       DateTime @updatedAt
 
   @@map("user_settings")
+}
+
+// ============================================================================
+// Some-Timing Items (flexible time reminders/tasks)
+// Items that need to happen "sometime today" without a specific time slot
+// ============================================================================
+
+model SomeTimingItem {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Core data
+  title             String
+  date              DateTime // The day this item is for (00:00 UTC)
+
+  // Metadata
+  description       String?
+  color             String?
+  importance        String?  // "low" | "medium" | "high"
+
+  // Recurrence (optional)
+  rrule             String?           // iCal RRULE string
+  hasRecurrence     Boolean  @default(false)
+  masterItemId      String?  @db.ObjectId
+  masterItem        SomeTimingItem?  @relation("ItemOccurrences", fields: [masterItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  occurrences       SomeTimingItem[] @relation("ItemOccurrences")
+
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, hasRecurrence])
+  @@map("some_timing_item")
 }

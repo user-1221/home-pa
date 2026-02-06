@@ -19,6 +19,7 @@
     EVENT_COLOR_PALETTE,
     getColorValue,
   } from "../utils/calendar-helpers.ts";
+  import { someTimingItemState } from "../state/index.ts";
 
   interface Props {
     /**
@@ -38,7 +39,7 @@
   let eventEndTime = $state("");
   let eventAddress = $state("");
   let eventImportance = $state<"low" | "medium" | "high">("medium");
-  let eventTimeLabel = $state<"all-day" | "some-timing" | "timed">("all-day");
+  let eventTimeLabel = $state<"all-day" | "timed">("all-day");
   let eventColor = $state<string | undefined>(undefined);
 
   // Template suggestions state
@@ -47,7 +48,7 @@
   let titleInputFocused = $state(false);
   let templateSearchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  // Tri-state for clarity
+  // Time mode for clarity
   type TimeMode = "default" | "all-day" | "some-timing";
   let timeMode = $state<TimeMode>("default");
   let isGreyState = $derived(timeMode === "default");
@@ -178,9 +179,7 @@
   let lastStoreTitle = $state("");
   let lastStoreAddress = $state("");
   let lastStoreImportance = $state<"low" | "medium" | "high">("medium");
-  let lastStoreTimeLabel = $state<"all-day" | "some-timing" | "timed">(
-    "all-day",
-  );
+  let lastStoreTimeLabel = $state<"all-day" | "timed">("all-day");
   let lastStoreStart = $state("");
   let lastStoreEnd = $state("");
   let lastStoreRecurrence = $state<string>("");
@@ -250,9 +249,6 @@
           eventEndTime = "23:59";
           previousStartTime = "00:00";
         }
-      } else if (form.timeLabel === "some-timing") {
-        timeMode = "some-timing";
-        // Don't clear times for some-timing - keep display values
       } else {
         // timed mode is the default
         timeMode = "default";
@@ -549,7 +545,7 @@
     isManualDateOrTimeEdit = true;
     eventTimeLabel = "timed";
 
-    // Set default times to 12:00-13:00 if not already set (for new events or switching from all-day/some-timing)
+    // Set default times to 12:00-13:00 if not already set (for new events or switching from all-day)
     if (
       !eventStartTime ||
       eventStartTime === "00:00" ||
@@ -566,6 +562,37 @@
     lastStoreTimeLabel = "timed";
     eventFormState.switchTimeLabel("timed");
     isLocalEdit = false;
+  }
+
+  /**
+   * Handle form submission - branches based on timeMode
+   */
+  async function handleSubmit(): Promise<void> {
+    if (timeMode === "some-timing") {
+      // Validate title
+      if (!eventTitle.trim()) {
+        eventFormState.errors.title = "タイトルを入力してください";
+        return;
+      }
+
+      // Create SomeTimingItem instead of CalendarEvent
+      try {
+        await someTimingItemState.create({
+          title: eventTitle.trim(),
+          date: eventStartDate, // YYYY-MM-DD format
+          color: eventColor,
+          importance: eventImportance,
+        });
+        eventFormState.close();
+      } catch (err) {
+        console.error("[EventForm] Failed to create some-timing item:", err);
+        eventFormState.errors.general =
+          err instanceof Error ? err.message : "保存に失敗しました";
+      }
+    } else {
+      // Regular event - use existing flow
+      eventActions.submitEventForm();
+    }
   }
 
   async function handleDelete(): Promise<void> {
@@ -658,15 +685,9 @@
       switch (activeDatePicker) {
         case "start":
           eventStartDate = target.value;
-          if (eventTimeLabel === "some-timing") {
-            switchToTimedMode();
-          }
           break;
         case "end":
           eventEndDate = target.value;
-          if (eventTimeLabel === "some-timing") {
-            switchToTimedMode();
-          }
           break;
         case "recurrence-end":
           recurrenceEndDate = target.value;
@@ -851,7 +872,7 @@
             variant="primary"
             size="sm"
             rounded="sharp"
-            onclick={() => eventActions.submitEventForm()}
+            onclick={() => handleSubmit()}
           >
             更新
           </Button>
@@ -863,7 +884,7 @@
         size="sm"
         rounded="sharp"
         class="md:hidden"
-        onclick={() => eventActions.submitEventForm()}
+        onclick={() => handleSubmit()}
       >
         作成
       </Button>
@@ -930,9 +951,7 @@
                   <span
                     >{template.timeLabel === "all-day"
                       ? "終日"
-                      : template.timeLabel === "some-timing"
-                        ? "時間未定"
-                        : (template.defaultStartTime ?? "時間あり")}</span
+                      : (template.defaultStartTime ?? "時間あり")}</span
                   >
                   {#if template.address}
                     <span>• {template.address}</span>
@@ -1015,13 +1034,8 @@
               lastStoreTimeLabel = "timed";
               eventFormState.switchTimeLabel("timed");
             } else {
-              // Switch to some-timing mode - keep existing dates, just grey them out
+              // Switch to some-timing mode
               timeMode = "some-timing";
-              eventTimeLabel = "some-timing";
-              // Don't modify dates or times - keep them as-is (displayed greyed)
-              isManualDateOrTimeEdit = false;
-              lastStoreTimeLabel = "some-timing";
-              eventFormState.switchTimeLabel("some-timing");
             }
             isLocalEdit = false;
           }}
@@ -1044,7 +1058,7 @@
             id="event-start-date"
             bind:value={eventStartDate}
             active={activeDatePicker === "start"}
-            disabled={eventTimeLabel === "some-timing" || isReadOnly}
+            disabled={isReadOnly}
             onclick={() => {
               if (isReadOnly) return;
               activeTimePicker = null; // Close time picker if open
@@ -1056,7 +1070,7 @@
             id="event-start-time"
             bind:value={eventStartTime}
             active={activeTimePicker === "start"}
-            disabled={eventTimeLabel === "some-timing" || isReadOnly}
+            disabled={isReadOnly}
             onclick={() => {
               if (isReadOnly) return;
               activeDatePicker = null; // Close date picker if open
@@ -1144,7 +1158,7 @@
             id="event-end-date"
             bind:value={eventEndDate}
             active={activeDatePicker === "end"}
-            disabled={eventTimeLabel === "some-timing" || isReadOnly}
+            disabled={isReadOnly}
             onclick={() => {
               if (isReadOnly) return;
               activeTimePicker = null; // Close time picker if open
@@ -1156,7 +1170,7 @@
             id="event-end-time"
             bind:value={eventEndTime}
             active={activeTimePicker === "end"}
-            disabled={eventTimeLabel === "some-timing" || isReadOnly}
+            disabled={isReadOnly}
             onclick={() => {
               if (isReadOnly) return;
               activeDatePicker = null; // Close date picker if open
@@ -1616,7 +1630,7 @@
         <Button
           variant="primary"
           rounded="sharp"
-          onclick={() => eventActions.submitEventForm()}
+          onclick={() => handleSubmit()}
         >
           更新
         </Button>
@@ -1625,11 +1639,7 @@
       <Button variant="ghost" onclick={() => eventActions.cancelEventForm()}>
         キャンセル
       </Button>
-      <Button
-        variant="primary"
-        rounded="sharp"
-        onclick={() => eventActions.submitEventForm()}
-      >
+      <Button variant="primary" rounded="sharp" onclick={() => handleSubmit()}>
         作成
       </Button>
     {/if}

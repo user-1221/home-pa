@@ -11,6 +11,7 @@
     getEventColor,
     getEventTextColor,
   } from "../utils/index.ts";
+  import { someTimingItemState } from "../state/index.ts";
 
   interface Props {
     currentMonth: Date;
@@ -55,6 +56,8 @@
   >
     {#each calendarDays as day, _dayIndex (day.getTime())}
       {@const dayOfWeek = day.getDay()}
+      {@const dayEvents = getEventsForDate(events, day)}
+      {@const someTimingItems = someTimingItemState.getItemsForDate(day)}
       <!-- Cell wrapper: no padding, handles borders and background -->
       <div
         class="group relative flex min-h-0 cursor-pointer flex-col border-r border-b bg-base-100/60
@@ -83,7 +86,7 @@
         </div>
         <!-- Events container: no horizontal padding so bars can extend edge-to-edge -->
         <div class="relative min-h-0 flex-1 overflow-hidden">
-          {#each getEventsForDate(events, day) as truncatedEvent (truncatedEvent.id)}
+          {#each dayEvents as truncatedEvent (truncatedEvent.id)}
             {@const originalEvent =
               events.find((e) => e.id === truncatedEvent.id) || truncatedEvent}
             {@const barPosition = getEventBarPosition(
@@ -127,6 +130,26 @@
             </div>
           {/each}
         </div>
+        <!-- Some-timing items dots -->
+        {#if someTimingItems.length > 0}
+          <div
+            class="absolute right-0.5 bottom-0.5 left-0.5 flex justify-center gap-0.5"
+          >
+            {#each someTimingItems.slice(0, 3) as stItem (stItem.id)}
+              <div
+                class="h-1.5 w-1.5 rounded-full opacity-70"
+                style="background-color: {stItem.color ??
+                  'var(--color-primary)'}"
+                title={stItem.title}
+              ></div>
+            {/each}
+            {#if someTimingItems.length > 3}
+              <span class="text-[8px] text-base-content/50"
+                >+{someTimingItems.length - 3}</span
+              >
+            {/if}
+          </div>
+        {/if}
       </div>
     {/each}
   </div>

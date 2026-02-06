@@ -24,7 +24,7 @@ export interface EventFormData {
   description: string;
   address: string;
   importance: "low" | "medium" | "high";
-  timeLabel: "all-day" | "some-timing" | "timed";
+  timeLabel: "all-day" | "timed";
   color?: string;
   isEditing: boolean;
   editingId: string | null;
@@ -66,7 +66,7 @@ class EventFormState {
   description = $state("");
   address = $state("");
   importance = $state<"low" | "medium" | "high">("medium");
-  timeLabel = $state<"all-day" | "some-timing" | "timed">("all-day");
+  timeLabel = $state<"all-day" | "timed">("all-day");
   color = $state<string | undefined>(undefined);
   isEditing = $state(false);
   editingId = $state<string | null>(null);
@@ -216,7 +216,7 @@ class EventFormState {
         this.importance = value as "low" | "medium" | "high";
         break;
       case "timeLabel":
-        this.timeLabel = value as "all-day" | "some-timing" | "timed";
+        this.timeLabel = value as "all-day" | "timed";
         break;
       case "isEditing":
         this.isEditing = value as boolean;
@@ -318,20 +318,9 @@ class EventFormState {
   /**
    * Switch between time labels
    */
-  switchTimeLabel(label: "all-day" | "some-timing" | "timed"): void {
-    if (label === "some-timing") {
-      // Some-timing events: start and end must be the same date
-      const currentStart = this.start ? this.start.split("T")[0] : "";
-      this.timeLabel = label;
-      this.start = currentStart;
-      this.end = currentStart;
-    } else if (label === "all-day") {
-      // All-day events: can span multiple days, preserve existing dates
-      this.timeLabel = label;
-    } else {
-      // Timed events: keep current values
-      this.timeLabel = label;
-    }
+  switchTimeLabel(label: "all-day" | "timed"): void {
+    // Set the time label directly
+    this.timeLabel = label;
   }
 
   /**

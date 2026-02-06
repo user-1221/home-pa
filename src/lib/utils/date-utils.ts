@@ -112,7 +112,7 @@ export function localDateTimeToUTC(
 }
 
 /**
- * Creates a date-only UTC Date for all-day and some-timing events
+ * Creates a date-only UTC Date for all-day events
  * For these events, start and end are the same (date at 00:00 UTC)
  */
 export function createDateOnlyUTC(dateString: string): Date {
@@ -167,14 +167,14 @@ export function createMultiDayAllDayUTCRange(
 }
 
 /**
- * Helper function to determine if an event is date-only (all-day or some-timing)
+ * Helper function to determine if an event is date-only (all-day)
  */
 export function isDateOnlyEvent(event: {
   timeLabel?: string;
   start: Date;
   end: Date;
 }): boolean {
-  if (event.timeLabel === "all-day" || event.timeLabel === "some-timing") {
+  if (event.timeLabel === "all-day") {
     return true;
   }
 

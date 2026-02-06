@@ -154,11 +154,7 @@ export function getEventsForTimeline(
   events: Event[],
   targetDate: Date,
 ): Event[] {
-  return getEventsForDate(events, targetDate).filter((event) => {
-    // Include timed events and all-day events in timeline
-    // Exclude only some-timing events (they don't belong in timeline)
-    return event.timeLabel === "timed" || event.timeLabel === "all-day";
-  });
+  return getEventsForDate(events, targetDate);
 }
 
 /**

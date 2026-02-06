@@ -45,7 +45,7 @@ const EventInputSchema = v.object({
   description: v.optional(v.string()),
   address: v.optional(v.string()),
   importance: v.optional(v.picklist(["low", "medium", "high"])),
-  timeLabel: v.picklist(["all-day", "some-timing", "timed"]),
+  timeLabel: v.picklist(["all-day", "timed"]),
   tzid: v.optional(v.string()),
   recurrence: v.optional(v.any()),
   color: v.optional(v.string()),
@@ -60,7 +60,7 @@ const EventUpdateSchema = v.object({
     description: v.optional(v.string()),
     address: v.optional(v.string()),
     importance: v.optional(v.picklist(["low", "medium", "high"])),
-    timeLabel: v.optional(v.picklist(["all-day", "some-timing", "timed"])),
+    timeLabel: v.optional(v.picklist(["all-day", "timed"])),
     tzid: v.optional(v.string()),
     recurrence: v.optional(v.any()),
     icalData: v.optional(v.string()), // For EXDATE updates

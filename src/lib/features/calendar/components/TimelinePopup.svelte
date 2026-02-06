@@ -5,7 +5,8 @@
     calendarState,
     eventActions,
   } from "$lib/bootstrap/compat.svelte.ts";
-  import { getEventColor } from "../utils/index.ts";
+  import { getEventColor, getEventTextColor } from "../utils/index.ts";
+  import { someTimingItemState } from "../state/index.ts";
   import {
     loadTimetableData,
     getTimetableEventsForDate,
@@ -252,6 +253,11 @@
     eventColumns.length + (hasTimetableEvents ? 1 : 0),
   );
 
+  // Some-timing items for selected date
+  let someTimingItems = $derived(
+    someTimingItemState.getItemsForDate(dataState.selectedDate),
+  );
+
   // Combine all columns into unified array for pagination
   let allColumns = $derived.by(() => {
     const cols: ColumnData[] = [];
@@ -346,6 +352,32 @@
     <div
       class="flex-1 overflow-hidden pt-8 pr-8 pb-16 pl-0 md:pt-4 md:pr-4 md:pb-4 md:pl-0"
     >
+      <!-- Some-timing items memo section -->
+      {#if someTimingItems.length > 0}
+        <div class="mx-4 mb-4 border-b border-base-200 pb-3">
+          <div
+            class="mb-2 text-xs font-medium tracking-wider text-base-content/60 uppercase"
+          >
+            どこかのタイミングで
+          </div>
+          <div class="flex flex-wrap gap-2">
+            {#each someTimingItems as stItem (stItem.id)}
+              <div
+                class="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-colors hover:opacity-80"
+                style="background-color: color-mix(in srgb, {stItem.color ??
+                  'var(--color-primary)'} 20%, transparent)"
+              >
+                <span
+                  class="h-2 w-2 rounded-full"
+                  style="background-color: {stItem.color ??
+                    'var(--color-primary)'}"
+                ></span>
+                {stItem.title}
+              </div>
+            {/each}
+          </div>
+        </div>
+      {/if}
       {#if events.length === 0 && timetableEvents.length === 0}
         <p class="py-12 text-center text-[var(--color-text-muted)]">
           この日の予定はありません

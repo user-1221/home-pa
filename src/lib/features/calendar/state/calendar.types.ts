@@ -25,7 +25,7 @@ export interface ExpandedOccurrence {
   /** Importance level */
   importance?: "low" | "medium" | "high";
   /** Time label type */
-  timeLabel: "all-day" | "some-timing" | "timed";
+  timeLabel: "all-day" | "timed";
   /** Whether this is a forever-recurring event */
   isForever: boolean;
   /** Recurrence ID from iCal */
@@ -70,7 +70,7 @@ export interface EventUpdateInput {
   description?: string;
   address?: string;
   importance?: "low" | "medium" | "high";
-  timeLabel?: "all-day" | "some-timing" | "timed";
+  timeLabel?: "all-day" | "timed";
   tzid?: string;
   recurrence?: unknown;
   color?: string;

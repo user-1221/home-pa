@@ -11,3 +11,17 @@ export type {
 
 // Re-export Remote Functions
 export { importIcs } from "./calendar.functions.remote.ts";
+
+// Some-Timing Items
+export {
+  someTimingItemState,
+  getSomeTimingItemState,
+  setSomeTimingItemState,
+  type SomeTimingItemData,
+} from "./someTimingItem.svelte.ts";
+export {
+  loadSomeTimingItems,
+  createSomeTimingItem,
+  updateSomeTimingItem,
+  deleteSomeTimingItem,
+} from "./someTimingItem.remote.ts";

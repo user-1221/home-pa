@@ -24,7 +24,7 @@ import { createVEvent, type ParsedEvent } from "./ical-service.ts";
  */
 export function dbEventToAppEvent(dbEvent: CalendarEvent): Event {
   // Determine timeLabel
-  let timeLabel: "all-day" | "some-timing" | "timed";
+  let timeLabel: "all-day" | "timed";
   if (dbEvent.isAllDay) {
     timeLabel = "all-day";
   } else {

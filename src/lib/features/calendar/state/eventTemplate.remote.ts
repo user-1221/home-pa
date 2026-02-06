@@ -34,7 +34,7 @@ const TemplateSaveSchema = v.object({
   importance: v.picklist(["low", "medium", "high"]),
   color: v.optional(v.string()),
   address: v.optional(v.string()),
-  timeLabel: v.picklist(["all-day", "some-timing", "timed"]),
+  timeLabel: v.picklist(["all-day", "timed"]),
   defaultStartTime: v.optional(v.string()),
   defaultEndTime: v.optional(v.string()),
   defaultDuration: v.optional(v.number()),
@@ -50,7 +50,7 @@ export interface EventTemplateData {
   importance: "low" | "medium" | "high";
   color?: string;
   address?: string;
-  timeLabel: "all-day" | "some-timing" | "timed";
+  timeLabel: "all-day" | "timed";
   defaultStartTime?: string;
   defaultEndTime?: string;
   defaultDuration?: number;
@@ -97,7 +97,7 @@ export const searchTemplates = query(TemplateSearchSchema, async (input) => {
         importance: t.importance as "low" | "medium" | "high",
         color: t.color ?? undefined,
         address: t.address ?? undefined,
-        timeLabel: t.timeLabel as "all-day" | "some-timing" | "timed",
+        timeLabel: t.timeLabel as "all-day" | "timed",
         defaultStartTime: t.defaultStartTime ?? undefined,
         defaultEndTime: t.defaultEndTime ?? undefined,
         defaultDuration: t.defaultDuration ?? undefined,
@@ -198,7 +198,7 @@ export const getAllTemplates = query(v.object({}), async () => {
         importance: t.importance as "low" | "medium" | "high",
         color: t.color ?? undefined,
         address: t.address ?? undefined,
-        timeLabel: t.timeLabel as "all-day" | "some-timing" | "timed",
+        timeLabel: t.timeLabel as "all-day" | "timed",
         defaultStartTime: t.defaultStartTime ?? undefined,
         defaultEndTime: t.defaultEndTime ?? undefined,
         defaultDuration: t.defaultDuration ?? undefined,

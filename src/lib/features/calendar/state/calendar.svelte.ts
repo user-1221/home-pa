@@ -60,7 +60,7 @@ export interface ExpandedOccurrence {
   /** Importance level */
   importance?: "low" | "medium" | "high";
   /** Time label type */
-  timeLabel: "all-day" | "some-timing" | "timed";
+  timeLabel: "all-day" | "timed";
   /** Whether this is a forever-recurring event */
   isForever: boolean;
   /** Recurrence ID from iCal */

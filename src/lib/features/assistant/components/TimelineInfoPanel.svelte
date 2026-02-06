@@ -547,8 +547,6 @@
           >
             {#if selectedItem.data.timeLabel === "all-day"}
               終日
-            {:else if selectedItem.data.timeLabel === "some-timing"}
-              どこかのタイミングで
             {:else}
               {new Date(selectedItem.data.start).toLocaleTimeString("ja-JP", {
                 hour: "2-digit",

@@ -13,6 +13,7 @@
   } from "$lib/features/assistant/state";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
+  import { someTimingItemState } from "$lib/features/calendar/state/index.ts";
   import type { Event, Gap } from "$lib/types.ts";
   import {
     startOfDay,
@@ -59,6 +60,14 @@
     console.log("[PersonalAssistantView] Loading timetable for date change...");
     // Fire-and-forget: state updates will trigger UI reactively
     unifiedGapState.loadTimetableEvents();
+  });
+
+  // Load some-timing items when date changes
+  $effect(() => {
+    const date = dataState.selectedDate;
+    const start = startOfDay(date);
+    const end = endOfDay(date);
+    someTimingItemState.loadForDateRange(start, end);
   });
 
   // Selected items for details display - track all separately
@@ -111,7 +120,6 @@
 
   function formatEventTime(event: Event): string {
     if (event.timeLabel === "all-day") return "終日";
-    if (event.timeLabel === "some-timing") return "どこかのタイミングで";
 
     const toTime = (value: Date) => value.toTimeString().slice(0, 5);
     return `${toTime(new Date(event.start))} - ${toTime(new Date(event.end))}`;
@@ -333,6 +341,11 @@
     [...selectedDayEvents, ...acceptedEvents].sort(
       (a, b) => new Date(a.start).getTime() - new Date(b.start).getTime(),
     ),
+  );
+
+  // Some-timing items for selected date
+  let someTimingItems = $derived(
+    someTimingItemState.getItemsForDate(dataState.selectedDate),
   );
 
   // Suggestion event handlers
@@ -667,6 +680,31 @@
               >
             </div>
 
+            <!-- Some-timing items memo section -->
+            {#if someTimingItems.length > 0}
+              <div class="mb-4 border-b border-base-200 pb-3">
+                <div
+                  class="mb-2 text-xs font-medium tracking-wider text-base-content/60 uppercase"
+                >
+                  どこかのタイミングで
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  {#each someTimingItems as stItem (stItem.id)}
+                    <div
+                      class="flex items-center gap-1.5 rounded-full bg-base-200 px-3 py-1 text-sm"
+                    >
+                      <span
+                        class="h-2 w-2 rounded-full"
+                        style="background-color: {stItem.color ??
+                          'var(--color-primary)'}"
+                      ></span>
+                      {stItem.title}
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+
             {#if displayEvents.length === 0}
               <div
                 class="flex flex-col items-center justify-center py-10 text-base-content/50"
@@ -686,7 +724,7 @@
                 </svg>
                 <p class="text-sm">この日の予定はありません</p>
               </div>
-            {:else}
+            {:else if displayEvents.length > 0}
               <ul class="timeline timeline-vertical">
                 {#each displayEvents as event, i (event.id)}
                   <li
