@@ -7,9 +7,10 @@
   import { toastState } from "$lib/bootstrap/toast.svelte.ts";
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
+  import { onMount } from "svelte";
 
-  // Handle Google OAuth callback query params
-  $effect(() => {
+  // Handle Google OAuth callback query params (one-time on mount)
+  onMount(() => {
     const googleError = page.url.searchParams.get("google_error");
     const googleConnected = page.url.searchParams.get("google_connected");
 
