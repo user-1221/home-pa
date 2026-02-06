@@ -248,7 +248,9 @@
   </div>
 
   <!-- Content -->
-  <div class="flex flex-1 flex-col items-center justify-center gap-8 p-6">
+  <div
+    class="flex flex-1 flex-col items-center justify-start gap-8 px-6 pt-4 pb-6"
+  >
     <!-- Cross-device warning banner -->
     {#if hasOtherDeviceSession && focusState.otherDeviceSession}
       <div
