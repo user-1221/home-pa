@@ -507,6 +507,9 @@ model SomeTimingItem {
   masterItem        SomeTimingItem?  @relation("ItemOccurrences", fields: [masterItemId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   occurrences       SomeTimingItem[] @relation("ItemOccurrences")
 
+  // Completion
+  completedAt       DateTime?
+
   // Timestamps
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

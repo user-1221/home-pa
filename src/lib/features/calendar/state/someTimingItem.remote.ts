@@ -50,6 +50,10 @@ const UpdateItemSchema = v.object({
   }),
 });
 
+const ToggleCompleteSchema = v.object({
+  id: v.string(),
+});
+
 const DeleteItemSchema = v.object({
   id: v.string(),
 });
@@ -68,6 +72,7 @@ export interface SomeTimingItemData {
   hasRecurrence: boolean;
   rrule?: string;
   masterItemId?: string;
+  completedAt?: string; // ISO date string or undefined
 }
 
 // ============================================================================
@@ -105,6 +110,7 @@ export const loadSomeTimingItems = query(DateRangeSchema, async (input) => {
     hasRecurrence: item.hasRecurrence,
     rrule: item.rrule ?? undefined,
     masterItemId: item.masterItemId ?? undefined,
+    completedAt: item.completedAt?.toISOString() ?? undefined,
   }));
 });
 
@@ -141,6 +147,7 @@ export const createSomeTimingItem = command(CreateItemSchema, async (data) => {
     hasRecurrence: item.hasRecurrence,
     rrule: item.rrule ?? undefined,
     masterItemId: item.masterItemId ?? undefined,
+    completedAt: item.completedAt?.toISOString() ?? undefined,
   };
 });
 
@@ -187,8 +194,46 @@ export const updateSomeTimingItem = command(UpdateItemSchema, async (input) => {
     hasRecurrence: item.hasRecurrence,
     rrule: item.rrule ?? undefined,
     masterItemId: item.masterItemId ?? undefined,
+    completedAt: item.completedAt?.toISOString() ?? undefined,
   };
 });
+
+/**
+ * Toggle completion status of a some-timing item (server-side toggle)
+ */
+export const toggleSomeTimingItemComplete = command(
+  ToggleCompleteSchema,
+  async (input) => {
+    const userId = getAuthenticatedUser();
+    const { id } = input;
+
+    // Read current state
+    const existing = await prisma.someTimingItem.findUniqueOrThrow({
+      where: { id, userId },
+    });
+
+    // Toggle: if completed → uncomplete, if not → complete
+    const item = await prisma.someTimingItem.update({
+      where: { id, userId },
+      data: {
+        completedAt: existing.completedAt ? null : new Date(),
+      },
+    });
+
+    return {
+      id: item.id,
+      title: item.title,
+      date: item.date.toISOString(),
+      description: item.description ?? undefined,
+      color: item.color ?? undefined,
+      importance: item.importance as "low" | "medium" | "high" | undefined,
+      hasRecurrence: item.hasRecurrence,
+      rrule: item.rrule ?? undefined,
+      masterItemId: item.masterItemId ?? undefined,
+      completedAt: item.completedAt?.toISOString() ?? undefined,
+    };
+  },
+);
 
 /**
  * Delete a some-timing item

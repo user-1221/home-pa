@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { slide } from "svelte/transition";
-  import { SvelteMap, SvelteSet } from "svelte/reactivity";
+  import { SvelteMap } from "svelte/reactivity";
   import type { Event } from "$lib/types.ts";
   import {
     calendarState,
@@ -25,6 +25,7 @@
     type TimetableEvent,
   } from "../services/timetable-events.ts";
   import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
+  import { calendarVisibilityState } from "$lib/features/calendar/state/calendar-visibility.svelte.ts";
   import GoogleSyncButton from "./GoogleSyncButton.svelte";
   import { someTimingItemState } from "../state/index.ts";
 
@@ -33,11 +34,6 @@
   let showTimelinePopup = $state(false);
   let showTimetablePopup = $state(false);
   let showDropdownBar = $state(false);
-
-  // Calendar visibility state (for filtering events by source)
-  // hiddenCalendars tracks which calendars are hidden (empty = all visible)
-  let hiddenCalendars = new SvelteSet<string>();
-  let showLocalEvents = $state(true);
 
   // Timetable events for the selected date (pre-loaded for TimelinePopup)
   let timetableEventsForDate = $state<TimetableEvent[]>([]);
@@ -116,6 +112,14 @@
     googleSyncState.checkConnection();
   });
 
+  // Initialize calendar visibility defaults when Google calendars become available
+  $effect(() => {
+    const calendars = googleSyncState.enabledCalendars;
+    if (calendars.length > 0) {
+      calendarVisibilityState.initializeDefaults(calendars.map((c) => c.id));
+    }
+  });
+
   // Reload events when month actually changes (not on every render)
   $effect(() => {
     const monthKey = getMonthKey(currentMonth);
@@ -134,12 +138,12 @@
       if (e.calendarId) {
         // Google synced event - check BOTH:
         // 1. Calendar is enabled in GoogleSyncState (syncEnabled: true)
-        // 2. User hasn't hidden it (not in hiddenCalendars)
+        // 2. User hasn't hidden it via calendarVisibilityState
         const isEnabled = googleSyncState.isCalendarEnabled(e.calendarId);
-        return isEnabled && !hiddenCalendars.has(e.calendarId);
+        return isEnabled && calendarVisibilityState.isEventVisible(e);
       } else {
         // Local event - use local events toggle
-        return showLocalEvents;
+        return calendarVisibilityState.showLocalEvents;
       }
     });
 
@@ -289,14 +293,6 @@
   function parseRecurrenceForEdit(_event: Event) {
     // Passed to TimelinePopup - implementation can be added if needed
   }
-
-  function toggleCalendarVisibility(calendarId: string) {
-    if (hiddenCalendars.has(calendarId)) {
-      hiddenCalendars.delete(calendarId); // Remove from hidden = show
-    } else {
-      hiddenCalendars.add(calendarId); // Add to hidden = hide
-    }
-  }
 </script>
 
 <div
@@ -342,10 +338,10 @@
 
       <!-- Local events toggle -->
       <button
-        class="btn shrink-0 btn-sm md:btn-xs {showLocalEvents
+        class="btn shrink-0 btn-sm md:btn-xs {calendarVisibilityState.showLocalEvents
           ? 'btn-primary'
           : 'opacity-50 btn-ghost'}"
-        onclick={() => (showLocalEvents = !showLocalEvents)}
+        onclick={() => calendarVisibilityState.toggleLocalEvents()}
       >
         Local
       </button>
@@ -353,14 +349,17 @@
       <!-- Google Calendar toggles (only enabled calendars) -->
       {#each googleSyncState.enabledCalendars as calendar (calendar.id)}
         <button
-          class="btn shrink-0 btn-sm md:btn-xs {hiddenCalendars.has(calendar.id)
+          class="btn shrink-0 btn-sm md:btn-xs {calendarVisibilityState.hiddenCalendars.has(
+            calendar.id,
+          )
             ? 'opacity-50 btn-ghost'
             : ''}"
-          style={calendar.calendarColor && !hiddenCalendars.has(calendar.id)
+          style={calendar.calendarColor &&
+          !calendarVisibilityState.hiddenCalendars.has(calendar.id)
             ? `background-color: ${calendar.calendarColor}; border-color: ${calendar.calendarColor}; color: white`
             : ""}
           title={calendar.calendarName}
-          onclick={() => toggleCalendarVisibility(calendar.id)}
+          onclick={() => calendarVisibilityState.toggleCalendar(calendar.id)}
         >
           <span class="max-w-24 truncate md:max-w-32"
             >{calendar.calendarName}</span

@@ -14,7 +14,9 @@
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
   import { someTimingItemState } from "$lib/features/calendar/state/index.ts";
+  import type { SomeTimingItemData } from "$lib/features/calendar/state/someTimingItem.svelte.ts";
   import { getColorValue } from "$lib/features/calendar/utils/index.ts";
+  import { BubblePopover } from "$lib/features/shared/components/index.ts";
   import type { Event, Gap } from "$lib/types.ts";
   import {
     startOfDay,
@@ -344,10 +346,40 @@
     ),
   );
 
-  // Some-timing items for selected date
+  // Some-timing items for selected date (active first, then completed)
   let someTimingItems = $derived(
-    someTimingItemState.getItemsForDate(dataState.selectedDate),
+    someTimingItemState
+      .getItemsForDate(dataState.selectedDate)
+      .toSorted((a, b) => {
+        if (a.completedAt && !b.completedAt) return 1;
+        if (!a.completedAt && b.completedAt) return -1;
+        return 0;
+      }),
   );
+
+  // Some-timing item popover state
+  let stPopoverItemId = $state<string | null>(null);
+  let stPopoverAnchor = $state<HTMLElement | null>(null);
+
+  function openStPopover(itemId: string, anchorEl: HTMLElement) {
+    stPopoverItemId = itemId;
+    stPopoverAnchor = anchorEl;
+  }
+
+  function closeStPopover() {
+    stPopoverItemId = null;
+    stPopoverAnchor = null;
+  }
+
+  async function handleStComplete(item: SomeTimingItemData) {
+    closeStPopover();
+    await someTimingItemState.toggleComplete(item.id);
+  }
+
+  async function handleStRemove(item: SomeTimingItemData) {
+    closeStPopover();
+    await someTimingItemState.remove(item.id);
+  }
 
   // Suggestion event handlers
   async function handleSuggestionAccept(event: CustomEvent<string>) {
@@ -691,8 +723,18 @@
                 </div>
                 <div class="flex flex-wrap gap-2">
                   {#each someTimingItems as stItem (stItem.id)}
-                    <div
-                      class="flex items-center gap-1.5 rounded-full bg-base-200 px-3 py-1 text-sm"
+                    <button
+                      class="flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-colors hover:opacity-80 {stItem.completedAt
+                        ? 'line-through opacity-50'
+                        : ''}"
+                      style="background-color: color-mix(in srgb, {stItem.color
+                        ? getColorValue(stItem.color)
+                        : 'var(--color-primary)'} 20%, transparent)"
+                      onclick={(e: MouseEvent) =>
+                        openStPopover(
+                          stItem.id,
+                          e.currentTarget as HTMLElement,
+                        )}
                     >
                       <span
                         class="h-2 w-2 rounded-full"
@@ -701,9 +743,67 @@
                           : 'var(--color-primary)'}"
                       ></span>
                       {stItem.title}
-                    </div>
+                    </button>
                   {/each}
                 </div>
+
+                <!-- Some-timing item popover -->
+                {#if stPopoverItemId}
+                  {@const activeItem = someTimingItems.find(
+                    (i) => i.id === stPopoverItemId,
+                  )}
+                  {#if activeItem}
+                    <BubblePopover
+                      anchor={stPopoverAnchor}
+                      isOpen={true}
+                      onClose={closeStPopover}
+                    >
+                      <div class="flex items-center gap-2">
+                        <button
+                          class="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs transition-colors hover:bg-success/10 {activeItem.completedAt
+                            ? 'text-base-content/60'
+                            : 'text-success'}"
+                          onclick={() => handleStComplete(activeItem)}
+                        >
+                          <svg
+                            class="h-3.5 w-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M5 13l4 4L19 7"
+                            />
+                          </svg>
+                          {activeItem.completedAt ? "戻す" : "完了"}
+                        </button>
+                        <div class="h-4 w-px bg-base-300"></div>
+                        <button
+                          class="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-error transition-colors hover:bg-error/10"
+                          onclick={() => handleStRemove(activeItem)}
+                        >
+                          <svg
+                            class="h-3.5 w-3.5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M6 18L18 6M6 6l12 12"
+                            />
+                          </svg>
+                          削除
+                        </button>
+                      </div>
+                    </BubblePopover>
+                  {/if}
+                {/if}
               </div>
             {/if}
 

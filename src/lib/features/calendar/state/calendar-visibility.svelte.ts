@@ -15,6 +15,21 @@ export class CalendarVisibilityState {
   /** Whether local (non-Google) events are visible */
   showLocalEvents = $state(true);
 
+  /** Whether defaults have been initialized (prevents re-running) */
+  private initialized = false;
+
+  /**
+   * Initialize default visibility: hide all Google calendars, show only Local.
+   * Only runs once — subsequent calls are no-ops.
+   */
+  initializeDefaults(calendarIds: string[]): void {
+    if (this.initialized) return;
+    this.initialized = true;
+    for (const id of calendarIds) {
+      this.hiddenCalendars.add(id);
+    }
+  }
+
   /**
    * Toggle visibility for a specific Google Calendar
    */

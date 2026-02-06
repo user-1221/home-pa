@@ -15,6 +15,7 @@ import {
   createSomeTimingItem,
   updateSomeTimingItem,
   deleteSomeTimingItem,
+  toggleSomeTimingItemComplete,
   type SomeTimingItemData,
 } from "./someTimingItem.remote.ts";
 import { startOfDay, endOfDay } from "$lib/utils/date-utils.ts";
@@ -176,6 +177,30 @@ class SomeTimingItemState {
       console.error("[SomeTimingItemState] Failed to delete item:", err);
       throw err;
     }
+  }
+
+  /**
+   * Toggle completion status of an item (server-side toggle)
+   */
+  async toggleComplete(id: string): Promise<void> {
+    try {
+      const updatedItem = await toggleSomeTimingItemComplete({ id });
+
+      // Update local state
+      this.items = this.items.map((item) =>
+        item.id === id ? updatedItem : item,
+      );
+    } catch (err) {
+      console.error("[SomeTimingItemState] Failed to toggle complete:", err);
+      throw err;
+    }
+  }
+
+  /**
+   * Remove an item (alias for delete)
+   */
+  async remove(id: string): Promise<void> {
+    await this.delete(id);
   }
 
   /**

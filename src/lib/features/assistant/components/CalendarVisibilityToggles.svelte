@@ -5,6 +5,14 @@
   // Reactive access to visibility state
   let hiddenCalendars = $derived(calendarVisibilityState.hiddenCalendars);
   let showLocalEvents = $derived(calendarVisibilityState.showLocalEvents);
+
+  // Initialize calendar visibility defaults when Google calendars become available
+  $effect(() => {
+    const calendars = googleSyncState.enabledCalendars;
+    if (calendars.length > 0) {
+      calendarVisibilityState.initializeDefaults(calendars.map((c) => c.id));
+    }
+  });
 </script>
 
 <div
@@ -21,7 +29,7 @@
   </button>
 
   <!-- Google Calendar toggles (using syncConfig ID as calendarId) -->
-  {#each googleSyncState.allCalendars as calendar (calendar.id)}
+  {#each googleSyncState.enabledCalendars as calendar (calendar.id)}
     <button
       class="btn shrink-0 btn-xs {hiddenCalendars.has(calendar.id)
         ? 'opacity-50 btn-ghost'
@@ -35,7 +43,7 @@
     </button>
   {/each}
 
-  {#if googleSyncState.allCalendars.length === 0 && googleSyncState.isConnected}
+  {#if googleSyncState.enabledCalendars.length === 0 && googleSyncState.isConnected}
     <span class="text-xs text-base-content/50">No calendars synced</span>
   {/if}
 </div>

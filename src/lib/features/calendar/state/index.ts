@@ -24,4 +24,5 @@ export {
   createSomeTimingItem,
   updateSomeTimingItem,
   deleteSomeTimingItem,
+  toggleSomeTimingItemComplete,
 } from "./someTimingItem.remote.ts";
