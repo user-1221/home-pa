@@ -26,6 +26,7 @@
   } from "../services/timetable-events.ts";
   import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
   import GoogleSyncButton from "./GoogleSyncButton.svelte";
+  import { someTimingItemState } from "../state/index.ts";
 
   // Local reactive variables for calendar state
   let currentMonth = $state(new Date());
@@ -102,6 +103,8 @@
       0,
     );
     calendarState.fetchEvents(windowStart, windowEnd, true);
+    // Also load some-timing items for the same window
+    someTimingItemState.loadForDateRange(windowStart, windowEnd);
   }
 
   // Load events on mount

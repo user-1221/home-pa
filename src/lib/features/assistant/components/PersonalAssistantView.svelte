@@ -14,6 +14,7 @@
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
   import { googleSyncState } from "$lib/features/calendar/state/google-sync.svelte.ts";
   import { someTimingItemState } from "$lib/features/calendar/state/index.ts";
+  import { getColorValue } from "$lib/features/calendar/utils/index.ts";
   import type { Event, Gap } from "$lib/types.ts";
   import {
     startOfDay,
@@ -695,8 +696,9 @@
                     >
                       <span
                         class="h-2 w-2 rounded-full"
-                        style="background-color: {stItem.color ??
-                          'var(--color-primary)'}"
+                        style="background-color: {stItem.color
+                          ? getColorValue(stItem.color)
+                          : 'var(--color-primary)'}"
                       ></span>
                       {stItem.title}
                     </div>

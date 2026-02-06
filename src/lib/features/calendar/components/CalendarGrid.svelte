@@ -10,6 +10,7 @@
     getEventBarPosition,
     getEventColor,
     getEventTextColor,
+    getColorValue,
   } from "../utils/index.ts";
   import { someTimingItemState } from "../state/index.ts";
 
@@ -138,8 +139,9 @@
             {#each someTimingItems.slice(0, 3) as stItem (stItem.id)}
               <div
                 class="h-1.5 w-1.5 rounded-full opacity-70"
-                style="background-color: {stItem.color ??
-                  'var(--color-primary)'}"
+                style="background-color: {stItem.color
+                  ? getColorValue(stItem.color)
+                  : 'var(--color-primary)'}"
                 title={stItem.title}
               ></div>
             {/each}

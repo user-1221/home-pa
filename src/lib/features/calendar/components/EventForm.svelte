@@ -575,6 +575,12 @@
         return;
       }
 
+      // Validate date
+      if (!eventStartDate) {
+        eventFormState.errors.general = "日付を選択してください";
+        return;
+      }
+
       // Create SomeTimingItem instead of CalendarEvent
       try {
         await someTimingItemState.create({
@@ -1036,6 +1042,11 @@
             } else {
               // Switch to some-timing mode
               timeMode = "some-timing";
+              // Ensure eventStartDate is set (use current date if empty)
+              if (!eventStartDate) {
+                const today = new Date();
+                eventStartDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+              }
             }
             isLocalEdit = false;
           }}
@@ -1045,212 +1056,232 @@
       </div>
     </div>
 
-    <!-- Date Settings -->
-    <div class="form-control">
-      <div class="flex items-center justify-between gap-2">
-        <label class="label flex-shrink-0" for="event-start-date-btn">
+    <!-- Some-timing mode: simple date display -->
+    {#if timeMode === "some-timing"}
+      <div class="form-control">
+        <div class="flex items-center justify-between gap-2">
           <span class="label-text text-sm text-[var(--color-text-secondary)]"
-            >開始</span
+            >日付</span
           >
-        </label>
-        <div class="flex flex-shrink-0 items-center gap-2">
-          <DatePicker
-            id="event-start-date"
-            bind:value={eventStartDate}
-            active={activeDatePicker === "start"}
-            disabled={isReadOnly}
-            onclick={() => {
-              if (isReadOnly) return;
-              activeTimePicker = null; // Close time picker if open
-              activeDatePicker = activeDatePicker === "start" ? null : "start";
-            }}
-            class="w-auto"
-          />
-          <TimePicker
-            id="event-start-time"
-            bind:value={eventStartTime}
-            active={activeTimePicker === "start"}
-            disabled={isReadOnly}
-            onclick={() => {
-              if (isReadOnly) return;
-              activeDatePicker = null; // Close date picker if open
-              if (eventTimeLabel === "all-day") {
-                switchToTimedMode();
-              }
-              activeTimePicker = activeTimePicker === "start" ? null : "start";
-            }}
-            class="w-auto"
-          />
+          <span class="text-sm font-medium"
+            >{eventStartDate || "選択してください"}</span
+          >
         </div>
       </div>
-      {#if eventFormState.errors.start}
-        <p class="label">
-          <span class="label-text-alt text-[var(--color-error-500)]"
-            >{eventFormState.errors.start}</span
-          >
-        </p>
-      {/if}
+    {/if}
 
-      <!-- Start Date Calendar Picker -->
-      {#if activeDatePicker === "start"}
-        <div
-          id="shared-calendar-section"
-          bind:this={startDateCalendarRef}
-          class="mt-3 flex justify-center"
-        >
-          <div class="rounded-box border border-base-300 bg-base-200 p-3">
-            <div
-              class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
+    <!-- Date Settings -->
+    {#if timeMode !== "some-timing"}
+      <div class="form-control">
+        <div class="flex items-center justify-between gap-2">
+          <label class="label flex-shrink-0" for="event-start-date-btn">
+            <span class="label-text text-sm text-[var(--color-text-secondary)]"
+              >開始</span
             >
-              {activePickerLabel()}を選択
-            </div>
-            <calendar-date
-              class="cally bg-base-200"
-              value={eventStartDate}
-              use:calendarChangeAction
-            >
-              <svg
-                aria-label="Previous"
-                class="size-4 fill-current"
-                slot="previous"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-              >
-                <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
-              </svg>
-              <svg
-                aria-label="Next"
-                class="size-4 fill-current"
-                slot="next"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-              >
-                <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
-              </svg>
-              <calendar-month></calendar-month>
-            </calendar-date>
+          </label>
+          <div class="flex flex-shrink-0 items-center gap-2">
+            <DatePicker
+              id="event-start-date"
+              bind:value={eventStartDate}
+              active={activeDatePicker === "start"}
+              disabled={isReadOnly}
+              onclick={() => {
+                if (isReadOnly) return;
+                activeTimePicker = null; // Close time picker if open
+                activeDatePicker =
+                  activeDatePicker === "start" ? null : "start";
+              }}
+              class="w-auto"
+            />
+            <TimePicker
+              id="event-start-time"
+              bind:value={eventStartTime}
+              active={activeTimePicker === "start"}
+              disabled={isReadOnly}
+              onclick={() => {
+                if (isReadOnly) return;
+                activeDatePicker = null; // Close date picker if open
+                if (eventTimeLabel === "all-day") {
+                  switchToTimedMode();
+                }
+                activeTimePicker =
+                  activeTimePicker === "start" ? null : "start";
+              }}
+              class="w-auto"
+            />
           </div>
         </div>
-      {/if}
+        {#if eventFormState.errors.start}
+          <p class="label">
+            <span class="label-text-alt text-[var(--color-error-500)]"
+              >{eventFormState.errors.start}</span
+            >
+          </p>
+        {/if}
 
-      <!-- Start Time Picker -->
-      {#if activeTimePicker === "start"}
-        <div
-          id="start-time-picker-section"
-          bind:this={startTimePickerRef}
-          class="mt-3 flex justify-center"
-        >
-          <TimePickerUI bind:value={eventStartTime} />
-        </div>
-      {/if}
-    </div>
+        <!-- Start Date Calendar Picker -->
+        {#if activeDatePicker === "start"}
+          <div
+            id="shared-calendar-section"
+            bind:this={startDateCalendarRef}
+            class="mt-3 flex justify-center"
+          >
+            <div class="rounded-box border border-base-300 bg-base-200 p-3">
+              <div
+                class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
+              >
+                {activePickerLabel()}を選択
+              </div>
+              <calendar-date
+                class="cally bg-base-200"
+                value={eventStartDate}
+                use:calendarChangeAction
+              >
+                <svg
+                  aria-label="Previous"
+                  class="size-4 fill-current"
+                  slot="previous"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+                </svg>
+                <svg
+                  aria-label="Next"
+                  class="size-4 fill-current"
+                  slot="next"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
+                </svg>
+                <calendar-month></calendar-month>
+              </calendar-date>
+            </div>
+          </div>
+        {/if}
+
+        <!-- Start Time Picker -->
+        {#if activeTimePicker === "start"}
+          <div
+            id="start-time-picker-section"
+            bind:this={startTimePickerRef}
+            class="mt-3 flex justify-center"
+          >
+            <TimePickerUI bind:value={eventStartTime} />
+          </div>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Time Settings -->
-    <div class="form-control">
-      <div class="flex items-center justify-between gap-2">
-        <label class="label flex-shrink-0" for="event-end-date-btn">
-          <span class="label-text text-sm text-[var(--color-text-secondary)]"
-            >終了</span
-          >
-        </label>
-        <div class="flex flex-shrink-0 items-center gap-2">
-          <DatePicker
-            id="event-end-date"
-            bind:value={eventEndDate}
-            active={activeDatePicker === "end"}
-            disabled={isReadOnly}
-            onclick={() => {
-              if (isReadOnly) return;
-              activeTimePicker = null; // Close time picker if open
-              activeDatePicker = activeDatePicker === "end" ? null : "end";
-            }}
-            class="w-auto"
-          />
-          <TimePicker
-            id="event-end-time"
-            bind:value={eventEndTime}
-            active={activeTimePicker === "end"}
-            disabled={isReadOnly}
-            onclick={() => {
-              if (isReadOnly) return;
-              activeDatePicker = null; // Close date picker if open
-              if (eventTimeLabel === "all-day") {
-                switchToTimedMode();
-              }
-              activeTimePicker = activeTimePicker === "end" ? null : "end";
-            }}
-            class="w-auto"
-          />
-        </div>
-      </div>
-      {#if eventFormState.errors.end}
-        <p class="label">
-          <span class="label-text-alt text-[var(--color-error-500)]"
-            >{eventFormState.errors.end}</span
-          >
-        </p>
-      {/if}
-
-      <!-- End Date Calendar Picker -->
-      {#if activeDatePicker === "end"}
-        <div
-          id="shared-calendar-section"
-          bind:this={endDateCalendarRef}
-          class="mt-3 flex justify-center"
-        >
-          <div class="rounded-box border border-base-300 bg-base-200 p-3">
-            <div
-              class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
+    {#if timeMode !== "some-timing"}
+      <div class="form-control">
+        <div class="flex items-center justify-between gap-2">
+          <label class="label flex-shrink-0" for="event-end-date-btn">
+            <span class="label-text text-sm text-[var(--color-text-secondary)]"
+              >終了</span
             >
-              {activePickerLabel()}を選択
-            </div>
-            <calendar-date
-              class="cally bg-base-200"
-              value={eventEndDate}
-              use:calendarChangeAction
-            >
-              <svg
-                aria-label="Previous"
-                class="size-4 fill-current"
-                slot="previous"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-              >
-                <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
-              </svg>
-              <svg
-                aria-label="Next"
-                class="size-4 fill-current"
-                slot="next"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-              >
-                <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
-              </svg>
-              <calendar-month></calendar-month>
-            </calendar-date>
+          </label>
+          <div class="flex flex-shrink-0 items-center gap-2">
+            <DatePicker
+              id="event-end-date"
+              bind:value={eventEndDate}
+              active={activeDatePicker === "end"}
+              disabled={isReadOnly}
+              onclick={() => {
+                if (isReadOnly) return;
+                activeTimePicker = null; // Close time picker if open
+                activeDatePicker = activeDatePicker === "end" ? null : "end";
+              }}
+              class="w-auto"
+            />
+            <TimePicker
+              id="event-end-time"
+              bind:value={eventEndTime}
+              active={activeTimePicker === "end"}
+              disabled={isReadOnly}
+              onclick={() => {
+                if (isReadOnly) return;
+                activeDatePicker = null; // Close date picker if open
+                if (eventTimeLabel === "all-day") {
+                  switchToTimedMode();
+                }
+                activeTimePicker = activeTimePicker === "end" ? null : "end";
+              }}
+              class="w-auto"
+            />
           </div>
         </div>
-      {/if}
+        {#if eventFormState.errors.end}
+          <p class="label">
+            <span class="label-text-alt text-[var(--color-error-500)]"
+              >{eventFormState.errors.end}</span
+            >
+          </p>
+        {/if}
 
-      <!-- End Time Picker -->
-      {#if activeTimePicker === "end"}
-        <div
-          id="end-time-picker-section"
-          bind:this={endTimePickerRef}
-          class="mt-3 flex justify-center"
-        >
-          <TimePickerUI
-            bind:value={eventEndTime}
-            onchange={() => {
-              if (eventTimeLabel === "all-day") {
-                switchToTimedMode();
-              }
-            }}
-          />
-        </div>
-      {/if}
-    </div>
+        <!-- End Date Calendar Picker -->
+        {#if activeDatePicker === "end"}
+          <div
+            id="shared-calendar-section"
+            bind:this={endDateCalendarRef}
+            class="mt-3 flex justify-center"
+          >
+            <div class="rounded-box border border-base-300 bg-base-200 p-3">
+              <div
+                class="mb-2 text-center text-xs font-medium text-[var(--color-text-secondary)]"
+              >
+                {activePickerLabel()}を選択
+              </div>
+              <calendar-date
+                class="cally bg-base-200"
+                value={eventEndDate}
+                use:calendarChangeAction
+              >
+                <svg
+                  aria-label="Previous"
+                  class="size-4 fill-current"
+                  slot="previous"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M15.75 19.5 8.25 12l7.5-7.5"></path>
+                </svg>
+                <svg
+                  aria-label="Next"
+                  class="size-4 fill-current"
+                  slot="next"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="m8.25 4.5 7.5 7.5-7.5 7.5"></path>
+                </svg>
+                <calendar-month></calendar-month>
+              </calendar-date>
+            </div>
+          </div>
+        {/if}
+
+        <!-- End Time Picker -->
+        {#if activeTimePicker === "end"}
+          <div
+            id="end-time-picker-section"
+            bind:this={endTimePickerRef}
+            class="mt-3 flex justify-center"
+          >
+            <TimePickerUI
+              bind:value={eventEndTime}
+              onchange={() => {
+                if (eventTimeLabel === "all-day") {
+                  switchToTimedMode();
+                }
+              }}
+            />
+          </div>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Recurrence Toggle -->
     <div class="form-control py-2">
@@ -1473,71 +1504,74 @@
       </div>
     {/if}
 
-    <!-- Address -->
-    <div class="form-control">
-      <label class="label" for="event-address">
-        <span class="label-text text-sm text-[var(--color-text-secondary)]"
-          >場所</span
-        >
-      </label>
-      <input
-        id="event-address"
-        type="text"
-        class="input-bordered input w-full focus:outline-none focus-visible:!outline-none {isReadOnly
-          ? 'cursor-not-allowed bg-base-200'
-          : ''}"
-        bind:value={eventAddress}
-        placeholder="場所を入力（任意）"
-        disabled={isReadOnly}
-      />
-    </div>
-
-    <!-- 到着目標 (Arrival Target) -->
-    <div class="form-control">
-      <span class="label">
-        <span class="label-text text-sm text-[var(--color-text-secondary)]"
-          >到着目標</span
-        >
-      </span>
-      <div class="flex gap-2" role="group" aria-label="到着目標">
-        <button
-          type="button"
-          class="btn flex-1 btn-sm {eventImportance === 'low'
-            ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-            : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
+    <!-- Address and Importance (hidden in some-timing mode) -->
+    {#if timeMode !== "some-timing"}
+      <!-- Address -->
+      <div class="form-control">
+        <label class="label" for="event-address">
+          <span class="label-text text-sm text-[var(--color-text-secondary)]"
+            >場所</span
+          >
+        </label>
+        <input
+          id="event-address"
+          type="text"
+          class="input-bordered input w-full focus:outline-none focus-visible:!outline-none {isReadOnly
             ? 'cursor-not-allowed bg-base-200'
             : ''}"
-          onclick={() => (eventImportance = "low")}
+          bind:value={eventAddress}
+          placeholder="場所を入力（任意）"
           disabled={isReadOnly}
-        >
-          5分前
-        </button>
-        <button
-          type="button"
-          class="btn flex-1 btn-sm {eventImportance === 'medium'
-            ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-            : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
-            ? 'cursor-not-allowed bg-base-200'
-            : ''}"
-          onclick={() => (eventImportance = "medium")}
-          disabled={isReadOnly}
-        >
-          10分前
-        </button>
-        <button
-          type="button"
-          class="btn flex-1 btn-sm {eventImportance === 'high'
-            ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-            : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
-            ? 'cursor-not-allowed bg-base-200'
-            : ''}"
-          onclick={() => (eventImportance = "high")}
-          disabled={isReadOnly}
-        >
-          余裕を持って
-        </button>
+        />
       </div>
-    </div>
+
+      <!-- 到着目標 (Arrival Target) -->
+      <div class="form-control">
+        <span class="label">
+          <span class="label-text text-sm text-[var(--color-text-secondary)]"
+            >到着目標</span
+          >
+        </span>
+        <div class="flex gap-2" role="group" aria-label="到着目標">
+          <button
+            type="button"
+            class="btn flex-1 btn-sm {eventImportance === 'low'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+              : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
+              ? 'cursor-not-allowed bg-base-200'
+              : ''}"
+            onclick={() => (eventImportance = "low")}
+            disabled={isReadOnly}
+          >
+            5分前
+          </button>
+          <button
+            type="button"
+            class="btn flex-1 btn-sm {eventImportance === 'medium'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+              : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
+              ? 'cursor-not-allowed bg-base-200'
+              : ''}"
+            onclick={() => (eventImportance = "medium")}
+            disabled={isReadOnly}
+          >
+            10分前
+          </button>
+          <button
+            type="button"
+            class="btn flex-1 btn-sm {eventImportance === 'high'
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
+              : 'border-base-300 btn-ghost'} border transition-all duration-200 {isReadOnly
+              ? 'cursor-not-allowed bg-base-200'
+              : ''}"
+            onclick={() => (eventImportance = "high")}
+            disabled={isReadOnly}
+          >
+            余裕を持って
+          </button>
+        </div>
+      </div>
+    {/if}
 
     <!-- Color Picker -->
     <div class="form-control">

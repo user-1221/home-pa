@@ -5,7 +5,11 @@
     calendarState,
     eventActions,
   } from "$lib/bootstrap/compat.svelte.ts";
-  import { getEventColor, getEventTextColor } from "../utils/index.ts";
+  import {
+    getEventColor,
+    getEventTextColor,
+    getColorValue,
+  } from "../utils/index.ts";
   import { someTimingItemState } from "../state/index.ts";
   import {
     loadTimetableData,
@@ -364,13 +368,15 @@
             {#each someTimingItems as stItem (stItem.id)}
               <div
                 class="flex items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-colors hover:opacity-80"
-                style="background-color: color-mix(in srgb, {stItem.color ??
-                  'var(--color-primary)'} 20%, transparent)"
+                style="background-color: color-mix(in srgb, {stItem.color
+                  ? getColorValue(stItem.color)
+                  : 'var(--color-primary)'} 20%, transparent)"
               >
                 <span
                   class="h-2 w-2 rounded-full"
-                  style="background-color: {stItem.color ??
-                    'var(--color-primary)'}"
+                  style="background-color: {stItem.color
+                    ? getColorValue(stItem.color)
+                    : 'var(--color-primary)'}"
                 ></span>
                 {stItem.title}
               </div>
