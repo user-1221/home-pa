@@ -99,7 +99,7 @@
 
   // Timeline container reference and height tracking
   let timelineContainer: HTMLDivElement | undefined = $state();
-  let timelineHeight = $state(400); // Default to 400px (min-h-[400px])
+  let timelineHeight = $state(300); // Default to 300px (min-h-[300px])
 
   // Pagination state
   const MAX_COLUMNS_PER_PAGE = 5;
@@ -364,7 +364,7 @@
   aria-label="Close timeline"
 >
   <div
-    class="border-subtle flex h-full w-full animate-[slideUpFromBottom_0.3s_ease-out_forwards] flex-col overflow-hidden rounded-none border-0 bg-base-100 shadow-xl md:h-[600px] md:max-h-[80vh] md:max-w-[600px] md:animate-none md:rounded-xl md:border"
+    class="border-subtle flex h-full w-full animate-[slideUpFromBottom_0.3s_ease-out_forwards] flex-col overflow-hidden rounded-none border-0 bg-base-100 shadow-xl md:h-[85vh] md:max-h-[85vh] md:max-w-[600px] md:animate-none md:rounded-xl md:border"
     onclick={(e: MouseEvent) => e.stopPropagation()}
     onkeydown={(e: KeyboardEvent) => e.key === "Escape" && onClose()}
     role="dialog"
@@ -388,7 +388,7 @@
     </div>
 
     <div
-      class="flex-1 overflow-hidden pt-8 pr-8 pb-16 pl-0 md:pt-4 md:pr-4 md:pb-4 md:pl-0"
+      class="flex min-h-0 flex-1 flex-col overflow-hidden pt-8 pr-8 pb-16 pl-0 md:pt-4 md:pr-4 md:pb-4 md:pl-0"
     >
       <!-- Some-timing items memo section -->
       {#if someTimingItems.length > 0}
@@ -398,10 +398,13 @@
           >
             どこかのタイミングで
           </div>
-          <div class="flex flex-wrap gap-2">
+          <div
+            class="flex gap-2 overflow-x-auto"
+            style="scrollbar-width: none; -ms-overflow-style: none;"
+          >
             {#each someTimingItems as stItem (stItem.id)}
               <button
-                class="flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-colors hover:opacity-80 {stItem.completedAt
+                class="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-colors hover:opacity-80 {stItem.completedAt
                   ? 'line-through opacity-50'
                   : ''}"
                 style="background-color: color-mix(in srgb, {stItem.color
@@ -486,7 +489,7 @@
         </p>
       {:else}
         <div
-          class="relative h-full min-h-[400px]"
+          class="relative min-h-[300px] flex-1"
           bind:this={timelineContainer}
         >
           <!-- Hour grid lines (full width, behind everything) -->

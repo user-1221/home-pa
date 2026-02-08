@@ -646,7 +646,7 @@
 
         <!-- Timeline container with subtle glow effect -->
         <div
-          class="relative h-[min(85vw,50vh)] w-[min(85vw,50vh)] flex-shrink-0 overflow-visible"
+          class="relative aspect-square h-[min(85vw,50vh)] min-h-[120px] w-[min(85vw,50vh)] min-w-[120px] shrink overflow-visible"
           data-tour="assistant-timeline"
         >
           <!-- Subtle ambient glow behind timeline -->
@@ -723,10 +723,13 @@
                 >
                   どこかのタイミングで
                 </div>
-                <div class="flex flex-wrap gap-2">
+                <div
+                  class="flex gap-2 overflow-x-auto"
+                  style="scrollbar-width: none; -ms-overflow-style: none;"
+                >
                   {#each someTimingItems as stItem (stItem.id)}
                     <button
-                      class="flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-colors hover:opacity-80 {stItem.completedAt
+                      class="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 text-sm transition-colors hover:opacity-80 {stItem.completedAt
                         ? 'line-through opacity-50'
                         : ''}"
                       style="background-color: color-mix(in srgb, {stItem.color
