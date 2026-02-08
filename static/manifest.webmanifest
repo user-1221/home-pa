@@ -1,6 +1,6 @@
 {
-  "name": "Etona",
-  "short_name": "Etona",
+  "name": "flumen",
+  "short_name": "flumen",
   "description": "Personal Assistant - Calendar, Tasks, and Smart Suggestions",
   "start_url": "/",
   "display": "standalone",

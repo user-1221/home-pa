@@ -22,7 +22,7 @@
   } | null>(null);
   let fileInputRef: HTMLInputElement | undefined = $state();
   let showAdvanced = $state(false);
-  let exportName = $state("Home-PA Calendar");
+  let exportName = $state("flumen Calendar");
 
   // API mode is always enabled when using calendarState (API-based store)
   const isApiEnabled = $state(true);
@@ -226,7 +226,7 @@
             type="text"
             class="input w-full rounded-xl border-base-300 bg-base-100 px-4 py-2.5 text-sm text-base-content focus:border-primary focus:ring-2 focus:ring-primary/20"
             bind:value={exportName}
-            placeholder="Home-PA Calendar"
+            placeholder="flumen Calendar"
           />
         </label>
       </div>

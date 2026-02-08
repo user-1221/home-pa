@@ -89,7 +89,7 @@
   <meta name="theme-color" content="#7bbebb" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Etona" />
+  <meta name="apple-mobile-web-app-title" content="flumen" />
   <link rel="apple-touch-icon" href="/favicon.svg" />
 </svelte:head>
 

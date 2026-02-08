@@ -33,7 +33,7 @@
   } | null>(null);
   let fileInputRef: HTMLInputElement | undefined = $state();
   let showAdvanced = $state(false);
-  let exportName = $state("Home-PA Calendar");
+  let exportName = $state("flumen Calendar");
 
   const isApiEnabled = $state(true);
 
@@ -665,7 +665,7 @@
                     type="text"
                     class="input input-sm w-full border-base-300 bg-base-100 focus:border-[var(--color-primary)] focus:outline-none"
                     bind:value={exportName}
-                    placeholder="Home-PA Calendar"
+                    placeholder="flumen Calendar"
                   />
                 </div>
               {/if}

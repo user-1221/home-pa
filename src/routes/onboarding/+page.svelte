@@ -102,12 +102,12 @@
       in:fly={{ y: 20, duration: 600, delay: 200, easing: cubicOut }}
     >
       <div
-        class="mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-primary"
-      >
-        <span class="text-2xl font-medium text-primary-content">H</span>
-      </div>
+        class="mb-6 h-14 w-14 rounded-xl"
+        src="/favicon.svg"
+        alt="flumen logo"
+      />
       <h1 class="m-0 mb-2 text-2xl font-light tracking-tight text-text-primary">
-        ようこそ Home-PA へ
+        ようこそ flumen へ
       </h1>
       <p class="m-0 text-sm leading-relaxed text-text-secondary">
         プロフィールを設定しましょう。すべて任意なので、スキップしても構いません。

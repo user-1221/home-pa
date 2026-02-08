@@ -125,7 +125,7 @@ function help(): void {
 
   console.log(
     `
-%cHome-PA Dev Console%c
+%cflumen Dev Console%c
 
 %cTimeline Commands:%c (requires assistant page)
   pa.timeline.gaps()      - Enriched gaps with location labels (${gapCount} gaps)
@@ -237,7 +237,7 @@ export function initDevConsole(): void {
   window.pa = pa;
 
   console.log(
-    "%cHome-PA Dev Console ready! Type %cpa.help()%c for commands.",
+    "%cflumen Dev Console ready! Type %cpa.help()%c for commands.",
     "color: #7bbebb;",
     "color: #facc15; font-weight: bold;",
     "color: #7bbebb;",

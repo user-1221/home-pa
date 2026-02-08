@@ -33,7 +33,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   // Parse query params
   const startParam = url.searchParams.get("start");
   const endParam = url.searchParams.get("end");
-  const calendarName = url.searchParams.get("name") || "Home-PA Calendar";
+  const calendarName = url.searchParams.get("name") || "flumen Calendar";
 
   // Build where clause
   const where: {

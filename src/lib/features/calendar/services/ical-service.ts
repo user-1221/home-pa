@@ -248,13 +248,13 @@ export function createVEvent(input: VEventInput): string {
  */
 export function generateICS(
   events: ParsedEvent[],
-  calendarName = "Home-PA",
+  calendarName = "flumen",
 ): string {
   const vcalendar = new ICAL.Component("vcalendar");
 
   // Required properties
   vcalendar.addPropertyWithValue("version", "2.0");
-  vcalendar.addPropertyWithValue("prodid", "-//Home-PA//Calendar//EN");
+  vcalendar.addPropertyWithValue("prodid", "-//flumen//Calendar//EN");
   vcalendar.addPropertyWithValue("calscale", "GREGORIAN");
   vcalendar.addPropertyWithValue("method", "PUBLISH");
   vcalendar.addPropertyWithValue("x-wr-calname", calendarName);

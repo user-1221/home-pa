@@ -89,16 +89,16 @@
   >
     <div class="relative z-10 mx-auto max-w-[420px]">
       <div class="mb-16" in:fade={{ duration: 600, delay: 200 }}>
-        <!-- Logo mark -->
-        <div
-          class="mb-6 flex h-14 w-14 items-center justify-center rounded-xl bg-primary"
-        >
-          <span class="text-2xl font-medium text-primary-content">H</span>
-        </div>
+        <!-- Logo -->
+        <img
+          src="/favicon.svg"
+          alt="flumen logo"
+          class="mb-6 h-14 w-14 rounded-xl"
+        />
         <h1
           class="m-0 mb-2 text-[2.5rem] leading-tight font-light tracking-tight text-text-primary"
         >
-          Home-PA
+          flumen
         </h1>
         <p class="m-0 text-base font-normal text-text-secondary">
           Your Personal Assistant
@@ -229,12 +229,12 @@
       >
         <!-- Mobile logo -->
         <div class="mb-6 flex items-center gap-3 lg:hidden">
-          <div
-            class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary"
-          >
-            <span class="text-lg font-medium text-primary-content">H</span>
-          </div>
-          <span class="text-lg font-light text-text-primary">Home-PA</span>
+          <img
+            src="/favicon.svg"
+            alt="flumen logo"
+            class="h-10 w-10 rounded-lg"
+          />
+          <span class="text-lg font-light text-text-primary">flumen</span>
         </div>
 
         <div class="mb-8">
