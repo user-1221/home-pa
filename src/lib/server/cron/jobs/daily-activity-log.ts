@@ -29,7 +29,7 @@ interface TaskActivity {
 
 export const dailyActivityLogJob: CronJob = {
   name: "daily-activity-log",
-  schedule: "5 0 * * *", // 00:05 JST daily
+  schedule: "1 0 * * *", // 00:01 JST daily - BEFORE daily-reset to capture timeSpentToday
   timezone: "Asia/Tokyo",
   enabled: true,
 

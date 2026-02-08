@@ -36,9 +36,8 @@ import type {
 } from "$lib/types.ts";
 import {
   isSameDay,
-  isSameWeek,
-  isSameMonth,
-  getCalendarPeriodStart,
+  getCreationAlignedPeriodStart,
+  isNewCreationAlignedPeriod,
 } from "./period-utils.ts";
 import {
   SCORING_CONFIG,
@@ -184,7 +183,8 @@ export function initializeRoutineState(
     lastCompletedDay: null,
     previousLastCompletedDay: null,
     wasCappedThisPeriod: false,
-    periodStartDate: getCalendarPeriodStart(
+    periodStartDate: getCreationAlignedPeriodStart(
+      memo.createdAt,
       currentTime,
       memo.recurrenceGoal?.period ?? "week",
     ),
@@ -195,23 +195,21 @@ export function initializeRoutineState(
 }
 
 /**
- * Check if routine state needs period reset based on task's recurrence period
+ * Check if routine state needs period reset using creation-aligned boundaries.
+ * Consistent with server-side logSuggestionComplete.
  */
 function shouldResetRoutinePeriod(
   state: RoutineState,
   currentTime: Date,
   period: "day" | "week" | "month",
+  createdAt: Date,
 ): boolean {
-  if (!state.periodStartDate) return true;
-  const periodStart = new Date(state.periodStartDate);
-  switch (period) {
-    case "day":
-      return !isSameDay(periodStart, currentTime);
-    case "week":
-      return !isSameWeek(periodStart, currentTime);
-    case "month":
-      return !isSameMonth(periodStart, currentTime);
-  }
+  return isNewCreationAlignedPeriod(
+    state.periodStartDate,
+    currentTime,
+    period,
+    createdAt,
+  );
 }
 
 /**
@@ -259,6 +257,7 @@ export function calculateRoutineNeed(memo: Memo, currentTime: Date): number {
     state,
     currentTime,
     goalPeriod,
+    memo.createdAt,
   );
 
   // Days since last completion
@@ -770,6 +769,7 @@ export function markRoutineAccepted(memo: Memo, currentTime: Date): Memo {
     state,
     currentTime,
     goalPeriod,
+    memo.createdAt,
   );
 
   return {
@@ -783,7 +783,7 @@ export function markRoutineAccepted(memo: Memo, currentTime: Date): Memo {
         : state.completedCountThisPeriod,
       wasCappedThisPeriod: needsPeriodReset ? false : state.wasCappedThisPeriod,
       periodStartDate: needsPeriodReset
-        ? getCalendarPeriodStart(currentTime, goalPeriod)
+        ? getCreationAlignedPeriodStart(memo.createdAt, currentTime, goalPeriod)
         : state.periodStartDate,
     },
     lastActivity: currentTime,
@@ -806,6 +806,7 @@ export function markRoutineCompleted(memo: Memo, currentTime: Date): Memo {
     state,
     currentTime,
     goalPeriod,
+    memo.createdAt,
   );
   const baseCount = needsPeriodReset ? 0 : state.completedCountThisPeriod;
   const newCount = baseCount + 1;
@@ -824,7 +825,7 @@ export function markRoutineCompleted(memo: Memo, currentTime: Date): Memo {
       lastCompletedDay: currentTime,
       wasCappedThisPeriod: wasCapped || shouldCap,
       periodStartDate: needsPeriodReset
-        ? getCalendarPeriodStart(currentTime, goalPeriod)
+        ? getCreationAlignedPeriodStart(memo.createdAt, currentTime, goalPeriod)
         : state.periodStartDate,
     },
     lastActivity: currentTime,

@@ -113,9 +113,9 @@ export class ReportState {
     return this.logs.length;
   }
 
-  // Derived: Total time spent in minutes
+  // Derived: Total time spent in minutes (from DailyActivityLog, which captures all work including focus timer)
   get totalTimeMinutes(): number {
-    return this.logs.reduce((sum, log) => sum + log.timeSpentMinutes, 0);
+    return this.dailyLogs.reduce((sum, log) => sum + log.totalTimeMinutes, 0);
   }
 
   // Derived: Breakdown by task type
@@ -135,7 +135,7 @@ export class ReportState {
     return breakdown;
   }
 
-  // Derived: Time spent by task type (for distribution bar)
+  // Derived: Time spent by task type (from DailyActivityLog taskActivities)
   get timeByType(): TypeBreakdown {
     const breakdown: TypeBreakdown = {
       期限付き: 0,
@@ -143,9 +143,14 @@ export class ReportState {
       バックログ: 0,
     };
 
-    for (const log of this.logs) {
-      if (log.taskType in breakdown) {
-        breakdown[log.taskType] += log.timeSpentMinutes;
+    for (const dailyLog of this.dailyLogs) {
+      if (dailyLog.taskActivities) {
+        for (const activity of dailyLog.taskActivities) {
+          if (activity.taskType in breakdown) {
+            breakdown[activity.taskType as keyof TypeBreakdown] +=
+              activity.timeSpentMinutes;
+          }
+        }
       }
     }
 
@@ -180,13 +185,20 @@ export class ReportState {
     return topGenre;
   }
 
-  // Derived: Time spent by genre (for genre distribution bar)
+  // Derived: Time spent by genre (from DailyActivityLog taskActivities)
   get timeByGenre(): Map<string, number> {
     const breakdown = new Map<string, number>();
 
-    for (const log of this.logs) {
-      const genre = log.taskGenre ?? "未分類";
-      breakdown.set(genre, (breakdown.get(genre) ?? 0) + log.timeSpentMinutes);
+    for (const dailyLog of this.dailyLogs) {
+      if (dailyLog.taskActivities) {
+        for (const activity of dailyLog.taskActivities) {
+          const genre = activity.taskGenre ?? "未分類";
+          breakdown.set(
+            genre,
+            (breakdown.get(genre) ?? 0) + activity.timeSpentMinutes,
+          );
+        }
+      }
     }
 
     return breakdown;

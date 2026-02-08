@@ -134,9 +134,6 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
 
   // Handle routine tasks
   if (memo.type === "ルーティン") {
-    // Note: Period counter reset is handled server-side in logSuggestionComplete/markMemoAccepted
-    // Client only resets daily flags here
-
     // Reset daily flags if it's a new day
     if (memo.routineState) {
       // Use lastActivity for day boundary detection (tracks accept/reject/complete)
@@ -146,12 +143,12 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
 
       // Only reset if lastActivity exists and is on a different day
       // If lastActivity is null, keep current state (no activity to reset from)
-      const needsReset = lastActivity
+      const needsDailyReset = lastActivity
         ? !isSameDay(lastActivity, currentTime)
         : false;
 
       if (
-        needsReset &&
+        needsDailyReset &&
         (memo.routineState.acceptedToday ||
           memo.routineState.completedToday ||
           memo.routineState.rejectedToday ||
@@ -171,6 +168,36 @@ export function resetPeriodIfNeeded(memo: Memo, currentTime: Date): Memo {
             completedToday: false,
             rejectedToday: false,
             acceptedSlot: null,
+          },
+        };
+        hasChanges = true;
+      }
+    }
+
+    // Reset period counter if we've crossed into a new creation-aligned period
+    if (memo.routineState && memo.recurrenceGoal) {
+      const period = memo.recurrenceGoal.period;
+      const existingPeriodStart = memo.routineState.periodStartDate;
+      const needsPeriodReset = isNewCreationAlignedPeriod(
+        existingPeriodStart,
+        currentTime,
+        period,
+        memo.createdAt,
+      );
+
+      if (needsPeriodReset) {
+        const newPeriodStart = getCreationAlignedPeriodStart(
+          memo.createdAt,
+          currentTime,
+          period,
+        );
+        updated = {
+          ...updated,
+          routineState: {
+            ...(updated.routineState ?? memo.routineState),
+            completedCountThisPeriod: 0,
+            wasCappedThisPeriod: false,
+            periodStartDate: newPeriodStart,
           },
         };
         hasChanges = true;

@@ -9,10 +9,10 @@ import { dailyActivityLogJob } from "./daily-activity-log.ts";
 import type { CronJob } from "../types.ts";
 
 // Register all jobs here
-// NOTE: Order matters for same-minute jobs. daily-reset runs at 00:01, before daily-activity-log at 00:05.
+// NOTE: daily-activity-log runs FIRST at 00:01 to capture timeSpentToday, then daily-reset at 00:05 clears it.
 export const jobs: CronJob[] = [
-  dailyResetJob, // 00:01 - Reset daily flags
-  dailyActivityLogJob, // 00:05 - Log yesterday's activity
+  dailyActivityLogJob, // 00:01 - Log yesterday's activity (reads timeSpentToday BEFORE reset)
+  dailyResetJob, // 00:05 - Reset daily flags (clears timeSpentToday)
   // Future jobs:
   // weeklyReportJob,
   // cacheCleanupJob,

@@ -30,8 +30,6 @@ const EnrichInputSchema = v.object({
       timeSpentMinutes: v.number(),
       timeSpentToday: v.optional(v.number()),
       completionState: v.picklist(["not_started", "in_progress", "completed"]),
-      completionsThisPeriod: v.optional(v.number()),
-      periodStartDate: v.optional(v.string()),
     }),
   ),
   genre: v.optional(v.string()),

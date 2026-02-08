@@ -608,7 +608,9 @@ class TaskState {
           original.routineState?.completedToday !==
             reset.routineState?.completedToday ||
           original.routineState?.rejectedToday !==
-            reset.routineState?.rejectedToday;
+            reset.routineState?.rejectedToday ||
+          original.routineState?.completedCountThisPeriod !==
+            reset.routineState?.completedCountThisPeriod;
 
         const backlogStateReset =
           original.backlogState?.acceptedToday !==

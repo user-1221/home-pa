@@ -1,10 +1,10 @@
 /**
  * Daily Reset Job
  *
- * Runs at 00:01 JST daily (BEFORE daily-activity-log at 00:05) to reset
+ * Runs at 00:05 JST daily (AFTER daily-activity-log at 00:01) to reset
  * daily flags for memos where lastActivity is from a previous day.
  *
- * This ensures accurate daily stats even if users don't log in.
+ * Must run AFTER activity log so timeSpentToday is captured before being cleared.
  */
 import { prisma } from "$lib/server/prisma.ts";
 import { DateTime } from "luxon";
@@ -12,7 +12,7 @@ import type { CronJob, JobResult } from "../types.ts";
 
 export const dailyResetJob: CronJob = {
   name: "daily-reset",
-  schedule: "1 0 * * *", // 00:01 JST daily - BEFORE daily-activity-log
+  schedule: "5 0 * * *", // 00:05 JST daily - AFTER daily-activity-log captures data
   timezone: "Asia/Tokyo",
   enabled: true,
 

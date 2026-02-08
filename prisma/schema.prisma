@@ -145,8 +145,8 @@ model Memo {
   timeSpentMinutes       Int      @default(0)
   timeSpentToday         Int      @default(0)  // Resets daily via lazy reset
   completionState        String   @default("not_started") // not_started | in_progress | completed
-  completionsThisPeriod  Int?
-  periodStartDate        DateTime?
+  completionsThisPeriod  Int?       // @deprecated - Use routineCompletedCountWeek instead
+  periodStartDate        DateTime?  // @deprecated - Use routineWeekStartDate instead
 
   // Duration estimates
   sessionDuration        Int?     // minutes
