@@ -11,6 +11,7 @@ import {
   dbEventsToParsedEvents,
   generateICS,
 } from "$lib/features/calendar/services/index.ts";
+import { featureFlags } from "$lib/config/feature-flags.ts";
 
 /**
  * GET /api/calendar/export
@@ -23,6 +24,10 @@ import {
  * Returns: .ics file download
  */
 export const GET: RequestHandler = async ({ url, locals }) => {
+  if (!featureFlags.ICAL_EXPORT_ENABLED) {
+    throw error(403, "iCal export is disabled");
+  }
+
   // Auth check
   if (!locals.user?.id) {
     throw error(401, "Unauthorized");

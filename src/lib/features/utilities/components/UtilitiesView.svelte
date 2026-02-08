@@ -7,6 +7,7 @@
    * Settings icon in top-right opens settings popup.
    */
 
+  import { featureFlags } from "$lib/config/feature-flags.ts";
   import { TransitView } from "$lib/features/transit/components/index.ts";
   import { ProgressMemoView } from "$lib/features/progress-memo/components/index.ts";
   import {
@@ -28,7 +29,7 @@
     color: string;
   }
 
-  const miniApps: MiniApp[] = [
+  const allMiniApps: MiniApp[] = [
     {
       id: "pomodoro",
       name: "Pomodoro",
@@ -54,6 +55,11 @@
       color: "var(--color-success)",
     },
   ];
+
+  const miniApps = allMiniApps.filter((app) => {
+    if (app.id === "transit" && !featureFlags.TRANSIT_ENABLED) return false;
+    return true;
+  });
 
   // State
   let showSettings = $state(false);

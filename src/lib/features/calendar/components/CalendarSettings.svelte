@@ -6,6 +6,7 @@
    * Google Calendar sync management with multi-account support.
    */
 
+  import { featureFlags } from "$lib/config/feature-flags.ts";
   import { calendarState } from "$lib/bootstrap/index.svelte.ts";
   import { UserSettings } from "$lib/features/shared/components/index.ts";
   import GoogleCalendarConnect from "./GoogleCalendarConnect.svelte";
@@ -131,115 +132,123 @@
   </section>
 
   <!-- Import Section -->
-  <section
-    class="mb-4 rounded-xl border border-base-300 bg-base-100 p-6 shadow-sm"
-  >
-    <h3 class="mb-2 text-xl font-normal text-base-content">Import Calendar</h3>
-    <p class="mb-4 text-sm text-base-content/70">
-      Import events from Google Calendar, Apple Calendar, or any .ics file.
-    </p>
-
-    <input
-      type="file"
-      accept=".ics,text/calendar"
-      onchange={handleFileSelect}
-      bind:this={fileInputRef}
-      class="hidden"
-      disabled={importing || !isApiEnabled}
-    />
-
-    <button
-      class="btn w-full rounded-xl border border-base-300 bg-base-200 text-base-content/70 shadow-sm transition-all duration-200 hover:bg-base-200/80 hover:text-base-content disabled:opacity-50"
-      onclick={triggerFileInput}
-      disabled={importing || !isApiEnabled}
+  {#if featureFlags.ICAL_IMPORT_ENABLED}
+    <section
+      class="mb-4 rounded-xl border border-base-300 bg-base-100 p-6 shadow-sm"
     >
-      {#if importing}
-        <span class="loading loading-sm loading-spinner"></span>
-        Importing...
-      {:else}
-        Select .ics File
-      {/if}
-    </button>
+      <h3 class="mb-2 text-xl font-normal text-base-content">
+        Import Calendar
+      </h3>
+      <p class="mb-4 text-sm text-base-content/70">
+        Import events from Google Calendar, Apple Calendar, or any .ics file.
+      </p>
 
-    {#if importResult}
-      <div
-        class="relative mt-4 rounded-xl border p-4 {importResult.errors.length >
-        0
-          ? 'border-error/30 bg-error/10'
-          : 'border-success/30 bg-success/10'}"
+      <input
+        type="file"
+        accept=".ics,text/calendar"
+        onchange={handleFileSelect}
+        bind:this={fileInputRef}
+        class="hidden"
+        disabled={importing || !isApiEnabled}
+      />
+
+      <button
+        class="btn w-full rounded-xl border border-base-300 bg-base-200 text-base-content/70 shadow-sm transition-all duration-200 hover:bg-base-200/80 hover:text-base-content disabled:opacity-50"
+        onclick={triggerFileInput}
+        disabled={importing || !isApiEnabled}
       >
-        <button
-          class="btn absolute top-2 right-2 h-8 min-h-8 w-8 rounded-lg p-0 text-base-content/70 btn-ghost btn-xs hover:bg-base-200"
-          onclick={clearImportResult}>×</button
+        {#if importing}
+          <span class="loading loading-sm loading-spinner"></span>
+          Importing...
+        {:else}
+          Select .ics File
+        {/if}
+      </button>
+
+      {#if importResult}
+        <div
+          class="relative mt-4 rounded-xl border p-4 {importResult.errors
+            .length > 0
+            ? 'border-error/30 bg-error/10'
+            : 'border-success/30 bg-success/10'}"
         >
+          <button
+            class="btn absolute top-2 right-2 h-8 min-h-8 w-8 rounded-lg p-0 text-base-content/70 btn-ghost btn-xs hover:bg-base-200"
+            onclick={clearImportResult}>×</button
+          >
 
-        {#if importResult.imported > 0}
-          <p class="my-1 text-success">
-            Imported {importResult.imported} events
-          </p>
-        {/if}
+          {#if importResult.imported > 0}
+            <p class="my-1 text-success">
+              Imported {importResult.imported} events
+            </p>
+          {/if}
 
-        {#if importResult.skipped > 0}
-          <p class="my-1 text-primary">
-            Skipped {importResult.skipped} duplicates
-          </p>
-        {/if}
+          {#if importResult.skipped > 0}
+            <p class="my-1 text-primary">
+              Skipped {importResult.skipped} duplicates
+            </p>
+          {/if}
 
-        {#if importResult.errors.length > 0}
-          <div class="mt-2">
-            <p class="font-medium text-error">Errors:</p>
-            <ul class="mt-2 ml-4 list-disc text-sm text-error">
-              {#each importResult.errors as error, idx (idx)}
-                <li>{error}</li>
-              {/each}
-            </ul>
-          </div>
-        {/if}
-      </div>
-    {/if}
-  </section>
+          {#if importResult.errors.length > 0}
+            <div class="mt-2">
+              <p class="font-medium text-error">Errors:</p>
+              <ul class="mt-2 ml-4 list-disc text-sm text-error">
+                {#each importResult.errors as error, idx (idx)}
+                  <li>{error}</li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
+        </div>
+      {/if}
+    </section>
+  {/if}
 
   <!-- Export Section -->
-  <section
-    class="mb-4 rounded-xl border border-base-300 bg-base-100 p-6 shadow-sm"
-  >
-    <h3 class="mb-2 text-xl font-normal text-base-content">Export Calendar</h3>
-    <p class="mb-4 text-sm text-base-content/70">
-      Download all your events as an .ics file for backup or import into other
-      apps.
-    </p>
-
-    <button
-      class="btn mb-3 h-auto min-h-0 border-none bg-transparent p-0 text-sm font-medium text-base-content/70 hover:bg-transparent hover:text-primary"
-      onclick={() => (showAdvanced = !showAdvanced)}
+  {#if featureFlags.ICAL_EXPORT_ENABLED}
+    <section
+      class="mb-4 rounded-xl border border-base-300 bg-base-100 p-6 shadow-sm"
     >
-      {showAdvanced ? "▼" : "▶"} Advanced Options
-    </button>
+      <h3 class="mb-2 text-xl font-normal text-base-content">
+        Export Calendar
+      </h3>
+      <p class="mb-4 text-sm text-base-content/70">
+        Download all your events as an .ics file for backup or import into other
+        apps.
+      </p>
 
-    {#if showAdvanced}
-      <div class="mb-4 rounded-xl bg-base-200 p-4">
-        <label class="flex flex-col gap-2">
-          <span class="text-sm font-medium text-base-content/70"
-            >Calendar Name</span
-          >
-          <input
-            type="text"
-            class="input w-full rounded-xl border-base-300 bg-base-100 px-4 py-2.5 text-sm text-base-content focus:border-primary focus:ring-2 focus:ring-primary/20"
-            bind:value={exportName}
-            placeholder="flumen Calendar"
-          />
-        </label>
-      </div>
-    {/if}
+      <button
+        class="btn mb-3 h-auto min-h-0 border-none bg-transparent p-0 text-sm font-medium text-base-content/70 hover:bg-transparent hover:text-primary"
+        onclick={() => (showAdvanced = !showAdvanced)}
+      >
+        {showAdvanced ? "▼" : "▶"} Advanced Options
+      </button>
 
-    <button
-      class="btn w-full rounded-xl border border-base-300 bg-base-200 text-base-content/70 shadow-sm transition-all duration-200 hover:bg-base-200/80 hover:text-base-content disabled:opacity-50"
-      onclick={handleExport}
-      disabled={!isApiEnabled}
-    >
-      Download .ics File
-    </button>
-  </section>
+      {#if showAdvanced}
+        <div class="mb-4 rounded-xl bg-base-200 p-4">
+          <label class="flex flex-col gap-2">
+            <span class="text-sm font-medium text-base-content/70"
+              >Calendar Name</span
+            >
+            <input
+              type="text"
+              class="input w-full rounded-xl border-base-300 bg-base-100 px-4 py-2.5 text-sm text-base-content focus:border-primary focus:ring-2 focus:ring-primary/20"
+              bind:value={exportName}
+              placeholder="flumen Calendar"
+            />
+          </label>
+        </div>
+      {/if}
+
+      <button
+        class="btn w-full rounded-xl border border-base-300 bg-base-200 text-base-content/70 shadow-sm transition-all duration-200 hover:bg-base-200/80 hover:text-base-content disabled:opacity-50"
+        onclick={handleExport}
+        disabled={!isApiEnabled}
+      >
+        Download .ics File
+      </button>
+    </section>
+  {/if}
 
   <!-- Google Calendar Sync -->
   <section class="rounded-xl border border-base-300 bg-base-100 p-6 shadow-sm">

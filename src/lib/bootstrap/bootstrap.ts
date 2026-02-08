@@ -9,6 +9,7 @@ import { scheduleState } from "../features/assistant/state/schedule.svelte.ts";
 import { transitState } from "../features/transit/state/transit.svelte.ts";
 import { profileState } from "../features/utilities/state/profile.svelte.ts";
 import { initDevConsole } from "./dev-console.ts";
+import { featureFlags } from "$lib/config/feature-flags.ts";
 
 export function initializeStores(): void {
   timezoneState.detect();
@@ -32,8 +33,10 @@ export async function loadSyncedData(): Promise<void> {
   // Load synced schedule data (accepted suggestions, rejected memos)
   await scheduleState.loadSyncedData();
 
-  // Load synced transit cache
-  await transitState.loadSyncedTransit();
+  // Load synced transit cache (skip if transit is disabled)
+  if (featureFlags.TRANSIT_ENABLED) {
+    await transitState.loadSyncedTransit();
+  }
 
   // Perform local cleanup of expired data
   scheduleState.cleanupExpiredData();
