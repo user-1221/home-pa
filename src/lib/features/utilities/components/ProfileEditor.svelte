@@ -91,12 +91,12 @@
 
   <div class="flex flex-col gap-1">
     <span class="text-xs font-medium text-base-content/70">ステータス</span>
-    <div class="flex gap-2">
+    <div class="status-options-container flex gap-2">
       {#each statusOptions as option (option.value)}
         <button
           type="button"
-          class="flex-1 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all duration-200
-						{selectedStatus === option.value
+          class="status-option-btn flex-1 rounded border px-2 py-2.5 font-medium transition-all duration-200
+            {selectedStatus === option.value
             ? 'border-[var(--color-primary)] bg-[var(--color-primary)] text-white shadow-sm'
             : 'border-base-300 bg-base-100 text-base-content/70 hover:border-base-content/30'}"
           onclick={() => toggleStatus(option.value)}
@@ -117,6 +117,16 @@
   >
     保存
   </Button>
+
+  <style>
+    .status-options-container {
+      container-type: inline-size;
+      container-name: status-options;
+    }
+    .status-option-btn {
+      font-size: clamp(0.6875rem, 4.5cqw, 0.875rem);
+    }
+  </style>
 
   <!-- Tour reset -->
   <div class="border-t border-base-200 pt-3">

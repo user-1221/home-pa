@@ -278,7 +278,7 @@
             frames={currentFrames}
             playing={isAnimating}
             fps={ANIMATION_FPS}
-            class="h-64 md:h-80"
+            class="h-48 md:h-56"
             alt={isAnimating ? "Walking character" : "Resting character"}
           />
         </div>
@@ -533,7 +533,7 @@
             frames={WALK_FRAMES}
             playing={true}
             fps={ANIMATION_FPS}
-            class="h-64 md:h-80"
+            class="h-48 md:h-56"
             alt="Character preview"
           />
         </div>
@@ -1523,7 +1523,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 16px;
+    padding: 0;
+    max-width: 200px;
+    max-height: 200px;
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
