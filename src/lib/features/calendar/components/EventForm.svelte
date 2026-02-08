@@ -113,6 +113,8 @@
   }
   // Recurrence state
   let isRecurring = $state(false);
+  // Recurring events: date/recurrence fields are locked, only metadata editable
+  let isRecurringEdit = $derived(isEventEditing && isRecurring);
   let recurrenceSectionReady = $state(false); // Delays render until modal animation completes
   let recurrenceFrequency = $state<"DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY">(
     "WEEKLY",
@@ -137,15 +139,12 @@
     return new Date(eventStartDate + "T00:00").getDay();
   }
 
-  // Auto-select weekday based on event start date when enabling recurrence
+  // Always ensure start date's weekday is included in BYDAY to prevent DTSTART/RRULE mismatch
   $effect(() => {
     if (isRecurring && recurrenceFrequency === "WEEKLY") {
-      const hasAnyDaySelected = weeklyDays.some(Boolean);
-      if (!hasAnyDaySelected) {
-        const dayIndex = getStartDateDayOfWeek();
-        if (dayIndex >= 0) {
-          weeklyDays[dayIndex] = true;
-        }
+      const dayIndex = getStartDateDayOfWeek();
+      if (dayIndex >= 0 && !weeklyDays[dayIndex]) {
+        weeklyDays[dayIndex] = true;
       }
     }
   });
@@ -989,8 +988,10 @@
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
             : 'border-base-300 btn-ghost'}
               {isGreyState ? 'opacity-60' : ''}
-              {isReadOnly ? 'cursor-not-allowed bg-base-200' : ''}"
-          disabled={isReadOnly}
+              {isReadOnly || isRecurringEdit
+            ? 'cursor-not-allowed bg-base-200'
+            : ''}"
+          disabled={isReadOnly || isRecurringEdit}
           onclick={() => {
             isLocalEdit = true;
             if (timeMode === "all-day") {
@@ -1025,8 +1026,10 @@
               {timeMode === 'some-timing'
             ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
             : 'border-base-300 btn-ghost'}
-              {isReadOnly ? 'cursor-not-allowed bg-base-200' : ''}"
-          disabled={isReadOnly}
+              {isReadOnly || isRecurringEdit
+            ? 'cursor-not-allowed bg-base-200'
+            : ''}"
+          disabled={isReadOnly || isRecurringEdit}
           onclick={() => {
             isLocalEdit = true;
             if (timeMode === "some-timing") {
@@ -1084,9 +1087,9 @@
               id="event-start-date"
               bind:value={eventStartDate}
               active={activeDatePicker === "start"}
-              disabled={isReadOnly}
+              disabled={isReadOnly || isRecurringEdit}
               onclick={() => {
-                if (isReadOnly) return;
+                if (isReadOnly || isRecurringEdit) return;
                 activeTimePicker = null; // Close time picker if open
                 activeDatePicker =
                   activeDatePicker === "start" ? null : "start";
@@ -1188,9 +1191,9 @@
               id="event-end-date"
               bind:value={eventEndDate}
               active={activeDatePicker === "end"}
-              disabled={isReadOnly}
+              disabled={isReadOnly || isRecurringEdit}
               onclick={() => {
-                if (isReadOnly) return;
+                if (isReadOnly || isRecurringEdit) return;
                 activeTimePicker = null; // Close time picker if open
                 activeDatePicker = activeDatePicker === "end" ? null : "end";
               }}
@@ -1286,7 +1289,8 @@
     <!-- Recurrence Toggle -->
     <div class="form-control py-2">
       <label
-        class="label cursor-pointer justify-start gap-2 {isReadOnly
+        class="label cursor-pointer justify-start gap-2 {isReadOnly ||
+        isRecurringEdit
           ? 'cursor-not-allowed rounded-lg bg-base-200 px-2 py-1'
           : ''}"
       >
@@ -1294,11 +1298,19 @@
           type="checkbox"
           class="toggle toggle-primary"
           bind:checked={isRecurring}
-          disabled={isReadOnly}
+          disabled={isReadOnly || isRecurringEdit}
         />
         <span class="label-text text-sm text-base-content">繰り返し設定</span>
       </label>
     </div>
+
+    {#if isRecurringEdit}
+      <div
+        class="rounded-lg bg-base-200 px-3 py-2 text-xs text-base-content/60"
+      >
+        日付・頻度の変更は予定を削除して再作成してください。曜日と終了日は変更できます。
+      </div>
+    {/if}
 
     {#if isRecurring && recurrenceSectionReady}
       <div
@@ -1318,10 +1330,12 @@
               class="input-bordered input w-[60px] text-center text-sm focus:outline-none focus-visible:!outline-none"
               bind:value={recurrenceInterval}
               placeholder="1"
+              disabled={isRecurringEdit}
             />
             <select
               class="select-bordered select text-sm focus:outline-none focus-visible:!outline-none"
               bind:value={recurrenceFrequency}
+              disabled={isRecurringEdit}
             >
               <option value="DAILY">日</option>
               <option value="WEEKLY">週</option>
@@ -1344,15 +1358,20 @@
               >
               <div class="flex flex-wrap gap-1" role="group" aria-label="曜日">
                 {#each ["日", "月", "火", "水", "木", "金", "土"] as day, i (i)}
+                  {@const isStartDay = i === getStartDateDayOfWeek()}
                   <label
                     class="btn btn-sm {weeklyDays[i]
                       ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)] text-[var(--color-primary-800)]'
-                      : 'border-base-300 btn-ghost'} cursor-pointer transition-all duration-200"
+                      : 'border-base-300 btn-ghost'} cursor-pointer transition-all duration-200
+                      {isRecurringEdit && isStartDay
+                      ? 'cursor-not-allowed opacity-60'
+                      : ''}"
                   >
                     <input
                       type="checkbox"
                       class="hidden"
                       bind:checked={weeklyDays[i]}
+                      disabled={isRecurringEdit && isStartDay}
                     />
                     {day}
                   </label>
@@ -1384,7 +1403,8 @@
                 class="card cursor-pointer border border-base-300 p-2 transition-all duration-200 {monthlyType ===
                 'dayOfMonth'
                   ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-                  : ''}"
+                  : ''}
+                  {isRecurringEdit ? 'cursor-not-allowed opacity-60' : ''}"
               >
                 <div class="flex items-center gap-2">
                   <input
@@ -1393,6 +1413,7 @@
                     value="dayOfMonth"
                     class="radio radio-sm radio-primary"
                     bind:group={monthlyType}
+                    disabled={isRecurringEdit}
                   />
                   <span class="text-sm">毎月{dayOfMonth}日</span>
                 </div>
@@ -1401,7 +1422,8 @@
                 class="card cursor-pointer border border-base-300 p-2 transition-all duration-200 {monthlyType ===
                 'nthWeekday'
                   ? 'border-[var(--color-primary)] bg-[var(--color-primary-100)]'
-                  : ''}"
+                  : ''}
+                  {isRecurringEdit ? 'cursor-not-allowed opacity-60' : ''}"
               >
                 <div class="flex items-center gap-2">
                   <input
@@ -1410,6 +1432,7 @@
                     value="nthWeekday"
                     class="radio radio-sm radio-primary"
                     bind:group={monthlyType}
+                    disabled={isRecurringEdit}
                   />
                   <span class="text-sm">毎月{positionText}{weekday}曜日</span>
                 </div>

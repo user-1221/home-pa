@@ -128,18 +128,34 @@ export const eventActions = {
       // Create UTC dates for storage based on time label
       const { startDate, endDate } = createEventDates(formData);
 
-      // Update the event via API
-      const success = await calendarState.updateEvent(formData.editingId, {
+      // Check if this is a recurring event (date/recurrence fields are locked in UI)
+      const existingEvent = calendarState.getEvent(formData.editingId);
+      const isRecurringEvent = existingEvent?.recurrence?.type === "RRULE";
+
+      // For recurring events, omit timeLabel from the update
+      // (date pickers are disabled but time can change, so start/end are still sent)
+      // (recurrence is included because weekday selection can be modified)
+      const updates: Partial<Omit<Event, "id">> = {
         title: formData.title.trim(),
         start: startDate,
         end: endDate,
         description: formData.description?.trim() || undefined,
         address: formData.address?.trim() || undefined,
         importance: formData.importance || "medium",
-        timeLabel: formData.timeLabel || "all-day",
         color: formData.color,
         recurrence: formData.recurrence,
-      });
+        ...(isRecurringEvent
+          ? {}
+          : {
+              timeLabel: formData.timeLabel || "all-day",
+            }),
+      };
+
+      // Update the event via API
+      const success = await calendarState.updateEvent(
+        formData.editingId,
+        updates,
+      );
 
       if (!success) {
         eventFormState.setGeneralError("Event not found");
