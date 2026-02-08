@@ -609,7 +609,7 @@
             <!-- Action buttons - delete for future/current, missed for past -->
             {#if !isBeingTracked}
               <div class="flex flex-shrink-0 gap-2">
-                {#if !isInCurrent(selectedItem.data.startTime, selectedItem.data.endTime) && isInPast(selectedItem.data.endTime)}
+                {#if !isInCurrent(selectedItem.data.startTime, selectedItem.data.endTime) && isInPast(selectedItem.data.endTime) && !selectedItem.data.isProgressLogged}
                   <!-- Past: show missed button only -->
                   <button
                     class="flex h-9 w-9 items-center justify-center rounded-lg bg-base-200 text-base-content/60 transition-all duration-200 hover:bg-base-300 active:scale-95"
