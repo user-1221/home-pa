@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onDestroy } from "svelte";
+  import { onDestroy, onMount } from "svelte";
+  import { startTourIfNew } from "$lib/features/shared/tour/tour-driver.ts";
+  import { assistantTourSteps } from "$lib/features/assistant/tour/assistant-tour.ts";
   import LazyLoad from "$lib/features/shared/components/LazyLoad.svelte";
   import AssistantPageSkeleton from "$lib/features/shared/components/skeletons/AssistantPageSkeleton.svelte";
   import {
@@ -26,6 +28,11 @@
 
   // Register for cross-tree access (e.g., TimetablePopup)
   registerUnifiedGapState(unifiedGapState);
+
+  onMount(() => {
+    // Longer delay for assistant since it lazy-loads the view
+    setTimeout(() => startTourIfNew("assistant", assistantTourSteps), 1000);
+  });
 
   // Cleanup on page unmount
   onDestroy(() => {

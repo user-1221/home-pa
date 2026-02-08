@@ -11,7 +11,7 @@
     loadSyncedData,
   } from "$lib/bootstrap/bootstrap.ts";
   import { taskState } from "$lib/features/tasks/state/taskActions.svelte.ts";
-  import { calendarState } from "$lib/bootstrap/index.svelte.ts";
+  import { calendarState, profileState } from "$lib/bootstrap/index.svelte.ts";
   import { authClient } from "$lib/auth-client";
   import { goto } from "$app/navigation";
   import { page } from "$app/stores";
@@ -23,8 +23,8 @@
 
   const session = authClient.useSession;
 
-  // Public routes that don't require authentication
-  const PUBLIC_ROUTES = ["/auth"];
+  // Public routes that don't require authentication (or require auth but not profile)
+  const PUBLIC_ROUTES = ["/auth", "/onboarding"];
 
   function isPublicRoute(pathname: string): boolean {
     return PUBLIC_ROUTES.some(
@@ -64,6 +64,21 @@
     if (!isLoading && !isAuthenticated && !isPublicRoute(pathname)) {
       const redirectTo = encodeURIComponent(pathname + $page.url.search);
       goto(`/auth?redirectTo=${redirectTo}`, { replaceState: true });
+    }
+  });
+
+  // Onboarding guard — redirect to /onboarding if profile not completed
+  $effect(() => {
+    const isAuthenticated = !!$session.data?.user;
+    const pathname = $page.url.pathname;
+
+    if (
+      isAuthenticated &&
+      profileState.isLoaded &&
+      !profileState.onboardingCompleted &&
+      !isPublicRoute(pathname)
+    ) {
+      goto("/onboarding", { replaceState: true });
     }
   });
 </script>

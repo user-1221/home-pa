@@ -8,6 +8,8 @@
   import { page } from "$app/state";
   import { goto } from "$app/navigation";
   import { onMount } from "svelte";
+  import { startTourIfNew } from "$lib/features/shared/tour/tour-driver.ts";
+  import { calendarTourSteps } from "$lib/features/calendar/tour/calendar-tour.ts";
 
   // Handle Google OAuth callback query params (one-time on mount)
   onMount(() => {
@@ -28,6 +30,9 @@
       toastState.error(messages[googleError] ?? "Google Calendar error");
       goto("/calendar", { replaceState: true });
     }
+
+    // Start feature tour after DOM is rendered
+    setTimeout(() => startTourIfNew("calendar", calendarTourSteps), 500);
   });
 </script>
 

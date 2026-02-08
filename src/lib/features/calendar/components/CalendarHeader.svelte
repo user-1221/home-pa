@@ -96,6 +96,7 @@
         onclick={onOpenTimetable}
         title="時間割"
         aria-label="時間割"
+        data-tour="calendar-timetable"
       >
         <svg
           class="h-5 w-5"
@@ -123,6 +124,7 @@
       class="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary)] text-lg text-white shadow-md transition-all duration-200 hover:bg-[var(--color-primary-800)] hover:shadow-lg active:scale-95"
       onclick={onCreateEvent}
       aria-label="Create new event"
+      data-tour="calendar-create-event"
     >
       <svg
         class="h-5 w-5"
@@ -149,6 +151,7 @@
       title={showDropdown ? "Hide dropdown" : "Show dropdown"}
       aria-label={showDropdown ? "Hide dropdown" : "Show dropdown"}
       aria-expanded={showDropdown}
+      data-tour="calendar-filter-toggle"
     >
       <svg
         class="h-3 w-3 transition-transform duration-200 {showDropdown

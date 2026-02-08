@@ -54,6 +54,7 @@
   <div
     class="grid min-h-0 flex-1 grid-cols-7"
     style="grid-template-rows: repeat({numWeeks}, minmax(0, 1fr));"
+    data-tour="calendar-grid"
   >
     {#each calendarDays as day, _dayIndex (day.getTime())}
       {@const dayOfWeek = day.getDay()}

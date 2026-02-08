@@ -647,6 +647,7 @@
         <!-- Timeline container with subtle glow effect -->
         <div
           class="relative h-[min(85vw,50vh)] w-[min(85vw,50vh)] flex-shrink-0 overflow-visible"
+          data-tour="assistant-timeline"
         >
           <!-- Subtle ambient glow behind timeline -->
           <div
@@ -684,6 +685,7 @@
         <!-- Events Card with refined styling -->
         <div
           class="card mb-6 w-full max-w-[720px] border border-base-300/50 bg-base-100/80 shadow-lg shadow-base-300/20 backdrop-blur-sm transition-shadow duration-300 hover:shadow-xl hover:shadow-base-300/30"
+          data-tour="assistant-events-card"
         >
           <div class="card-body gap-4 p-6">
             <div

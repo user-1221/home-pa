@@ -98,6 +98,7 @@
       class="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary)] text-lg text-white shadow-md transition-all duration-200 hover:bg-[var(--color-primary-800)] hover:shadow-lg active:scale-95"
       onclick={handleAddTask}
       aria-label="Add new task"
+      data-tour="tasks-create-task"
     >
       <svg
         class="h-5 w-5"
@@ -133,7 +134,7 @@
       />
     </svg>
   {/snippet}
-  <div class="mx-2 mt-2">
+  <div class="mx-2 mt-2" data-tour="tasks-filter-tabs">
     <SlidingTabs
       tabs={[
         { id: "active", label: "Active", badge: stats().active },
@@ -159,7 +160,7 @@
       </LazyLoad>
     {:else}
       <!-- Active Tasks List -->
-      <div class="mx-auto max-w-4xl">
+      <div class="mx-auto max-w-4xl" data-tour="tasks-list">
         <div class="grid grid-cols-1 gap-0 md:grid-cols-2">
           {#if taskState.isLoading}
             <!-- Loading state: show skeleton cards -->

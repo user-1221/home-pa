@@ -102,6 +102,7 @@
         class="btn btn-circle btn-ghost btn-sm md:btn-md"
         onclick={() => (showSettings = true)}
         aria-label="Settings"
+        data-tour="utilities-settings"
       >
         <SettingsIcon />
       </button>
@@ -109,7 +110,7 @@
   </div>
 
   <!-- Mini Apps Grid -->
-  <div class="grid grid-cols-3 gap-5">
+  <div class="grid grid-cols-3 gap-5" data-tour="utilities-grid">
     {#each miniApps as app (app.id)}
       <div class="flex flex-col items-center gap-2">
         <button

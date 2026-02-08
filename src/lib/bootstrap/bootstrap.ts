@@ -7,6 +7,7 @@ import { timezoneState } from "./timezone.svelte.ts";
 import { settingsState } from "./settings.svelte.ts";
 import { scheduleState } from "../features/assistant/state/schedule.svelte.ts";
 import { transitState } from "../features/transit/state/transit.svelte.ts";
+import { profileState } from "../features/utilities/state/profile.svelte.ts";
 import { initDevConsole } from "./dev-console.ts";
 
 export function initializeStores(): void {
@@ -22,6 +23,9 @@ export function initializeStores(): void {
  * Should be called after user authentication is confirmed
  */
 export async function loadSyncedData(): Promise<void> {
+  // Load user profile (includes onboarding status) — must load before onboarding guard
+  await profileState.loadFromDB();
+
   // Load user settings (active time, etc.)
   await settingsState.loadFromDB();
 

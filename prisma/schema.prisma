@@ -475,6 +475,20 @@ model UserSettings {
   activeStartTime String   @default("08:00")  // HH:mm format
   activeEndTime   String   @default("23:00")  // HH:mm format
 
+  // Profile fields
+  displayName           String?
+  nearestStationId      String?    // NAVITIME node ID
+  nearestStationName    String?
+  nearestStationCoord   Json?      // {lat: number, lon: number}
+  workplaceStationId    String?
+  workplaceStationName  String?
+  workplaceStationCoord Json?      // {lat: number, lon: number}
+  status                String?    // "学生" | "会社員" | "どちらでもない"
+
+  // Onboarding & tour tracking
+  onboardingCompleted   Boolean  @default(false)
+  completedTours        Json?    // string[] e.g. ["calendar", "tasks", "assistant", "utilities"]
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
